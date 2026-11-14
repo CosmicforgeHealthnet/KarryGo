@@ -420,6 +420,11 @@ func (s *Service) AssignCorporateRequest(ctx context.Context, t tenant.Context, 
 
 // CancelCorporateAssignment cancels an assignment.
 func (s *Service) CancelCorporateAssignment(ctx context.Context, t tenant.Context, input CorporateCancelAssignmentInput) error {
+	// A dispatcher cancels the version they saw (FLEET-6k). Internal workers
+	// call Cancel directly and may act on the current version.
+	if input.ExpectedVersion < 1 {
+		return apperrors.BadRequest("expectedVersion or If-Match is required to cancel an assignment.", nil)
+	}
 	return s.Cancel(ctx, CancelInput{
 		Tenant:          t,
 		AssignmentID:    input.AssignmentID,

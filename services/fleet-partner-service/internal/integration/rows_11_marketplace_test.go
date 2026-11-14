@@ -658,6 +658,10 @@ func TestRow11_7a_CancelAssignment(t *testing.T) {
 	s11ExpectError(t, w.do(t, w.dispatcher, http.MethodPost, path,
 		map[string]any{"reason": "customer_changed_plan", "expectedVersion": assignment.Version + 5}, nil),
 		http.StatusConflict, "expected_version_mismatch", "stale version")
+	// FLEET-6k: no version at all is refused, never applied to the current one.
+	s11ExpectError(t, w.do(t, w.dispatcher, http.MethodPost, path,
+		map[string]any{"reason": "customer_changed_plan"}, nil),
+		http.StatusBadRequest, "", "missing version")
 	holds := `SELECT count(*) FROM fleet_partner_assignment_reservations WHERE assignment_id=$1 AND released_at IS NULL`
 	if got := countWhere(t, w.pool, holds, assignment.ID); got != 1 {
 		t.Fatalf("refused cancels released holds: %d left, want 1", got)
@@ -681,7 +685,7 @@ func TestRow11_7a_CancelAssignment(t *testing.T) {
 		t.Fatalf("cancel events = %d, want 1", got)
 	}
 	s11ExpectError(t, w.do(t, w.dispatcher, http.MethodPost, path,
-		map[string]any{"reason": "again"}, nil), http.StatusConflict, "assignment_cannot_cancel", "second cancel")
+		map[string]any{"reason": "again", "expectedVersion": assignment.Version + 1}, nil), http.StatusConflict, "assignment_cannot_cancel", "second cancel")
 	if got := rowsOutboxCount(t, w.pool, assignment.ID, "organization.assignment.cancelled.v1"); got != 1 {
 		t.Fatalf("cancel events after retry = %d, want 1", got)
 	}
