@@ -104,7 +104,7 @@ type Flags struct {
 // Options configure the document service.
 type Options struct {
 	Pool      *pgxpool.Pool
-	Documents *repositories.Repository
+	Documents Store
 	// Media is the authoritative file service. A nil or unconfigured client
 	// makes every path that needs an authoritative answer fail closed; it
 	// never makes the check disappear.

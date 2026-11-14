@@ -51,13 +51,13 @@ var jsonTagExemptTypes = map[string]string{
 	// Internal HMAC routes (/internal/fleet-partner/v1/...): service-to-service
 	// wire contracts whose Go-name keys other services already decode
 	// (shared/go/providercompat reads completedWork.ID / IngestionStatus).
-	"fleetpartner.CompletedWorkRecord":              "POST /completed-work response (internal)",
-	"fleetpartner.CompensationResolution":           "POST /completed-work response (internal)",
-	"fleetpartner.ManagedWorkSettlementInstruction": "POST /completed-work response (internal)",
-	"dispatch.TrackingEvent":                        "POST /tracking/events ingress (internal); payload hash is computed over its JSON",
-	"financeops.PaymentEvent":                       "POST /finance/payment-events ingress (internal)",
-	"engagement.SupportEvent":                       "POST /support/events ingress (internal)",
-	"engagement.MeasurementInput":                   "POST /sla/measurements ingress (internal)",
+	"fleetpartner/models.CompletedWorkRecord":              "POST /completed-work response (internal)",
+	"fleetpartner/models.CompensationResolution":           "POST /completed-work response (internal)",
+	"fleetpartner/models.ManagedWorkSettlementInstruction": "POST /completed-work response (internal)",
+	"dispatch.TrackingEvent":                               "POST /tracking/events ingress (internal); payload hash is computed over its JSON",
+	"financeops.PaymentEvent":                              "POST /finance/payment-events ingress (internal)",
+	"engagement.SupportEvent":                              "POST /support/events ingress (internal)",
+	"engagement.MeasurementInput":                          "POST /sla/measurements ingress (internal)",
 }
 
 type sourceImporter struct {

@@ -22,13 +22,13 @@ import (
 
 // Handler serves the corporate (Fleet manager) marketplace endpoints.
 type Handler struct {
-	service     *usecases.Service
+	service     UseCases
 	authorizer  *accesscontrol.Authorizer
 	idempotency *idempotency.Store
 }
 
 // NewHandler constructs the corporate marketplace handler.
-func NewHandler(service *usecases.Service, authorizer *accesscontrol.Authorizer, idem *idempotency.Store) *Handler {
+func NewHandler(service UseCases, authorizer *accesscontrol.Authorizer, idem *idempotency.Store) *Handler {
 	return &Handler{
 		service:     service,
 		authorizer:  authorizer,
@@ -211,18 +211,28 @@ func (h *Handler) ListTrips(c *gin.Context) {
 	}
 	limit, _ := strconv.Atoi(c.Query("limit"))
 	offset, _ := strconv.Atoi(c.Query("offset"))
+	// Cursor paging (FLEET-6f); offset stays only for compatibility, and a
+	// request naming both is ambiguous, so it is refused.
+	_, hasOffset := c.GetQuery("offset")
+	pageCursor, hasCursor := c.GetQuery("cursor")
+	if hasOffset && hasCursor {
+		respond.Error(c, apperrors.Validation("Use either cursor or offset, not both.",
+			[]apperrors.FieldViolation{{Field: "cursor", Message: "Cannot be combined with offset."}}))
+		return
+	}
 	page, err := h.service.ListCorporateTrips(c.Request.Context(), t, usecases.CorporateTripFilter{
 		Status:        strings.TrimSpace(c.Query("status")),
 		SourceService: strings.TrimSpace(c.Query("sourceService")),
 		MembershipID:  strings.TrimSpace(c.Query("membershipId")),
 		Limit:         limit,
 		Offset:        offset,
+		Cursor:        pageCursor,
 	})
 	if err != nil {
 		respond.Error(c, err)
 		return
 	}
-	respond.OK(c, page)
+	respond.List(c, page, page.NextCursor)
 }
 
 // GetTrip returns one trip with its history, delivery outcome and assignment.

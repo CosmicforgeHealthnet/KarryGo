@@ -43,7 +43,7 @@ type EventPublisher interface {
 // Options configure the eligibility service.
 type Options struct {
 	Pool      *pgxpool.Pool
-	Decisions *repositories.Repository
+	Decisions Store
 	// Vehicles and Providers are the authoritative clients. A nil client is
 	// treated as "authority unavailable", which fails closed — never as
 	// "authority unnecessary".

@@ -22,6 +22,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/companywallet/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/cursor"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/money"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
@@ -41,12 +42,12 @@ const (
 
 // Handler serves the Section 13 routes.
 type Handler struct {
-	service    *usecases.Service
+	service    UseCases
 	authorizer *accesscontrol.Authorizer
 }
 
 // NewHandler builds the handler.
-func NewHandler(service *usecases.Service, authorizer *accesscontrol.Authorizer) *Handler {
+func NewHandler(service UseCases, authorizer *accesscontrol.Authorizer) *Handler {
 	return &Handler{service: service, authorizer: authorizer}
 }
 
@@ -245,16 +246,20 @@ type TransactionView struct {
 	Category             string `json:"category"`
 	AmountMinor          int64  `json:"amountMinor"`
 	Currency             string `json:"currency"`
-	SafeStatus           string `json:"status"`
-	OccurredAt           string `json:"occurredAt"`
-	SourceVersion        int64  `json:"sourceVersion"`
-	FreshnessState       string `json:"freshnessState"`
+	// Amount is the standard Money object (FLEET-6.1); the flat fields stay
+	// for compatibility.
+	Amount         money.Money `json:"amount"`
+	SafeStatus     string      `json:"status"`
+	OccurredAt     string      `json:"occurredAt"`
+	SourceVersion  int64       `json:"sourceVersion"`
+	FreshnessState string      `json:"freshnessState"`
 }
 
 func transactionView(value models.TransactionProjection) TransactionView {
 	return TransactionView{ID: value.ID, TransactionReference: value.TransactionReference,
 		SubjectType: value.SubjectType, SubjectID: value.SubjectID, Direction: value.Direction,
 		Category: value.Category, AmountMinor: value.AmountMinor, Currency: value.Currency,
+		Amount:     money.Money{AmountMinor: value.AmountMinor, Currency: value.Currency},
 		SafeStatus: value.SafeStatus, OccurredAt: value.OccurredAt.UTC().Format(timeLayout),
 		SourceVersion: value.SourceVersion, FreshnessState: value.FreshnessState}
 }
@@ -337,7 +342,11 @@ func policyView(policy models.WithdrawalPolicy) gin.H {
 		"minimumAmountMinor":               policy.MinimumAmountMinor,
 		"approvalThresholdMinor":           policy.ApprovalThresholdMinor,
 		"allocationApprovalThresholdMinor": policy.AllocationApprovalThresholdMinor,
-		"currency":                         policy.Currency, "version": policy.Version}
+		"currency":                         policy.Currency, "version": policy.Version,
+		// Standard Money objects (FLEET-6.1) beside the flat fields.
+		"minimumAmount":               money.Money{AmountMinor: policy.MinimumAmountMinor, Currency: policy.Currency},
+		"approvalThreshold":           money.Money{AmountMinor: policy.ApprovalThresholdMinor, Currency: policy.Currency},
+		"allocationApprovalThreshold": money.Money{AmountMinor: policy.AllocationApprovalThresholdMinor, Currency: policy.Currency}}
 }
 
 func (h *Handler) setPolicy(c *gin.Context) {
@@ -399,28 +408,32 @@ func (h *Handler) getStatement(c *gin.Context) {
 // commentary, visible to staff who hold the allocation permission and never
 // serialized onto a provider-facing route.
 type AllocationView struct {
-	ID                    string `json:"id"`
-	MembershipID          string `json:"membershipId"`
-	AllocationType        string `json:"allocationType"`
-	AmountMinor           int64  `json:"amountMinor"`
-	Currency              string `json:"currency"`
-	BusinessReferenceType string `json:"businessReferenceType"`
-	BusinessReferenceID   string `json:"businessReferenceId"`
-	ReasonCode            string `json:"reasonCode"`
-	ProviderExplanation   string `json:"providerVisibleExplanation,omitempty"`
-	PrivateNote           string `json:"privateNote,omitempty"`
-	Status                string `json:"status"`
-	ApprovalRequestID     string `json:"approvalRequestId,omitempty"`
-	SafeErrorCode         string `json:"safeErrorCode,omitempty"`
-	Version               int64  `json:"version"`
-	CreatedAt             string `json:"createdAt"`
+	ID             string `json:"id"`
+	MembershipID   string `json:"membershipId"`
+	AllocationType string `json:"allocationType"`
+	AmountMinor    int64  `json:"amountMinor"`
+	Currency       string `json:"currency"`
+	// Amount is the standard Money object (FLEET-6.1).
+	Amount                money.Money `json:"amount"`
+	BusinessReferenceType string      `json:"businessReferenceType"`
+	BusinessReferenceID   string      `json:"businessReferenceId"`
+	ReasonCode            string      `json:"reasonCode"`
+	ProviderExplanation   string      `json:"providerVisibleExplanation,omitempty"`
+	PrivateNote           string      `json:"privateNote,omitempty"`
+	Status                string      `json:"status"`
+	ApprovalRequestID     string      `json:"approvalRequestId,omitempty"`
+	SafeErrorCode         string      `json:"safeErrorCode,omitempty"`
+	Version               int64       `json:"version"`
+	CreatedAt             string      `json:"createdAt"`
 }
 
 func allocationView(value models.AllocationInstruction) AllocationView {
 	return AllocationView{ID: value.ID, MembershipID: value.ProviderMembershipID,
 		AllocationType: value.AllocationType, AmountMinor: value.AmountMinor,
-		Currency: value.Currency, BusinessReferenceType: value.BusinessReferenceType,
-		BusinessReferenceID: value.BusinessReferenceID, ReasonCode: value.ReasonCode,
+		Currency:              value.Currency,
+		Amount:                money.Money{AmountMinor: value.AmountMinor, Currency: value.Currency},
+		BusinessReferenceType: value.BusinessReferenceType,
+		BusinessReferenceID:   value.BusinessReferenceID, ReasonCode: value.ReasonCode,
 		ProviderExplanation: value.ProviderExplanation, PrivateNote: value.PrivateNote,
 		Status: value.Status, ApprovalRequestID: value.ApprovalRequestID,
 		SafeErrorCode: value.SafeErrorCode, Version: value.Version,
@@ -550,22 +563,27 @@ func (h *Handler) listAllocations(c *gin.Context) {
 // a handle that resolves to somebody's bank account does not belong in a
 // listing that a broad read permission can reach.
 type WithdrawalView struct {
-	ID                string `json:"id"`
-	MembershipID      string `json:"membershipId"`
-	AmountMinor       int64  `json:"amountMinor"`
-	Currency          string `json:"currency"`
-	PolicyMode        string `json:"policyMode"`
-	Status            string `json:"status"`
-	RequestedByType   string `json:"requestedByActorType"`
-	ApprovalRequestID string `json:"approvalRequestId,omitempty"`
-	SafeErrorCode     string `json:"safeErrorCode,omitempty"`
-	Version           int64  `json:"version"`
-	CreatedAt         string `json:"createdAt"`
+	ID           string `json:"id"`
+	MembershipID string `json:"membershipId"`
+	AmountMinor  int64  `json:"amountMinor"`
+	Currency     string `json:"currency"`
+	// Amount is the standard Money object (FLEET-6.1).
+	Amount            money.Money `json:"amount"`
+	PolicyMode        string      `json:"policyMode"`
+	Status            string      `json:"status"`
+	RequestedByType   string      `json:"requestedByActorType"`
+	ApprovalRequestID string      `json:"approvalRequestId,omitempty"`
+	SafeErrorCode     string      `json:"safeErrorCode,omitempty"`
+	Version           int64       `json:"version"`
+	CreatedAt         string      `json:"createdAt"`
 }
 
 func withdrawalView(value models.WithdrawalRequest) WithdrawalView {
 	return WithdrawalView{ID: value.ID, MembershipID: value.ProviderMembershipID,
-		AmountMinor: value.AmountMinor, Currency: value.Currency, PolicyMode: value.PolicyMode,
+		AmountMinor: value.AmountMinor, Currency: value.Currency,
+		Amount:     money.Money{AmountMinor: value.AmountMinor, Currency: value.Currency},
+		PolicyMode: value.PolicyMode,
+
 		Status: value.Status, RequestedByType: value.RequestedByActorType,
 		ApprovalRequestID: value.ApprovalRequestID, SafeErrorCode: value.SafeErrorCode,
 		Version: value.Version, CreatedAt: value.CreatedAt.UTC().Format(timeLayout)}

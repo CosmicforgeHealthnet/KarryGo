@@ -23,7 +23,7 @@ import (
 	searchusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/search/usecases"
 	shipmentsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/shipments/usecases"
 	warehouseusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/usecases"
-	workforcefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
+	workforceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
@@ -135,7 +135,7 @@ func (a shipmentsExporter) Rows(ctx context.Context, t tenant.Context, filters m
 
 // workforceExporter adapts workforce.Service's provider-profile listing to
 // the exports Exporter contract.
-type workforceExporter struct{ workforce *workforcefeature.Service }
+type workforceExporter struct{ workforce *workforceusecases.Service }
 
 func (workforceExporter) Type() string { return "PROVIDERS_WORKFORCE" }
 
@@ -156,7 +156,7 @@ func (a workforceExporter) Rows(ctx context.Context, t tenant.Context, filters m
 			limit = 200
 		}
 		profiles, err := a.workforce.ListProfiles(ctx, t,
-			workforcefeature.Page{Status: status, Limit: limit, Offset: offset})
+			workforceusecases.Page{Status: status, Limit: limit, Offset: offset})
 		if err != nil {
 			return nil, err
 		}
@@ -462,7 +462,7 @@ func (a exportsMediaAdapter) AuthorizeDownload(ctx context.Context, t tenant.Con
 // service is present. Each adapter maps an explicit safe column allowlist.
 func BuildExportsService(cfg config.Config, pool *pgxpool.Pool, publisher *events.DomainPublisher,
 	metrics *observability.Metrics, search *searchusecases.Service,
-	shipments *shipmentsusecases.Service, workforce *workforcefeature.Service,
+	shipments *shipmentsusecases.Service, workforce *workforceusecases.Service,
 	assets *assetsusecases.Service, warehouse *warehouseusecases.Service,
 	safety *safetyfeature.OperationsService, finance *financeops.Service,
 	engagementService *engagement.Service) *exportsusecases.Service {
@@ -528,7 +528,7 @@ func NewShipmentsExporter(shipments *shipmentsusecases.Service) exportsusecases.
 }
 
 // NewWorkforceExporter builds the PROVIDERS_WORKFORCE export adapter.
-func NewWorkforceExporter(workforce *workforcefeature.Service) exportsusecases.Exporter {
+func NewWorkforceExporter(workforce *workforceusecases.Service) exportsusecases.Exporter {
 	return workforceExporter{workforce: workforce}
 }
 

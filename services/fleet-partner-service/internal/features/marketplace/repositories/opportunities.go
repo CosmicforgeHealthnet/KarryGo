@@ -376,6 +376,15 @@ type TripPageFilter struct {
 	MembershipID  string
 	Limit         int
 	Offset        int
+	// After, when set, continues a keyset page strictly after this row in
+	// the list order (updated_at DESC, id ASC). Offset is ignored with it.
+	After *TripPageCursor
+}
+
+// TripPageCursor is the position of the last row of a previous trip page.
+type TripPageCursor struct {
+	UpdatedAt time.Time
+	ID        string
 }
 
 // ListPage returns an organization's trip projections, newest activity first.
@@ -397,6 +406,11 @@ func (r *TripRepository) ListPage(ctx context.Context, query tenant.Query,
 	if offset < 0 {
 		offset = 0
 	}
+	hasAfter, afterAt, afterID := false, time.Time{}, ""
+	if filter.After != nil {
+		hasAfter, afterAt, afterID = true, filter.After.UpdatedAt, filter.After.ID
+		offset = 0
+	}
 	branches := query.PermittedBranchIDs
 	if branches == nil {
 		branches = []string{}
@@ -412,9 +426,11 @@ func (r *TripRepository) ListPage(ctx context.Context, query tenant.Query,
 		  AND ($3 = '' OR t.source_service = $3)
 		  AND ($4 = '' OR t.organization_membership_id = $4)
 		  AND (COALESCE(cardinality($5::text[]),0)=0 OR m.home_branch_id IS NULL OR m.home_branch_id = ANY($5::text[]))
+		  AND (NOT $8::boolean OR t.updated_at < $9::timestamptz OR (t.updated_at = $9::timestamptz AND t.id > $10))
 		ORDER BY t.updated_at DESC, t.id
 		LIMIT $6 OFFSET $7`, query.OrganizationID, filter.Status, filter.SourceService,
-		filter.MembershipID, branches, limit+1, offset)
+		filter.MembershipID, branches, limit+1, offset, hasAfter, afterAt, afterID)
+
 	if err != nil {
 		return nil, false, fmt.Errorf("marketplace: list trip page: %w", err)
 	}

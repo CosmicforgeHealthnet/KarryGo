@@ -33,9 +33,9 @@ import (
 
 // Handler serves the corporate organization/staff/provider routes.
 type Handler struct {
-	organizations *orgusecases.Service
-	staff         *staffusecases.Service
-	providers     *providerusecases.Service
+	organizations OrganizationUseCases
+	staff         StaffUseCases
+	providers     ProviderUseCases
 	authorizer    *accesscontrol.Authorizer
 	sessions      orgusecases.SessionRevoker
 	idempotency   *idempotency.Store
@@ -56,7 +56,7 @@ func (h *Handler) WithIdempotency(store *idempotency.Store) *Handler {
 // disclosed rather than silently claimed as a security control -- a
 // deployment that wires this handler without a session revoker is choosing
 // that tradeoff, not hitting a hidden gap.
-func NewHandler(organizations *orgusecases.Service, staffService *staffusecases.Service, providers *providerusecases.Service, authorizer *accesscontrol.Authorizer, sessions orgusecases.SessionRevoker) *Handler {
+func NewHandler(organizations OrganizationUseCases, staffService StaffUseCases, providers ProviderUseCases, authorizer *accesscontrol.Authorizer, sessions orgusecases.SessionRevoker) *Handler {
 	return &Handler{organizations: organizations, staff: staffService, providers: providers, authorizer: authorizer, sessions: sessions}
 }
 
@@ -780,8 +780,7 @@ func (h *Handler) currentOrganization(c *gin.Context) {
 	if !h.authorize(c, tenantCtx, "organization.read") {
 		return
 	}
-	organizations, _ := h.organizations.Repositories()
-	organization, err := organizations.GetByID(c.Request.Context(), tenantCtx.OrganizationID)
+	organization, err := h.organizations.GetOrganization(c.Request.Context(), tenantCtx.OrganizationID)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -884,8 +883,7 @@ func (h *Handler) listDocuments(c *gin.Context) {
 	if !h.authorize(c, tenantCtx, "organization.read") {
 		return
 	}
-	_, onboarding := h.organizations.Repositories()
-	documents, err := onboarding.ListDocuments(c.Request.Context(), tenantCtx.OrganizationID)
+	documents, err := h.organizations.ListDocuments(c.Request.Context(), tenantCtx.OrganizationID)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -932,8 +930,7 @@ func (h *Handler) verificationStatus(c *gin.Context) {
 	if !h.authorize(c, tenantCtx, "organization.read") {
 		return
 	}
-	_, onboarding := h.organizations.Repositories()
-	request, err := onboarding.LatestVerificationRequest(c.Request.Context(), tenantCtx.OrganizationID)
+	request, err := h.organizations.LatestVerificationRequest(c.Request.Context(), tenantCtx.OrganizationID)
 	if errors.Is(err, orgrepos.ErrNotFound) {
 		// Nothing has been submitted for verification yet.
 		respond.OK(c, gin.H{"status": "NOT_SUBMITTED", "submissionVersion": 0, "issues": []any{}})
@@ -943,7 +940,7 @@ func (h *Handler) verificationStatus(c *gin.Context) {
 		respond.Error(c, err)
 		return
 	}
-	issues, err := onboarding.ListVerificationIssues(c.Request.Context(), tenantCtx.OrganizationID, request.ID)
+	issues, err := h.organizations.ListVerificationIssues(c.Request.Context(), tenantCtx.OrganizationID, request.ID)
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -961,8 +958,7 @@ func (h *Handler) walletStatus(c *gin.Context) {
 	if !h.authorize(c, tenantCtx, "organization.read") {
 		return
 	}
-	_, onboarding := h.organizations.Repositories()
-	wallet, err := onboarding.GetWalletProvisioning(c.Request.Context(), tenantCtx.OrganizationID)
+	wallet, err := h.organizations.GetWalletProvisioning(c.Request.Context(), tenantCtx.OrganizationID)
 	if err != nil {
 		if errors.Is(err, orgrepos.ErrNotFound) {
 			respond.OK(c, gin.H{"status": orgmodels.WalletStatusNotRequested, "attempts": 0})
@@ -1168,7 +1164,7 @@ func (h *Handler) listPermissions(c *gin.Context) {
 	if !h.authorize(c, tenantCtx, "roles.read") {
 		return
 	}
-	permissions, err := h.staff.Roles().ListPermissions(c.Request.Context())
+	permissions, err := h.staff.ListPermissions(c.Request.Context())
 	if err != nil {
 		respond.Error(c, err)
 		return
@@ -1184,7 +1180,7 @@ func (h *Handler) listRoles(c *gin.Context) {
 	if !h.authorize(c, tenantCtx, "roles.read") {
 		return
 	}
-	roles, err := h.staff.Roles().ListRoles(c.Request.Context(), tenantCtx.OrganizationID)
+	roles, err := h.staff.ListRoles(c.Request.Context(), tenantCtx.OrganizationID)
 	if err != nil {
 		respond.Error(c, err)
 		return

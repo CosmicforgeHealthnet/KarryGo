@@ -57,7 +57,7 @@ import (
 	specializedfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/synchronization"
 	warehousehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/http"
-	workforcefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
+	workforcehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/http"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/riskregistry"
 )
@@ -266,7 +266,7 @@ func enumerateManifestBackedRoutes(t *testing.T) []liveRoute {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}
 
-	workforceH := workforcefeature.NewHandler(nil, nil, nil)
+	workforceH := workforcehttp.NewHandler(nil, nil, nil)
 	for _, r := range workforceH.TenantRoutes() {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}

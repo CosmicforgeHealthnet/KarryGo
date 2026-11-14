@@ -46,7 +46,7 @@ type EventPublisher interface {
 type Flags struct{ Enabled, WritesEnabled, ScanningEnabled, KillSwitch bool }
 type Options struct {
 	Pool          *pgxpool.Pool
-	Repository    *repositories.Repository
+	Repository    Store
 	Shipments     ShipmentsPort
 	Media         MediaPort
 	Devices       DevicePort

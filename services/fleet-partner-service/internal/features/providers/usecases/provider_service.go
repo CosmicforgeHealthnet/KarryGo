@@ -51,7 +51,7 @@ type OrganizationReader interface {
 // Options configure the provider service.
 type Options struct {
 	Pool          *pgxpool.Pool
-	Providers     *providerrepos.Repository
+	Providers     Store
 	Organizations OrganizationReader
 	Contracts     platformclients.ContractSet
 	// Eligibility gates linking a provider to the organization.

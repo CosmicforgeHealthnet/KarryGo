@@ -14,7 +14,9 @@ import (
 	fuelmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/fuel/models"
 	inspectionsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/inspections/models"
 	maintenancemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/maintenance/models"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
+	workforcemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/models"
+	workforcerepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/repositories"
+	workforceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
@@ -68,18 +70,18 @@ func TestSection17And18EndToEnd(t *testing.T) {
 	}}
 	publisher := events.NewDomainPublisher(events.NewOutboxRepository(pool))
 	now := time.Now().UTC().Truncate(time.Second)
-	w := workforce.NewService(workforce.Options{Pool: pool, Events: publisher, Media: media, Flags: workforce.Flags{Workforce: true, Shifts: true, Leave: true, Qualifications: true, Training: true, Performance: true, Workers: true}, Now: func() time.Time { return now }})
-	p, e := w.CreateProfile(ctx, scope, workforce.CreateProfileInput{BranchID: branch, MembershipID: member, EmployeeNumber: "EMP-1718", RelationshipType: "MANAGED_PROVIDER", Role: "DRIVER", StartDate: now})
+	w := workforceusecases.NewService(workforceusecases.Options{Repository: workforcerepositories.NewRepository(), Pool: pool, Events: publisher, Media: media, Flags: workforceusecases.Flags{Workforce: true, Shifts: true, Leave: true, Qualifications: true, Training: true, Performance: true, Workers: true}, Now: func() time.Time { return now }})
+	p, e := w.CreateProfile(ctx, scope, workforceusecases.CreateProfileInput{BranchID: branch, MembershipID: member, EmployeeNumber: "EMP-1718", RelationshipType: "MANAGED_PROVIDER", Role: "DRIVER", StartDate: now})
 	if e != nil {
 		t.Fatal(e)
 	}
 	if p.Status != "ACTIVE" {
 		t.Fatal(p.Status)
 	}
-	if _, e = w.CreateProfile(ctx, scope, workforce.CreateProfileInput{BranchID: branch, MembershipID: member, EmployeeNumber: "EMP-1718", RelationshipType: "MANAGED_PROVIDER", Role: "DRIVER", StartDate: now}); e == nil {
+	if _, e = w.CreateProfile(ctx, scope, workforceusecases.CreateProfileInput{BranchID: branch, MembershipID: member, EmployeeNumber: "EMP-1718", RelationshipType: "MANAGED_PROVIDER", Role: "DRIVER", StartDate: now}); e == nil {
 		t.Fatal("duplicate workforce identity accepted")
 	}
-	shift, e := w.CreateShift(ctx, scope, workforce.CreateShiftInput{BranchID: branch, Name: "Day", Role: "DRIVER", Timezone: "Europe/Rome", StartAt: now.Add(-time.Hour), EndAt: now.Add(7 * time.Hour), RequiredCapacity: 1})
+	shift, e := w.CreateShift(ctx, scope, workforceusecases.CreateShiftInput{BranchID: branch, Name: "Day", Role: "DRIVER", Timezone: "Europe/Rome", StartAt: now.Add(-time.Hour), EndAt: now.Add(7 * time.Hour), RequiredCapacity: 1})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -87,7 +89,7 @@ func TestSection17And18EndToEnd(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	assignment, e := w.AssignShift(ctx, scope, shift.ID, workforce.AssignShiftInput{MembershipID: member, AssignmentType: "PRIMARY"})
+	assignment, e := w.AssignShift(ctx, scope, shift.ID, workforceusecases.AssignShiftInput{MembershipID: member, AssignmentType: "PRIMARY"})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -98,42 +100,42 @@ func TestSection17And18EndToEnd(t *testing.T) {
 	if _, e = w.AssignmentAction(ctx, scope, assignment.ID, "CHECKED_OUT", "MANUAL", assignment.Version); e != nil {
 		t.Fatal(e)
 	}
-	leave, e := w.CreateLeave(ctx, scope, workforce.CreateLeaveInput{MembershipID: member, LeaveType: "ANNUAL", Reason: "planned", StartAt: now.Add(24 * time.Hour), EndAt: now.Add(48 * time.Hour)})
+	leave, e := w.CreateLeave(ctx, scope, workforceusecases.CreateLeaveInput{MembershipID: member, LeaveType: "ANNUAL", Reason: "planned", StartAt: now.Add(24 * time.Hour), EndAt: now.Add(48 * time.Hour)})
 	if e != nil {
 		t.Fatal(e)
 	}
 	if _, e = w.LeaveAction(ctx, scope, leave.ID, "APPROVED", leave.Version); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = w.AssignShift(ctx, scope, shift.ID, workforce.AssignShiftInput{MembershipID: member, ExpectedStart: now.Add(25 * time.Hour), ExpectedEnd: now.Add(26 * time.Hour)}); e == nil {
+	if _, e = w.AssignShift(ctx, scope, shift.ID, workforceusecases.AssignShiftInput{MembershipID: member, ExpectedStart: now.Add(25 * time.Hour), ExpectedEnd: now.Add(26 * time.Hour)}); e == nil {
 		t.Fatal("approved leave did not block assignment")
 	}
-	q, e := w.CreateQualification(ctx, scope, workforce.Qualification{Code: "LIC", Name: "Licence", ApplicableServices: []string{"DISPATCH"}})
+	q, e := w.CreateQualification(ctx, scope, workforcemodels.Qualification{Code: "LIC", Name: "Licence", ApplicableServices: []string{"DISPATCH"}})
 	if e != nil {
 		t.Fatal(e)
 	}
-	pq, e := w.AddProviderQualification(ctx, scope, member, workforce.ProviderQualification{QualificationID: q.ID})
+	pq, e := w.AddProviderQualification(ctx, scope, member, workforcemodels.ProviderQualification{QualificationID: q.ID})
 	if e != nil {
 		t.Fatal(e)
 	}
 	if _, e = w.QualificationAction(ctx, scope, pq.ID, "VERIFIED", "verification-1", pq.Version); e != nil {
 		t.Fatal(e)
 	}
-	evidenceQualification, e := w.CreateQualification(ctx, scope, workforce.Qualification{Code: "EVIDENCE", Name: "Evidence ownership", EvidenceRequired: true})
+	evidenceQualification, e := w.CreateQualification(ctx, scope, workforcemodels.Qualification{Code: "EVIDENCE", Name: "Evidence ownership", EvidenceRequired: true})
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = w.AddProviderQualification(ctx, scope, member, workforce.ProviderQualification{QualificationID: evidenceQualification.ID, EvidenceMediaID: "other-clean"}); e == nil {
+	if _, e = w.AddProviderQualification(ctx, scope, member, workforcemodels.ProviderQualification{QualificationID: evidenceQualification.ID, EvidenceMediaID: "other-clean"}); e == nil {
 		t.Fatal("foreign qualification evidence accepted")
 	}
-	if _, e = w.AddProviderQualification(ctx, scope, member, workforce.ProviderQualification{QualificationID: evidenceQualification.ID, EvidenceMediaID: "member-clean"}); e != nil {
+	if _, e = w.AddProviderQualification(ctx, scope, member, workforcemodels.ProviderQualification{QualificationID: evidenceQualification.ID, EvidenceMediaID: "member-clean"}); e != nil {
 		t.Fatal(e)
 	}
-	course, e := w.CreateCourse(ctx, scope, workforce.Course{Code: "SAFE", Title: "Safety", RequiredServices: []string{"DISPATCH"}, PassingScore: 70})
+	course, e := w.CreateCourse(ctx, scope, workforcemodels.Course{Code: "SAFE", Title: "Safety", RequiredServices: []string{"DISPATCH"}, PassingScore: 70})
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = w.CompleteCourse(ctx, scope, course.ID, workforce.Completion{MembershipID: member, Score: 90, CompletedAt: now}); e != nil {
+	if _, e = w.CompleteCourse(ctx, scope, course.ID, workforcemodels.Completion{MembershipID: member, Score: 90, CompletedAt: now}); e != nil {
 		t.Fatal(e)
 	}
 	elig, e := w.Evaluate(ctx, org.ID, member, "DISPATCH", "", now.Add(8*time.Hour))
@@ -292,11 +294,11 @@ func TestSection17And18EndToEnd(t *testing.T) {
 	// projections, not just the synchronous command paths.
 	expiredAt := now.Add(-time.Minute)
 	issuedAt := now.Add(-time.Hour)
-	expiringQualification, e := w.CreateQualification(ctx, scope, workforce.Qualification{Code: "EXP", Name: "Expiring qualification"})
+	expiringQualification, e := w.CreateQualification(ctx, scope, workforcemodels.Qualification{Code: "EXP", Name: "Expiring qualification"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	expiringProviderQualification, e := w.AddProviderQualification(ctx, scope, member, workforce.ProviderQualification{QualificationID: expiringQualification.ID, IssuedAt: &issuedAt, ExpiresAt: &expiredAt})
+	expiringProviderQualification, e := w.AddProviderQualification(ctx, scope, member, workforcemodels.ProviderQualification{QualificationID: expiringQualification.ID, IssuedAt: &issuedAt, ExpiresAt: &expiredAt})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -304,11 +306,11 @@ func TestSection17And18EndToEnd(t *testing.T) {
 		t.Fatal(e)
 	}
 	oneSecond := int64(1)
-	expiringCourse, e := w.CreateCourse(ctx, scope, workforce.Course{Code: "EXP-TRAIN", Title: "Expiring training", ValidityPeriodSeconds: &oneSecond, PassingScore: 70})
+	expiringCourse, e := w.CreateCourse(ctx, scope, workforcemodels.Course{Code: "EXP-TRAIN", Title: "Expiring training", ValidityPeriodSeconds: &oneSecond, PassingScore: 70})
 	if e != nil {
 		t.Fatal(e)
 	}
-	expiringCompletion, e := w.CompleteCourse(ctx, scope, expiringCourse.ID, workforce.Completion{MembershipID: member, Score: 90, CompletedAt: now.Add(-time.Minute)})
+	expiringCompletion, e := w.CompleteCourse(ctx, scope, expiringCourse.ID, workforcemodels.Completion{MembershipID: member, Score: 90, CompletedAt: now.Add(-time.Minute)})
 	if e != nil {
 		t.Fatal(e)
 	}

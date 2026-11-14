@@ -20,6 +20,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/approvals/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/approvals/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/money"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
@@ -35,12 +36,12 @@ const (
 
 // Handler serves the corporate approval routes.
 type Handler struct {
-	service    *usecases.Service
+	service    UseCases
 	authorizer *accesscontrol.Authorizer
 }
 
 // NewHandler builds the handler.
-func NewHandler(service *usecases.Service, authorizer *accesscontrol.Authorizer) *Handler {
+func NewHandler(service UseCases, authorizer *accesscontrol.Authorizer) *Handler {
 	return &Handler{service: service, authorizer: authorizer}
 }
 
@@ -127,13 +128,16 @@ type RequestView struct {
 	CurrentStep            int    `json:"currentStep"`
 	AmountMinor            *int64 `json:"amountMinor,omitempty"`
 	AmountCurrency         string `json:"amountCurrency,omitempty"`
-	EligibilityDecisionID  string `json:"eligibilityDecisionId,omitempty"`
-	ExpiresAt              string `json:"expiresAt"`
-	ExecutedAt             string `json:"executedAt,omitempty"`
-	ExecutionReference     string `json:"executionReference,omitempty"`
-	InvalidationReason     string `json:"invalidationReason,omitempty"`
-	Version                int64  `json:"version"`
-	CreatedAt              string `json:"createdAt"`
+	// Amount is the standard Money object (FLEET-6.1) beside the flat
+	// fields; absent whenever the request carries no amount.
+	Amount                *money.Money `json:"amount,omitempty"`
+	EligibilityDecisionID string       `json:"eligibilityDecisionId,omitempty"`
+	ExpiresAt             string       `json:"expiresAt"`
+	ExecutedAt            string       `json:"executedAt,omitempty"`
+	ExecutionReference    string       `json:"executionReference,omitempty"`
+	InvalidationReason    string       `json:"invalidationReason,omitempty"`
+	Version               int64        `json:"version"`
+	CreatedAt             string       `json:"createdAt"`
 }
 
 const timeFormat = "2006-01-02T15:04:05Z07:00"
@@ -162,9 +166,13 @@ func newRequestView(request *models.Request) RequestView {
 		Version:                request.Version,
 		CreatedAt:              request.CreatedAt.UTC().Format(timeFormat),
 	}
+	if request.AmountMinor != nil {
+		view.Amount = &money.Money{AmountMinor: *request.AmountMinor, Currency: request.AmountCurrency}
+	}
 	if request.BranchID != nil {
 		view.BranchID = *request.BranchID
 	}
+
 	if request.EligibilityDecisionID != nil {
 		view.EligibilityDecisionID = *request.EligibilityDecisionID
 	}

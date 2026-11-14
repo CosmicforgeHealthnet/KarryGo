@@ -173,6 +173,15 @@ HMAC callers and ingress; test fakes are not a production scanner.
   without consulting the source. An outage of the case source is never turned
   into a revocation, and a non-holder can never revoke someone else's grant.
 
+### Encryption at rest
+
+Private objects are encrypted with AES-256-GCM when
+`MEDIA_FILE_PRIVATE_ENCRYPTION_KEYS` (`keyId:base64(32 bytes)`, comma
+separated, first entry active) is set; staging and production refuse to boot
+with the private API on and no key. Legacy plaintext objects stay readable and
+are counted in `karry_media_private_legacy_plaintext_reads_total`. Format,
+boot rules and rotation: `docs/private-media-api.md#encryption-at-rest`.
+
 ### Legacy mapping lookup
 
 `POST /internal/media/v1/legacy-mappings` (`adminmedia.Client.LegacyMapping`),

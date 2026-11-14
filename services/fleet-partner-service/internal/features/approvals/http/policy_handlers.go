@@ -15,6 +15,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/approvals/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/concurrency"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/money"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
@@ -118,7 +119,15 @@ func policyView(policy *models.Policy) gin.H {
 	if policy.ThresholdCurrency != "" {
 		view["thresholdCurrency"] = policy.ThresholdCurrency
 	}
+	// thresholdAmount is the standard Money object (FLEET-6.1) beside the
+	// flat fields; null when the policy has no threshold.
+	view["thresholdAmount"] = nil
+	if policy.ThresholdAmountMinor != nil {
+		view["thresholdAmount"] = money.Money{AmountMinor: *policy.ThresholdAmountMinor,
+			Currency: policy.ThresholdCurrency}
+	}
 	return view
+
 }
 
 func policyInput(c *gin.Context, tenantCtx tenant.Context, body policyBody) usecases.PolicyInput {

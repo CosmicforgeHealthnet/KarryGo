@@ -39,11 +39,11 @@ type MembershipCreator interface {
 // Options configure the onboarding service.
 type Options struct {
 	Pool          *pgxpool.Pool
-	Organizations *orgrepos.OrganizationRepository
-	Onboarding    *orgrepos.OnboardingRepository
-	Branches      *orgrepos.BranchRepository
-	Departments   *orgrepos.DepartmentRepository
-	Settings      *orgrepos.SettingsRepository
+	Organizations OrganizationStore
+	Onboarding    OnboardingStore
+	Branches      BranchStore
+	Departments   DepartmentStore
+	Settings      SettingsStore
 	Memberships   MembershipCreator
 	Contracts     platformclients.ContractSet
 	// Eligibility gates activation. Activation is the moment an organization
@@ -1353,9 +1353,29 @@ func (s *Service) AttachDocument(ctx context.Context, input AttachDocumentInput)
 	return document, nil
 }
 
-// Repositories exposes read paths to handlers.
-func (s *Service) Repositories() (*orgrepos.OrganizationRepository, *orgrepos.OnboardingRepository) {
-	return s.opts.Organizations, s.opts.Onboarding
+// GetOrganization reads one organization for handler read paths.
+func (s *Service) GetOrganization(ctx context.Context, organizationID string) (*models.Organization, error) {
+	return s.opts.Organizations.GetByID(ctx, organizationID)
+}
+
+// ListDocuments reads the organization's onboarding documents.
+func (s *Service) ListDocuments(ctx context.Context, organizationID string) ([]models.Document, error) {
+	return s.opts.Onboarding.ListDocuments(ctx, organizationID)
+}
+
+// LatestVerificationRequest reads the newest verification request.
+func (s *Service) LatestVerificationRequest(ctx context.Context, organizationID string) (*models.VerificationRequest, error) {
+	return s.opts.Onboarding.LatestVerificationRequest(ctx, organizationID)
+}
+
+// ListVerificationIssues reads the issues raised on one verification request.
+func (s *Service) ListVerificationIssues(ctx context.Context, organizationID string, requestID string) ([]models.VerificationIssue, error) {
+	return s.opts.Onboarding.ListVerificationIssues(ctx, organizationID, requestID)
+}
+
+// GetWalletProvisioning reads the organization's wallet provisioning record.
+func (s *Service) GetWalletProvisioning(ctx context.Context, organizationID string) (*models.WalletProvisioning, error) {
+	return s.opts.Onboarding.GetWalletProvisioning(ctx, organizationID)
 }
 
 // MarkStage records progress for one stage.

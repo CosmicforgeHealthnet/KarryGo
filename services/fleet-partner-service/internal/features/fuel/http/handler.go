@@ -2,8 +2,6 @@
 package http
 
 import (
-	"context"
-
 	"github.com/gin-gonic/gin"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fuel/models"
@@ -12,14 +10,6 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/shared/go/apperrors"
 )
-
-// UseCases is the slice of the fuel use cases the handler calls.
-type UseCases interface {
-	ListFuelPage(ctx context.Context, t tenant.Context, p models.Page) ([]models.FuelRecord, *models.FuelRecord, error)
-	GetFuel(ctx context.Context, t tenant.Context, id string) (models.FuelRecord, error)
-	CreateFuel(ctx context.Context, t tenant.Context, v models.FuelRecord) (models.FuelRecord, error)
-	FuelAction(ctx context.Context, t tenant.Context, id, to, reason string, expected int64) (models.FuelRecord, error)
-}
 
 func TenantRoutes() []Route {
 	return []Route{

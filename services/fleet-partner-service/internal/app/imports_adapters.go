@@ -22,7 +22,7 @@ import (
 	bulkusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/usecases"
 	warehousemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/models"
 	warehouseusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/usecases"
-	workforcefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
+	workforceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
 
@@ -163,7 +163,7 @@ func (a genericOrdersAdapter) Commit(ctx context.Context, t tenant.Context, corr
 // WORKFORCE_PROFILE
 // ---------------------------------------------------------------------------
 
-type workforceImportAdapter struct{ workforce *workforcefeature.Service }
+type workforceImportAdapter struct{ workforce *workforceusecases.Service }
 
 func (workforceImportAdapter) Type() string       { return bulkmodels.TypeWorkforceProfile }
 func (workforceImportAdapter) SchemaVersion() int { return 1 }
@@ -214,7 +214,7 @@ func (a workforceImportAdapter) Commit(ctx context.Context, t tenant.Context, _ 
 			startDate = parsed
 		}
 	}
-	profile, err := a.workforce.CreateProfile(ctx, t, workforcefeature.CreateProfileInput{
+	profile, err := a.workforce.CreateProfile(ctx, t, workforceusecases.CreateProfileInput{
 		BranchID: branchOf(t), MembershipID: str(data, "membershipId"), EmployeeNumber: str(data, "employeeNumber"),
 		RelationshipType: str(data, "relationshipType"), Role: str(data, "role"),
 		SupervisorMembershipID: str(data, "supervisorMembershipId"), StartDate: startDate,

@@ -46,6 +46,11 @@ type Config struct {
 	// PrivateStorageDir roots filesystem-backed private object storage. Used
 	// when no bucket is configured.
 	PrivateStorageDir string
+	// PrivateEncryptionKeys encrypts private objects at rest:
+	// "keyId:base64(32 bytes),..." with the first entry the active write key
+	// and every entry accepted for reads (rotation). Required in staging and
+	// production whenever the private API is enabled.
+	PrivateEncryptionKeys string
 	// DownloadSecret signs short-lived content grants. Without it, private
 	// download is refused rather than made open.
 	DownloadSecret []byte
@@ -109,6 +114,7 @@ func Load() Config {
 		PrivateAllowedCallers: getEnvList("MEDIA_FILE_PRIVATE_ALLOWED_CALLERS", "fleet-partner-service"),
 		PrivateStorageDir:     getEnv("MEDIA_FILE_PRIVATE_STORAGE_DIR", ""),
 		DownloadSecret:        []byte(getEnv("MEDIA_FILE_DOWNLOAD_SIGNING_SECRET", "")),
+		PrivateEncryptionKeys: getEnv("MEDIA_FILE_PRIVATE_ENCRYPTION_KEYS", ""),
 
 		UploadAuthorizationTTL: getEnvDuration("MEDIA_FILE_UPLOAD_AUTHORIZATION_TTL_SECONDS", 15*time.Minute),
 		DownloadTTL:            getEnvDuration("MEDIA_FILE_PRIVATE_DOWNLOAD_TTL_SECONDS", 5*time.Minute),

@@ -8,7 +8,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"cosmicforge/logistics/shared/go/apperrors"
+
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/usecases"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 )
 
 // maxEventBodyBytes bounds a single delivered event.
@@ -30,10 +33,13 @@ func RegisterEventIngestionRoutes(group *gin.RouterGroup, handler *InternalHandl
 //
 // The response contract is deliberately narrow and stable:
 //
-//	200 {"status":"ACCEPTED"|"DUPLICATE"|"IGNORED","eventId":...}
-//	400 {"status":"REJECTED","code":...}   permanent — do not retry
-//	403 {"status":"REJECTED","code":"caller_not_allowed"}
-//	500 {"status":"ERROR","code":...}      transient — retry
+//	200 data {"status":"ACCEPTED"|"DUPLICATE"|"IGNORED","eventId":...}
+//	400 error.code=...                     permanent — do not retry
+//	403 error.code="caller_not_allowed"
+//	500 error.code=...                     transient — retry
+//
+// Bodies use the standard envelopes; see the alias notes below for the
+// deprecated top-level status/eventId/code fields still emitted.
 //
 // The producer classifies retry-versus-dead-letter from this alone, so a
 // transient failure must never surface as 400 and a permanent rejection must
@@ -83,22 +89,39 @@ func (h *InternalHandler) IngestEvent(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	receipt := gin.H{
 		"status":  result.Status,
 		"eventId": result.EventID,
 		"code":    result.Code,
-	})
+	}
+	// Deprecated aliases (FLEET-6h): status/eventId/code are repeated at the
+	// top level because driver-dispatch-delivery-service's
+	// HTTPEventDeliverer read "status" (DUPLICATE) and "code" there before it
+	// learned the envelope. Remove once every dispatch binary in service reads
+	// data.status / data.code.
+	respond.JSONWithAliases(c, http.StatusOK, receipt, receipt)
 }
 
 // respondIngestError writes the narrow rejection contract.
 //
 // Only the code is returned. No message is echoed, because the producer stores
 // what comes back and an echoed payload fragment would put source data into
-// another service's error columns.
+// another service's error columns: the standard error envelope's message is a
+// fixed, payload-free sentence.
 func respondIngestError(c *gin.Context, status int, code string) {
 	label := "REJECTED"
+	message := "The event was rejected."
 	if status >= http.StatusInternalServerError {
 		label = "ERROR"
+		message = "The event could not be processed. Retry the same event."
 	}
-	c.AbortWithStatusJSON(status, gin.H{"status": label, "code": code})
+	appErr := apperrors.New(status, apperrors.Code(code), message, nil)
+	appErr.Retryable = status >= http.StatusInternalServerError
+	// Deprecated aliases (FLEET-6h): top-level status/code are kept because
+	// driver-dispatch-delivery-service's HTTPEventDeliverer and
+	// driver-taxi-service's FleetMarketplaceDestination read the rejection
+	// "code" there (dispatch also decides retry-versus-dead-letter from it)
+	// before they learned error.code. Remove once both services run the
+	// envelope-tolerant decoder everywhere.
+	respond.ErrorWithAliases(c, appErr, map[string]any{"status": label, "code": code})
 }

@@ -112,6 +112,10 @@ type fixtureOptions struct {
 	requireSafeForDownload bool
 	downloadSecret         string
 	routeMaxUploadBytes    int64
+	// encryptionKeys, when set, wraps the filesystem backend in
+	// EncryptingPrivateStorage exactly as cmd/main.go does. f.storage stays
+	// the raw backend so a test can inspect the bytes at rest.
+	encryptionKeys []uploadclients.EncryptionKey
 }
 
 func newMediaFixture(t *testing.T, opts fixtureOptions) *mediaFixture {
@@ -154,10 +158,19 @@ func newMediaFixture(t *testing.T, opts fixtureOptions) *mediaFixture {
 		downloadSecret = testSignSecret
 	}
 
+	var serviceStorage uploadclients.PrivateStorage = storage
+	if len(opts.encryptionKeys) > 0 {
+		encrypted, err := uploadclients.NewEncryptingPrivateStorage(storage, opts.encryptionKeys, nil)
+		if err != nil {
+			t.Fatalf("create encrypting storage: %v", err)
+		}
+		serviceStorage = encrypted
+	}
+
 	fixture.service = mediausecases.NewService(mediausecases.Options{
 		Pool:           pool,
 		Objects:        mediarepositories.NewRepository(pool),
-		Storage:        storage,
+		Storage:        serviceStorage,
 		Events:         events.NewDomainPublisher(events.NewOutboxRepository(pool)),
 		Scanner:        opts.scanner,
 		DownloadSecret: []byte(downloadSecret),

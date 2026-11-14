@@ -42,7 +42,7 @@ type EventPublisher interface {
 // Options configure the safety service.
 type Options struct {
 	Pool       *pgxpool.Pool
-	References *repositories.ReferenceRepository
+	References ReferenceStore
 	// Validator confirms references against the authoritative service. A nil
 	// validator means this deployment has no support-dispute client, which is
 	// treated as "validation unavailable" — not as "validation unnecessary".

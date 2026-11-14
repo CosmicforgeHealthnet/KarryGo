@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
+	workforcehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/http"
 )
 
 func TestRouteOpenAPIParity(t *testing.T) {
@@ -27,7 +27,7 @@ func TestRouteOpenAPIParity(t *testing.T) {
 			ops[strings.ToUpper(m)+" "+p] = o.(map[string]any)
 		}
 	}
-	routes := workforce.TenantRoutes()
+	routes := workforcehttp.TenantRoutes()
 	if len(ops) != len(routes) {
 		t.Fatalf("spec operations=%d routes=%d", len(ops), len(routes))
 	}
