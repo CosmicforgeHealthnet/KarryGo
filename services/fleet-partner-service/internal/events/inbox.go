@@ -55,45 +55,57 @@ func HashPayload(payload []byte) string {
 func (r *InboxRepository) Begin(ctx context.Context, q database.Querier, consumerName string, eventID string, eventType string, schemaVersion int, payload []byte) error {
 	payloadHash := HashPayload(payload)
 
-	var status, storedHash string
-	err := q.QueryRow(ctx, `
-		SELECT status, payload_hash FROM fleet_partner_inbox
-		WHERE consumer_name = $1 AND event_id = $2
-		FOR UPDATE`,
-		consumerName, eventID,
-	).Scan(&status, &storedHash)
+	// Two attempts at most: when no row exists, SELECT ... FOR UPDATE locks
+	// nothing, so two concurrent deliveries can both reach the insert. The
+	// insert therefore uses ON CONFLICT DO NOTHING; the loser re-reads the
+	// row, which now exists and is locked until the winner commits, and gets
+	// the ordinary duplicate/reclaim answer instead of a unique violation.
+	for attempt := 0; attempt < 2; attempt++ {
+		var status, storedHash string
+		err := q.QueryRow(ctx, `
+			SELECT status, payload_hash FROM fleet_partner_inbox
+			WHERE consumer_name = $1 AND event_id = $2
+			FOR UPDATE`,
+			consumerName, eventID,
+		).Scan(&status, &storedHash)
 
-	switch {
-	case err == nil:
-		if storedHash != payloadHash {
-			return ErrPayloadMismatch
+		switch {
+		case err == nil:
+			if storedHash != payloadHash {
+				return ErrPayloadMismatch
+			}
+			if status == InboxStatusProcessed {
+				return ErrDuplicateEvent
+			}
+			_, err = q.Exec(ctx, `
+				UPDATE fleet_partner_inbox SET status = $1, error_code = NULL
+				WHERE consumer_name = $2 AND event_id = $3`,
+				InboxStatusProcessing, consumerName, eventID,
+			)
+			if err != nil {
+				return fmt.Errorf("inbox: reclaim entry: %w", err)
+			}
+			return nil
+		case errors.Is(err, pgx.ErrNoRows):
+			tag, err := q.Exec(ctx, `
+				INSERT INTO fleet_partner_inbox
+					(consumer_name, event_id, event_type, schema_version, payload_hash, received_at, status)
+				VALUES ($1, $2, $3, $4, $5, now(), $6)
+				ON CONFLICT (consumer_name, event_id) DO NOTHING`,
+				consumerName, eventID, eventType, schemaVersion, payloadHash, InboxStatusProcessing,
+			)
+			if err != nil {
+				return fmt.Errorf("inbox: insert entry: %w", err)
+			}
+			if tag.RowsAffected() == 1 {
+				return nil
+			}
+			// Lost the race: loop to read the winner's row.
+		default:
+			return fmt.Errorf("inbox: lookup entry: %w", err)
 		}
-		if status == InboxStatusProcessed {
-			return ErrDuplicateEvent
-		}
-		_, err = q.Exec(ctx, `
-			UPDATE fleet_partner_inbox SET status = $1, error_code = NULL
-			WHERE consumer_name = $2 AND event_id = $3`,
-			InboxStatusProcessing, consumerName, eventID,
-		)
-		if err != nil {
-			return fmt.Errorf("inbox: reclaim entry: %w", err)
-		}
-		return nil
-	case errors.Is(err, pgx.ErrNoRows):
-		_, err = q.Exec(ctx, `
-			INSERT INTO fleet_partner_inbox
-				(consumer_name, event_id, event_type, schema_version, payload_hash, received_at, status)
-			VALUES ($1, $2, $3, $4, $5, now(), $6)`,
-			consumerName, eventID, eventType, schemaVersion, payloadHash, InboxStatusProcessing,
-		)
-		if err != nil {
-			return fmt.Errorf("inbox: insert entry: %w", err)
-		}
-		return nil
-	default:
-		return fmt.Errorf("inbox: lookup entry: %w", err)
 	}
+	return ErrDuplicateEvent
 }
 
 // MarkProcessed completes the entry inside the same transaction as the
