@@ -134,20 +134,27 @@ jobs:
           ssh "${opts[@]}" "$target" "docker login ghcr.io -u '$GITHUB_ACTOR' --password-stdin" <<< "$GHCR_TOKEN"
           trap 'ssh "${opts[@]}" "$target" "docker logout ghcr.io" || true; rm -rf "$scratch"' EXIT
 
-          # Preflight every selected service before changing any of them, so a
-          # settings file the deploy account cannot read stops the run up front
-          # instead of half way through a multi-service release.
-          ssh "${opts[@]}" "$target" bash -s -- "$remote" $SERVICES <<'PREFLIGHT'
-          set -euo pipefail
+          # Preflight every selected service before changing any of them. A
+          # service whose private settings files are missing or not readable by
+          # the deploy account is skipped (never loosened); the others deploy,
+          # and the run still fails at the end naming each blocked file and
+          # the owner action.
+          ssh "${opts[@]}" "$target" bash -s -- "$remote" $SERVICES <<'PREFLIGHT' | tee "$scratch/preflight.out"
+          set -uo pipefail
           remote="$1"; shift
           cd "$remote/platform"
-          source bin/lib.sh
           for svc in "$@"; do
-            load_service "$svc"
-            check_service_files
+            if out=$( (source bin/lib.sh; load_service "$svc"; check_service_files) 2>&1 ); then
+              echo "PREFLIGHT_OK $svc"
+            else
+              echo "PREFLIGHT_BLOCKED $svc $(printf '%s' "$out" | tr '\n' ' ')"
+            fi
           done
-          echo "preflight: private settings files are present, owner-only and readable for: $*"
           PREFLIGHT
+          blocked=$(awk '$1=="PREFLIGHT_BLOCKED"{print $2}' "$scratch/preflight.out" | tr '\n' ' ')
+          deployable=$(awk '$1=="PREFLIGHT_OK"{print $2}' "$scratch/preflight.out" | tr '\n' ' ')
+          echo "deployable: ${deployable:-none}; blocked: ${blocked:-none}"
+          SERVICES="$deployable"
 
           for s in $SERVICES; do
             echo "== $s"
@@ -188,3 +195,8 @@ jobs:
 
           # Keep the disk from filling: drop unused images older than 7 days.
           ssh "${opts[@]}" "$target" "docker image prune -af --filter until=168h >/dev/null && df -h / | tail -1"
+
+          if [ -n "${blocked// /}" ]; then
+            grep '^PREFLIGHT_BLOCKED' "$scratch/preflight.out" | sed 's/^PREFLIGHT_BLOCKED /::error::not deployed: /'
+            exit 1
+          fi
