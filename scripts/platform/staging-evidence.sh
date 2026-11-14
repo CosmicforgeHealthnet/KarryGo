@@ -16,6 +16,9 @@ PLATFORM="$1"; shift
 cd "$PLATFORM" || exit 1
 # shellcheck disable=SC1091
 source bin/lib.sh
+# lib.sh enables errexit for deploy scripts. Evidence must report every
+# service even when one probe fails, so failures are tolerated per step.
+set +e
 
 services=("$@")
 [ "${#services[@]}" -gt 0 ] || mapfile -t services < <(all_services)
@@ -23,7 +26,8 @@ services=("$@")
 echo "EVIDENCE host=$(hostname) at=$(date -u +%Y-%m-%dT%H:%M:%SZ) account=$(id -un)"
 
 for key in "${services[@]}"; do
-  load_service "$key" || { echo "SERVICE $key unknown"; continue; }
+  ( load_service "$key" ) >/dev/null 2>&1 || { echo "SERVICE $key unknown"; continue; }
+  load_service "$key"
   echo "== SERVICE $key"
 
   # Settings file: owner and mode only (never contents).
