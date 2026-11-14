@@ -119,10 +119,13 @@ func (s *Service) handlePostingReconcile(ctx context.Context, job jobs.Job) erro
 	if s.o.Wallet == nil {
 		return errors.New("posting adapter is not configured")
 	}
-	rows, err := s.o.Pool.Query(ctx, `SELECT id,record_type,record_id,operation_type,idempotency_key FROM fleet_partner_financial_posting_operations WHERE organization_id=$1 AND status IN('OUTCOME_UNKNOWN','RETRY_SCHEDULED') AND next_attempt_at<=now() ORDER BY next_attempt_at LIMIT 50`, v["organizationId"])
+	rows, err := s.o.Pool.Query(ctx, `SELECT id,record_type,record_id,operation_type,idempotency_key FROM fleet_partner_financial_posting_operations WHERE organization_id=$1 AND status IN('OUTCOME_UNKNOWN','RETRY_SCHEDULED') AND operation_type<>$2 AND next_attempt_at<=now() ORDER BY next_attempt_at LIMIT 50`, v["organizationId"], OperationManagedWorkSettlement)
 	if err != nil {
 		return err
 	}
+	// Managed work settlements are excluded: their delivery job owns their
+	// reconciliation, because only it can move the instruction itself to
+	// POSTED, and only it may resend after a read-back finds nothing.
 	type op struct{ id, recordType, recordID, operationType, key string }
 	var all []op
 	for rows.Next() {

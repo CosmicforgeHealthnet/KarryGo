@@ -10,14 +10,9 @@ package financeops
 // reading back rather than by assuming.
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
-
-	"cosmicforge/logistics/shared/go/apperrors"
-
-	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
 
 // ManagedSettlementSubmission is one instruction on its way to Wallet.
@@ -63,6 +58,8 @@ func (s ManagedSettlementSubmission) Validate() error {
 		return fmt.Errorf("instructionVersion must be positive")
 	case strings.TrimSpace(s.OrganizationID) == "":
 		return fmt.Errorf("organizationId is required")
+	case strings.TrimSpace(s.MembershipID) == "":
+		return fmt.Errorf("membershipId is required")
 	case strings.TrimSpace(s.ProviderID) == "" || strings.TrimSpace(s.ProviderType) == "":
 		return fmt.Errorf("provider identity is required")
 	case strings.TrimSpace(s.SourceService) == "" || strings.TrimSpace(s.SourceJobID) == "":
@@ -101,51 +98,4 @@ func (s ManagedSettlementSubmission) payload() (json.RawMessage, error) {
 		"correlation_id":                  s.CorrelationID,
 		"idempotency_key":                 s.IdempotencyKey,
 	})
-}
-
-// SubmitManagedSettlement delivers one instruction to the money authority.
-//
-// It returns the posting operation id and whether the money authority has
-// confirmed. A confirmed-false result is not a failure: the operation is
-// durable, carries its own retry schedule, and the reconciliation pass resumes
-// it. What never happens is a second journal, because the idempotency key is
-// the instruction's and Wallet keys its posting on the same identity.
-func (s *Service) SubmitManagedSettlement(
-	ctx context.Context, t tenant.Context, in ManagedSettlementSubmission,
-) (string, bool, error) {
-	if err := in.Validate(); err != nil {
-		return "", false, apperrors.BadRequest("Check the settlement instruction.", err)
-	}
-	if t.OrganizationID != "" && t.OrganizationID != in.OrganizationID {
-		return "", false, apperrors.Forbidden("Settlement instruction belongs to another organization.", nil)
-	}
-	body, err := in.payload()
-	if err != nil {
-		return "", false, err
-	}
-	request := PostingRequest{
-		OrganizationID: in.OrganizationID,
-		RecordType:     "MANAGED_WORK_SETTLEMENT_INSTRUCTION",
-		RecordID:       in.InstructionID,
-		OperationType:  OperationManagedWorkSettlement,
-		IdempotencyKey: in.IdempotencyKey,
-		AmountMinor:    in.GrossBasisMinor,
-		Currency:       in.Currency,
-		Payload:        body,
-	}
-
-	operationID, confirmed, err := s.createPosting(ctx, t, request)
-	if err != nil {
-		return "", false, err
-	}
-	if confirmed {
-		// Already posted under this identity. Re-sending would be harmless at
-		// Wallet, but there is no reason to make the call.
-		return operationID, true, nil
-	}
-	outcome, err := s.executePosting(ctx, t, operationID, request)
-	if err != nil {
-		return operationID, false, err
-	}
-	return operationID, postingConfirmed(outcome.Status), nil
 }

@@ -45,6 +45,9 @@ type Service struct {
 	events    EventPublisher
 	flags     Flags
 	now       func() time.Time
+
+	// settlement is the money-authority port (FLEET-13.11).
+	settlement SettlementSubmitter
 }
 
 type Flags struct {
@@ -285,6 +288,11 @@ func (s *Service) RecordCompletedWork(ctx context.Context, caller string, in Com
 			IdempotencyKey: "settlement:" + record.IdempotencyKey, RequestFingerprint: record.RequestFingerprint,
 		})
 		if err != nil {
+			return err
+		}
+		// FLEET-13.11. The delivery job commits with the instruction: an
+		// instruction that exists always has a way to reach Wallet.
+		if err := s.enqueueSettlementDelivery(ctx, tx, instruction.OrganizationID, instruction.InstructionID, record.CorrelationID); err != nil {
 			return err
 		}
 		// CMP-027. The components this job settled with its own money are

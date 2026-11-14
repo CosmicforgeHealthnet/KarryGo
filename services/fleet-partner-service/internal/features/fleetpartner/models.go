@@ -212,6 +212,13 @@ type ManagedWorkSettlementInstruction struct {
 	VisibilityPolicySnapshot                                    ProviderFinancialVisibilityPolicy
 	Version                                                     int64
 	CreatedAt                                                   time.Time
+
+	// Delivery state (FLEET-13.11). Written only by the delivery worker.
+	WalletPostingOperationID, WalletSettlementReference string
+	DeliveryAttempts                                    int
+	LastErrorCode                                       string
+	PostedAt                                            *time.Time
+	UpdatedAt                                           time.Time
 }
 
 type CorporateContext struct {

@@ -147,7 +147,7 @@ type financialPostingAdapter struct {
 
 func (a financialPostingAdapter) Configured(operationType string) bool {
 	switch operationType {
-	case "PROVIDER_ALLOCATION", "PAYROLL_REVERSAL":
+	case "PROVIDER_ALLOCATION", "PAYROLL_REVERSAL", financeops.OperationManagedWorkSettlement:
 		return a.wallet.Configured()
 	case "EXPENSE_POST", "EXPENSE_REVERSAL", "SETTLEMENT_REQUEST", "SETTLEMENT_REVERSAL":
 		return a.accounting.Configured()
@@ -156,15 +156,28 @@ func (a financialPostingAdapter) Configured(operationType string) bool {
 	}
 }
 
+// walletOperation reports whether an operation belongs to payment-wallet.
+// A managed work settlement does: it releases job escrow in Wallet's ledger.
+// Routing it to the accounting adapter (the old default) would have sent the
+// money instruction to the wrong authority.
+func walletOperation(operationType string) bool {
+	switch operationType {
+	case "PROVIDER_ALLOCATION", "PAYROLL_REVERSAL", financeops.OperationManagedWorkSettlement:
+		return true
+	default:
+		return false
+	}
+}
+
 func (a financialPostingAdapter) Submit(ctx context.Context, meta platformclients.CallMeta, request financeops.PostingRequest) (financeops.PostingOutcome, error) {
-	if request.OperationType == "PROVIDER_ALLOCATION" || request.OperationType == "PAYROLL_REVERSAL" {
+	if walletOperation(request.OperationType) {
 		return a.wallet.Submit(ctx, meta, request)
 	}
 	return a.accounting.Submit(ctx, meta, request)
 }
 
 func (a financialPostingAdapter) ReadByKey(ctx context.Context, meta platformclients.CallMeta, request financeops.PostingRequest) (financeops.PostingOutcome, error) {
-	if request.OperationType == "PROVIDER_ALLOCATION" || request.OperationType == "PAYROLL_REVERSAL" {
+	if walletOperation(request.OperationType) {
 		return a.wallet.ReadByKey(ctx, meta, request)
 	}
 	return a.accounting.ReadByKey(ctx, meta, request)

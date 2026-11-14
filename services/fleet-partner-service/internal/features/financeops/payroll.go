@@ -460,21 +460,27 @@ func (s *Service) executePosting(ctx context.Context, t tenant.Context, operatio
 		status = "OUTCOME_UNKNOWN"
 		code = "authoritative_confirmation_pending"
 	}
-	txErr := s.tx(ctx, func(tx pgx.Tx) error {
+	if txErr := s.recordPostingAttempt(ctx, t, operationID, start, outcome, status, out.Reference, out.SourceVersion, code); txErr != nil {
+		return out, txErr
+	}
+	return out, err
+}
+
+// recordPostingAttempt appends one attempt row and moves the operation to the
+// status that attempt established, in one transaction. An operation left
+// OUTCOME_UNKNOWN or RETRY_SCHEDULED is rescheduled thirty seconds out.
+func (s *Service) recordPostingAttempt(ctx context.Context, t tenant.Context, operationID string, start time.Time, outcome, status, reference string, sourceVersion int64, code string) error {
+	return s.tx(ctx, func(tx pgx.Tx) error {
 		var attempt int
 		if e := tx.QueryRow(ctx, `SELECT attempts+1 FROM fleet_partner_financial_posting_operations WHERE organization_id=$1 AND id=$2 FOR UPDATE`, t.OrganizationID, operationID).Scan(&attempt); e != nil {
 			return e
 		}
-		if _, e := tx.Exec(ctx, `INSERT INTO fleet_partner_financial_posting_attempts(id,organization_id,operation_id,attempt_number,outcome,external_reference,error_code,started_at,completed_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,now())`, ids.New("fpa"), t.OrganizationID, operationID, attempt, outcome, out.Reference, code, start); e != nil {
+		if _, e := tx.Exec(ctx, `INSERT INTO fleet_partner_financial_posting_attempts(id,organization_id,operation_id,attempt_number,outcome,external_reference,error_code,started_at,completed_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,now())`, ids.New("fpa"), t.OrganizationID, operationID, attempt, outcome, reference, code, start); e != nil {
 			return e
 		}
-		_, e := tx.Exec(ctx, `UPDATE fleet_partner_financial_posting_operations SET status=$3,external_operation_reference=$4,source_version=$5,attempts=$6,last_error_code=$7,next_attempt_at=CASE WHEN $3 IN('OUTCOME_UNKNOWN','RETRY_SCHEDULED') THEN now()+interval '30 seconds' ELSE next_attempt_at END,version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2`, t.OrganizationID, operationID, status, out.Reference, out.SourceVersion, attempt, code)
+		_, e := tx.Exec(ctx, `UPDATE fleet_partner_financial_posting_operations SET status=$3,external_operation_reference=$4,source_version=$5,attempts=$6,last_error_code=$7,next_attempt_at=CASE WHEN $3 IN('OUTCOME_UNKNOWN','RETRY_SCHEDULED') THEN now()+interval '30 seconds' ELSE next_attempt_at END,version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2`, t.OrganizationID, operationID, status, reference, sourceVersion, attempt, code)
 		return e
 	})
-	if txErr != nil {
-		return out, txErr
-	}
-	return out, err
 }
 
 func postingConfirmed(status string) bool {

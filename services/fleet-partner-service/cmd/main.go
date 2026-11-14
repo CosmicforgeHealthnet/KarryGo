@@ -128,6 +128,7 @@ func main() {
 		}
 		app.RegisterSections19To21Workers(cfg, components, jobWorker)
 		app.RegisterSections22And23Workers(cfg, components, jobWorker)
+		app.RegisterManagedSettlementDelivery(cfg, components, jobWorker)
 		app.RegisterAutomationRunner(cfg, jobWorker)
 		if cfg.RetentionExecutionEnabled && components.RetentionRunner != nil {
 			jobWorker.Register(retentionexec.RetentionJobType, components.RetentionRunner.HandleJob)
@@ -186,6 +187,7 @@ func main() {
 		app.StartSection17And18Workers(ctx, cfg, components, &workers)
 		app.StartSections19To21Workers(ctx, cfg, components, &workers)
 		app.StartSections22And23Workers(ctx, cfg, components, &workers)
+		app.StartManagedSettlementSweep(ctx, cfg, components, &workers)
 		if !cfg.IntegrationsKillSwitch {
 			workers.Add(3)
 			go func() { defer workers.Done(); outboxWorker.Run(ctx) }()
