@@ -61,7 +61,7 @@ type Actor struct {
 // Service applies the atomicity and validation rules around the repository.
 type Service struct {
 	pool           *pgxpool.Pool
-	reads          *repositories.Repository
+	reads          Store
 	recorder       *audit.Recorder
 	stepUp         stepup.Verifier
 	securityPolicy SecurityPolicyReader

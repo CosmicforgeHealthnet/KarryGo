@@ -70,10 +70,10 @@ type InvitationAcceptor interface {
 // Options configure the authentication service.
 type Options struct {
 	Pool           *pgxpool.Pool
-	Identities     *authrepos.IdentityRepository
-	Challenges     *authrepos.ChallengeRepository
-	Sessions       *authrepos.SessionRepository
-	SecurityEvents *authrepos.SecurityEventRepository
+	Identities     IdentityStore
+	Challenges     ChallengeStore
+	Sessions       SessionStore
+	SecurityEvents SecurityEventStore
 	Sender         authclients.Sender
 	Limiter        ratelimit.Limiter
 	Metrics        *observability.Metrics

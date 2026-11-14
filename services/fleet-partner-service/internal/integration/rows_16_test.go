@@ -9,9 +9,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	app "cosmicforge/logistics/services/fleet-partner-service/internal/app"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
-	app "cosmicforge/logistics/services/fleet-partner-service/internal/app"
 	dispatchmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch/models"
 	routemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/routes/models"
 	trackingmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/tracking/models"

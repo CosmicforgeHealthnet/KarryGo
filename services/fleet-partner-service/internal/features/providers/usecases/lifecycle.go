@@ -344,7 +344,7 @@ func providerEventFor(status string) string {
 }
 
 // Repository exposes read paths to handlers.
-func (s *Service) Repository() *providerrepos.Repository { return s.opts.Providers }
+func (s *Service) Repository() Store { return s.opts.Providers }
 
 // CountLiveMemberships backs the organization closure blocker check.
 func (s *Service) CountLiveMemberships(ctx context.Context, organizationID string) (int, error) {

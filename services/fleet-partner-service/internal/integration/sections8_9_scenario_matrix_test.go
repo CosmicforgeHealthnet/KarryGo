@@ -10,7 +10,9 @@ import (
 	"cosmicforge/logistics/shared/go/apperrors"
 	"cosmicforge/logistics/shared/go/providercompat"
 
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner"
+	fleetpartnermodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/models"
+	fleetpartnerrepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/repositories"
+	fleetpartnerusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 )
 
@@ -26,8 +28,8 @@ import (
 // sectionsFlags is the configuration Sections 8/9 actually ship in:
 // completed-work projection ON, compensation resolver and settlement
 // instruction OFF (they belong to Sections 12/13).
-func sectionsFlags() fleetpartner.Flags {
-	return fleetpartner.Flags{
+func sectionsFlags() fleetpartnerusecases.Flags {
+	return fleetpartnerusecases.Flags{
 		OperatingModeEnforcement: true,
 		CompletedWorkProjection:  true,
 		CompensationResolver:     false,
@@ -38,13 +40,13 @@ func sectionsFlags() fleetpartner.Flags {
 
 type membershipStub struct{}
 
-func (membershipStub) FindLiveByProvider(context.Context, string, string) (fleetpartner.ProviderMembership, error) {
-	return fleetpartner.ProviderMembership{}, fleetpartner.ErrNotFound
+func (membershipStub) FindLiveByProvider(context.Context, string, string) (fleetpartnermodels.ProviderMembership, error) {
+	return fleetpartnermodels.ProviderMembership{}, fleetpartnermodels.ErrNotFound
 }
 
-func newCompletedWorkService(t *testing.T, pool *pgxpool.Pool, flags fleetpartner.Flags) *fleetpartner.Service {
+func newCompletedWorkService(t *testing.T, pool *pgxpool.Pool, flags fleetpartnerusecases.Flags) *fleetpartnerusecases.Service {
 	t.Helper()
-	return fleetpartner.NewService(pool, fleetpartner.NewRepository(pool), membershipStub{}, nil, nil, flags)
+	return fleetpartnerusecases.NewService(pool, fleetpartnerrepositories.NewRepository(pool), membershipStub{}, nil, nil, flags)
 }
 
 // seedManagedMembership creates an organization with one ACTIVE managed
@@ -87,8 +89,8 @@ func canonicalRequest(orgID, membershipID, providerID, source, jobID string) pro
 	}
 }
 
-func asInput(request providercompat.CompletedWorkRequest) fleetpartner.CompletedWorkInput {
-	return fleetpartner.CompletedWorkInput{
+func asInput(request providercompat.CompletedWorkRequest) fleetpartnerusecases.CompletedWorkInput {
+	return fleetpartnerusecases.CompletedWorkInput{
 		SourceService: request.SourceService, SourceJobID: request.SourceJobID,
 		SourceAssignmentID: request.SourceAssignmentID, ProviderID: request.ProviderID,
 		MembershipID: request.MembershipID, OrganizationID: request.OrganizationID,

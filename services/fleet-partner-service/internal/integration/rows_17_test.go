@@ -10,7 +10,10 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
+	workforcehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/http"
+	workforcemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/models"
+	workforcerepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/repositories"
+	workforceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 )
@@ -23,7 +26,7 @@ import (
 
 type rows17 struct {
 	rowsOrgs
-	svc     *workforce.Service
+	svc     *workforceusecases.Service
 	router  http.Handler
 	branchA string
 	branchX string
@@ -34,9 +37,9 @@ func newRows17(t *testing.T) *rows17 {
 	t.Helper()
 	orgs := newRowsOrgs(t, "Rows 17", "")
 	now := time.Now().UTC().Truncate(time.Second)
-	svc := workforce.NewService(workforce.Options{
+	svc := workforceusecases.NewService(workforceusecases.Options{Repository: workforcerepositories.NewRepository(),
 		Pool: orgs.pool, Events: events.NewDomainPublisher(events.NewOutboxRepository(orgs.pool)),
-		Flags: workforce.Flags{Workforce: true, Shifts: true, Leave: true, Qualifications: true,
+		Flags: workforceusecases.Flags{Workforce: true, Shifts: true, Leave: true, Qualifications: true,
 			Training: true, Performance: true},
 		Now: func() time.Time { return now },
 	})
@@ -45,7 +48,7 @@ func newRows17(t *testing.T) *rows17 {
 	f.branchA = seedBranch(t, orgs.pool, orgs.A.Org, "Rows17 Main")
 	f.branchX = seedBranch(t, orgs.pool, orgs.A.Org, "Rows17 Other")
 	f.router = rowsRouter(t, orgs.pool, func(g *gin.RouterGroup, a *accesscontrol.Authorizer, s *idempotency.Store) {
-		workforce.NewHandler(svc, a, s).RegisterTenantRoutes(g)
+		workforcehttp.NewHandler(svc, a, s).RegisterTenantRoutes(g)
 	})
 	return f
 }
@@ -66,14 +69,14 @@ func TestRow17_1b_WorkforceProfileListGetPatchArchive(t *testing.T) {
 	f := newRows17(t)
 	ctx := context.Background()
 	memberA := f.providerMembership(t, f.A.Org)
-	profile, err := f.svc.CreateProfile(ctx, f.tenantA(), workforce.CreateProfileInput{BranchID: f.branchA,
+	profile, err := f.svc.CreateProfile(ctx, f.tenantA(), workforceusecases.CreateProfileInput{BranchID: f.branchA,
 		MembershipID: memberA, EmployeeNumber: "EMP-17-1", RelationshipType: "MANAGED_PROVIDER", Role: "DRIVER", StartDate: f.now})
 	if err != nil {
 		t.Fatal(err)
 	}
 	branchB := seedBranch(t, f.pool, f.B.Org, "Rows17 B")
 	memberB := f.providerMembership(t, f.B.Org)
-	foreign, err := f.svc.CreateProfile(ctx, f.tenantB(), workforce.CreateProfileInput{BranchID: branchB,
+	foreign, err := f.svc.CreateProfile(ctx, f.tenantB(), workforceusecases.CreateProfileInput{BranchID: branchB,
 		MembershipID: memberB, EmployeeNumber: "EMP-17-B", RelationshipType: "MANAGED_PROVIDER", Role: "DRIVER", StartDate: f.now})
 	if err != nil {
 		t.Fatal(err)
@@ -130,8 +133,8 @@ func TestRow17_1b_WorkforceProfileListGetPatchArchive(t *testing.T) {
 func TestRow17_2b_ShiftListGet(t *testing.T) {
 	f := newRows17(t)
 	ctx := context.Background()
-	mk := func(branch, name string, offset time.Duration) workforce.Shift {
-		s, err := f.svc.CreateShift(ctx, f.tenantA(), workforce.CreateShiftInput{BranchID: branch, Name: name, Role: "DRIVER",
+	mk := func(branch, name string, offset time.Duration) workforcemodels.Shift {
+		s, err := f.svc.CreateShift(ctx, f.tenantA(), workforceusecases.CreateShiftInput{BranchID: branch, Name: name, Role: "DRIVER",
 			Timezone: "Africa/Lagos", StartAt: f.now.Add(offset), EndAt: f.now.Add(offset + 8*time.Hour), RequiredCapacity: 2})
 		if err != nil {
 			t.Fatal(err)
@@ -182,7 +185,7 @@ func TestRow17_4b_GetShiftAssignment(t *testing.T) {
 	f := newRows17(t)
 	ctx := context.Background()
 	member := f.providerMembership(t, f.A.Org)
-	shift, err := f.svc.CreateShift(ctx, f.tenantA(), workforce.CreateShiftInput{BranchID: f.branchA, Name: "Day", Role: "DRIVER",
+	shift, err := f.svc.CreateShift(ctx, f.tenantA(), workforceusecases.CreateShiftInput{BranchID: f.branchA, Name: "Day", Role: "DRIVER",
 		Timezone: "Africa/Lagos", StartAt: f.now.Add(time.Hour), EndAt: f.now.Add(9 * time.Hour), RequiredCapacity: 1})
 	if err != nil {
 		t.Fatal(err)
@@ -190,7 +193,7 @@ func TestRow17_4b_GetShiftAssignment(t *testing.T) {
 	if shift, err = f.svc.UpdateShift(ctx, f.tenantA(), shift.ID, shift.Version, "", nil, nil, "PUBLISHED"); err != nil {
 		t.Fatal(err)
 	}
-	assignment, err := f.svc.AssignShift(ctx, f.tenantA(), shift.ID, workforce.AssignShiftInput{MembershipID: member, AssignmentType: "PRIMARY"})
+	assignment, err := f.svc.AssignShift(ctx, f.tenantA(), shift.ID, workforceusecases.AssignShiftInput{MembershipID: member, AssignmentType: "PRIMARY"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,12 +213,12 @@ func TestRow17_5b_LeaveListGet(t *testing.T) {
 	f := newRows17(t)
 	ctx := context.Background()
 	member := f.providerMembership(t, f.A.Org)
-	first, err := f.svc.CreateLeave(ctx, f.tenantA(), workforce.CreateLeaveInput{MembershipID: member, LeaveType: "ANNUAL",
+	first, err := f.svc.CreateLeave(ctx, f.tenantA(), workforceusecases.CreateLeaveInput{MembershipID: member, LeaveType: "ANNUAL",
 		Reason: "holiday", StartAt: f.now.Add(24 * time.Hour), EndAt: f.now.Add(72 * time.Hour)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := f.svc.CreateLeave(ctx, f.tenantA(), workforce.CreateLeaveInput{MembershipID: member, LeaveType: "SICK",
+	second, err := f.svc.CreateLeave(ctx, f.tenantA(), workforceusecases.CreateLeaveInput{MembershipID: member, LeaveType: "SICK",
 		Reason: "flu", StartAt: f.now.Add(240 * time.Hour), EndAt: f.now.Add(250 * time.Hour)})
 	if err != nil {
 		t.Fatal(err)
@@ -247,15 +250,15 @@ func TestRow17_5b_LeaveListGet(t *testing.T) {
 func TestRow17_6b_QualificationListGetPatch(t *testing.T) {
 	f := newRows17(t)
 	ctx := context.Background()
-	q, err := f.svc.CreateQualification(ctx, f.tenantA(), workforce.Qualification{Code: "HGV", Name: "Heavy goods licence",
+	q, err := f.svc.CreateQualification(ctx, f.tenantA(), workforcemodels.Qualification{Code: "HGV", Name: "Heavy goods licence",
 		ApplicableServices: []string{"HAULAGE"}, EvidenceRequired: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.svc.CreateQualification(ctx, f.tenantA(), workforce.Qualification{Code: "ADR", Name: "Dangerous goods"}); err != nil {
+	if _, err = f.svc.CreateQualification(ctx, f.tenantA(), workforcemodels.Qualification{Code: "ADR", Name: "Dangerous goods"}); err != nil {
 		t.Fatal(err)
 	}
-	foreign, err := f.svc.CreateQualification(ctx, f.tenantB(), workforce.Qualification{Code: "HGV", Name: "Other org"})
+	foreign, err := f.svc.CreateQualification(ctx, f.tenantB(), workforcemodels.Qualification{Code: "HGV", Name: "Other org"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,11 +304,11 @@ func TestRow17_6b_QualificationListGetPatch(t *testing.T) {
 func TestRow17_8b_TrainingCourseListGetPatch(t *testing.T) {
 	f := newRows17(t)
 	ctx := context.Background()
-	course, err := f.svc.CreateCourse(ctx, f.tenantA(), workforce.Course{Code: "SAFE", Title: "Road safety", RequiredServices: []string{"DISPATCH"}, PassingScore: 70})
+	course, err := f.svc.CreateCourse(ctx, f.tenantA(), workforcemodels.Course{Code: "SAFE", Title: "Road safety", RequiredServices: []string{"DISPATCH"}, PassingScore: 70})
 	if err != nil {
 		t.Fatal(err)
 	}
-	foreign, err := f.svc.CreateCourse(ctx, f.tenantB(), workforce.Course{Code: "SAFE", Title: "Other", PassingScore: 50})
+	foreign, err := f.svc.CreateCourse(ctx, f.tenantB(), workforcemodels.Course{Code: "SAFE", Title: "Other", PassingScore: 50})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -12,6 +12,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/crm/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/errorcodes"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/money"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
 
@@ -23,19 +24,22 @@ import (
 // reference, a margin or a staff identity, because there is no field for any of
 // them and the only constructor is the one below.
 type CustomerQuotationView struct {
-	QuotationNumber  string                  `json:"quotationNumber"`
-	Status           string                  `json:"status"`
-	Currency         string                  `json:"currency"`
-	TotalAmountMinor int64                   `json:"totalAmountMinor"`
-	ValidFrom        string                  `json:"validFrom"`
-	ValidUntil       string                  `json:"validUntil"`
-	IssuedAt         string                  `json:"issuedAt"`
-	CustomerName     string                  `json:"customerName"`
-	LineItems        []CustomerQuotationLine `json:"lineItems"`
-	ServiceScope     map[string]any          `json:"serviceScope,omitempty"`
-	Terms            map[string]any          `json:"terms,omitempty"`
-	CanRespond       bool                    `json:"canRespond"`
-	Expired          bool                    `json:"expired"`
+	QuotationNumber  string `json:"quotationNumber"`
+	Status           string `json:"status"`
+	Currency         string `json:"currency"`
+	TotalAmountMinor int64  `json:"totalAmountMinor"`
+	// TotalAmount is the standard Money object (FLEET-6.1) beside the flat
+	// fields.
+	TotalAmount  money.Money             `json:"totalAmount"`
+	ValidFrom    string                  `json:"validFrom"`
+	ValidUntil   string                  `json:"validUntil"`
+	IssuedAt     string                  `json:"issuedAt"`
+	CustomerName string                  `json:"customerName"`
+	LineItems    []CustomerQuotationLine `json:"lineItems"`
+	ServiceScope map[string]any          `json:"serviceScope,omitempty"`
+	Terms        map[string]any          `json:"terms,omitempty"`
+	CanRespond   bool                    `json:"canRespond"`
+	Expired      bool                    `json:"expired"`
 }
 
 // CustomerQuotationLine is one line as the customer sees it.
@@ -46,6 +50,9 @@ type CustomerQuotationLine struct {
 	UnitAmountMinor int64  `json:"unitAmountMinor"`
 	LineAmountMinor int64  `json:"lineAmountMinor"`
 	Currency        string `json:"currency"`
+	// UnitAmount and LineAmount are the standard Money objects (FLEET-6.1).
+	UnitAmount money.Money `json:"unitAmount"`
+	LineAmount money.Money `json:"lineAmount"`
 }
 
 // tokenContext is a validated secure link.
@@ -200,6 +207,8 @@ func buildCustomerView(quotation models.Quotation, version models.QuotationVersi
 			UnitAmountMinor: item.UnitAmountMinor,
 			LineAmountMinor: item.LineAmountMinor,
 			Currency:        item.Currency,
+			UnitAmount:      money.Money{AmountMinor: item.UnitAmountMinor, Currency: item.Currency},
+			LineAmount:      money.Money{AmountMinor: item.LineAmountMinor, Currency: item.Currency},
 		})
 	}
 	customerName, _ := version.CustomerSnapshot["legalName"].(string)
@@ -209,13 +218,15 @@ func buildCustomerView(quotation models.Quotation, version models.QuotationVersi
 		Status:           quotation.Status,
 		Currency:         version.Currency,
 		TotalAmountMinor: version.TotalAmountMinor,
-		ValidFrom:        version.ValidFrom.UTC().Format(time.RFC3339),
-		ValidUntil:       version.ValidUntil.UTC().Format(time.RFC3339),
-		IssuedAt:         version.IssuedAt.UTC().Format(time.RFC3339),
-		CustomerName:     customerName,
-		LineItems:        lines,
-		ServiceScope:     version.ServiceScopeSnapshot,
-		Terms:            version.TermsSnapshot,
+		TotalAmount:      money.Money{AmountMinor: version.TotalAmountMinor, Currency: version.Currency},
+
+		ValidFrom:    version.ValidFrom.UTC().Format(time.RFC3339),
+		ValidUntil:   version.ValidUntil.UTC().Format(time.RFC3339),
+		IssuedAt:     version.IssuedAt.UTC().Format(time.RFC3339),
+		CustomerName: customerName,
+		LineItems:    lines,
+		ServiceScope: version.ServiceScopeSnapshot,
+		Terms:        version.TermsSnapshot,
 		CanRespond: token.Scope == models.TokenScopeViewAndRespond && !expired &&
 			models.DeliveredQuotation(quotation.Status),
 		Expired: expired,

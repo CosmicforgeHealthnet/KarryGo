@@ -9,6 +9,8 @@ package models
 import (
 	"strings"
 	"time"
+
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/money"
 )
 
 // Wallet link states. UNKNOWN, STALE and RECONCILING are deliberately separate
@@ -401,19 +403,21 @@ type TransactionProjection struct {
 // no internal record is ever serialized and then pruned, because a field added
 // upstream later would start leaking the moment it was added.
 type ProviderStatementEntry struct {
-	ID                    string    `json:"id"`
-	EntryType             string    `json:"entryType"`
-	AllocationType        string    `json:"allocationType,omitempty"`
-	Direction             string    `json:"direction"`
-	AmountMinor           int64     `json:"amountMinor"`
-	Currency              string    `json:"currency"`
-	BusinessReferenceType string    `json:"businessReferenceType,omitempty"`
-	BusinessReferenceID   string    `json:"businessReferenceId,omitempty"`
-	ReasonCode            string    `json:"reasonCode,omitempty"`
-	Explanation           string    `json:"explanation,omitempty"`
-	Status                string    `json:"status"`
-	OccurredAt            time.Time `json:"occurredAt"`
-	SourceVersion         int64     `json:"sourceVersion"`
+	ID             string `json:"id"`
+	EntryType      string `json:"entryType"`
+	AllocationType string `json:"allocationType,omitempty"`
+	Direction      string `json:"direction"`
+	AmountMinor    int64  `json:"amountMinor"`
+	Currency       string `json:"currency"`
+	// Amount is the standard Money object (FLEET-6.1) beside the flat fields.
+	Amount                money.Money `json:"amount"`
+	BusinessReferenceType string      `json:"businessReferenceType,omitempty"`
+	BusinessReferenceID   string      `json:"businessReferenceId,omitempty"`
+	ReasonCode            string      `json:"reasonCode,omitempty"`
+	Explanation           string      `json:"explanation,omitempty"`
+	Status                string      `json:"status"`
+	OccurredAt            time.Time   `json:"occurredAt"`
+	SourceVersion         int64       `json:"sourceVersion"`
 }
 
 // Statement entry types and directions.

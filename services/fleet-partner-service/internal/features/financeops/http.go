@@ -366,5 +366,5 @@ func (h *InternalHandler) payment(c *gin.Context) {
 		respond.Error(c, err)
 		return
 	}
-	c.JSON(http.StatusAccepted, gin.H{"data": gin.H{"accepted": true}})
+	respond.JSON(c, http.StatusAccepted, gin.H{"accepted": true})
 }

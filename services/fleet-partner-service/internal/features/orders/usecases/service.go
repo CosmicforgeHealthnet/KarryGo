@@ -185,7 +185,7 @@ type Flags struct {
 // Options configure the orders service.
 type Options struct {
 	Pool       *pgxpool.Pool
-	Repository *repositories.Repository
+	Repository Store
 	Catalog    CatalogPort
 	CRM        CRMPort
 	Events     EventPublisher

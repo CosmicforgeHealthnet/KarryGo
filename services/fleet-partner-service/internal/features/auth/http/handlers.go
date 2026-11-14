@@ -23,7 +23,7 @@ import (
 
 // Handler serves the authentication routes.
 type Handler struct {
-	service       *authusecases.Service
+	service       UseCases
 	contactSecret []byte
 	cookie        browserauth.Policy
 	sessionMarker browserauth.Policy
@@ -68,7 +68,7 @@ func (h *Handler) stepUpOrganization(c *gin.Context, claims auth.Claims) (string
 // see the narrowly-scoped refresh cookie on other paths) can tell whether a
 // browser plausibly has a session, for routing purposes only. Real
 // authorization always happens server-side via the access/refresh tokens.
-func NewHandler(service *authusecases.Service, contactSecret []byte, policies ...browserauth.Policy) *Handler {
+func NewHandler(service UseCases, contactSecret []byte, policies ...browserauth.Policy) *Handler {
 	refreshPolicy, _ := browserauth.Load("FLEET_PARTNER_BROWSER", os.Getenv("APP_ENV"), "karrygo_fleet_refresh", "/fleet-partner/v1/auth")
 	markerPolicy, _ := browserauth.Load("FLEET_PARTNER_BROWSER", os.Getenv("APP_ENV"), "karrygo_has_session", "/")
 

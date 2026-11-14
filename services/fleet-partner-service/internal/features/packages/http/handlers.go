@@ -7,6 +7,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/packages/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/money"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/shared/go/apperrors"
@@ -28,12 +29,17 @@ const (
 )
 
 type Handler struct {
-	service     *usecases.Service
+	service     UseCases
 	authorizer  *accesscontrol.Authorizer
 	idempotency *idempotency.Store
 }
 
-func NewHandler(s *usecases.Service, a *accesscontrol.Authorizer, i *idempotency.Store) *Handler {
+func NewHandler(s UseCases, a *accesscontrol.Authorizer, i *idempotency.Store) *Handler {
+	// A typed-nil service must still read as "not configured" to the
+	// handler's nil guards, exactly as the concrete pointer did.
+	if typed, ok := s.(*usecases.Service); ok && typed == nil {
+		s = nil
+	}
 	return &Handler{s, a, i}
 }
 func (h *Handler) RegisterTenantRoutes(g *gin.RouterGroup) {
@@ -148,31 +154,35 @@ func (h *Handler) runIdempotent(c *gin.Context, endpoint string, t tenant.Contex
 }
 
 type PackageView struct {
-	ID                       string    `json:"id"`
-	ShipmentID               string    `json:"shipmentId"`
-	BranchID                 string    `json:"branchId,omitempty"`
-	PackageCode              string    `json:"packageCode"`
-	BarcodeValue             string    `json:"barcodeValue"`
-	QRValue                  string    `json:"qrValue"`
-	PackageType              string    `json:"packageType"`
-	Length                   string    `json:"length"`
-	Width                    string    `json:"width"`
-	Height                   string    `json:"height"`
-	DimensionUnit            string    `json:"dimensionUnit"`
-	Weight                   string    `json:"weight"`
-	WeightUnit               string    `json:"weightUnit"`
-	DeclaredValueAmountMinor int64     `json:"declaredValueAmountMinor"`
-	DeclaredValueCurrency    string    `json:"declaredValueCurrency"`
-	HandlingInstructions     string    `json:"handlingInstructions,omitempty"`
-	Condition                string    `json:"condition"`
-	Status                   string    `json:"status"`
-	Version                  int64     `json:"version"`
-	CreatedAt                time.Time `json:"createdAt"`
-	UpdatedAt                time.Time `json:"updatedAt"`
+	ID                       string `json:"id"`
+	ShipmentID               string `json:"shipmentId"`
+	BranchID                 string `json:"branchId,omitempty"`
+	PackageCode              string `json:"packageCode"`
+	BarcodeValue             string `json:"barcodeValue"`
+	QRValue                  string `json:"qrValue"`
+	PackageType              string `json:"packageType"`
+	Length                   string `json:"length"`
+	Width                    string `json:"width"`
+	Height                   string `json:"height"`
+	DimensionUnit            string `json:"dimensionUnit"`
+	Weight                   string `json:"weight"`
+	WeightUnit               string `json:"weightUnit"`
+	DeclaredValueAmountMinor int64  `json:"declaredValueAmountMinor"`
+	DeclaredValueCurrency    string `json:"declaredValueCurrency"`
+	// DeclaredValueAmount is the standard Money object (FLEET-6.1) beside
+	// the flat fields.
+	DeclaredValueAmount  money.Money `json:"declaredValueAmount"`
+	HandlingInstructions string      `json:"handlingInstructions,omitempty"`
+	Condition            string      `json:"condition"`
+	Status               string      `json:"status"`
+	Version              int64       `json:"version"`
+	CreatedAt            time.Time   `json:"createdAt"`
+	UpdatedAt            time.Time   `json:"updatedAt"`
 }
 
 func view(p models.Package) PackageView {
-	return PackageView{p.ID, p.ShipmentID, p.BranchID, p.PackageCode, p.BarcodeValue, p.QRValue, p.PackageType, p.Length, p.Width, p.Height, p.DimensionUnit, p.Weight, p.WeightUnit, p.DeclaredValueAmountMinor, p.DeclaredValueCurrency, p.HandlingInstructions, p.Condition, p.Status, p.Version, p.CreatedAt, p.UpdatedAt}
+	return PackageView{p.ID, p.ShipmentID, p.BranchID, p.PackageCode, p.BarcodeValue, p.QRValue, p.PackageType, p.Length, p.Width, p.Height, p.DimensionUnit, p.Weight, p.WeightUnit, p.DeclaredValueAmountMinor, p.DeclaredValueCurrency, money.Money{AmountMinor: p.DeclaredValueAmountMinor, Currency: p.DeclaredValueCurrency}, p.HandlingInstructions,
+		p.Condition, p.Status, p.Version, p.CreatedAt, p.UpdatedAt}
 }
 
 type createRequest struct {

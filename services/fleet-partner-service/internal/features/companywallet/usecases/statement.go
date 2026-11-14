@@ -9,6 +9,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/companywallet/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/companywallet/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/errorcodes"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/money"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
 
@@ -35,12 +36,15 @@ type ProviderStatement struct {
 	Status              string `json:"status"`
 	// Balance is what payment-wallet-service reported. It is a pointer so that
 	// "we could not ask" is representable and is not rendered as zero.
-	AvailableBalanceMinor *int64                          `json:"availableBalanceMinor,omitempty"`
-	SourceVersion         int64                           `json:"sourceVersion"`
-	FreshnessState        string                          `json:"freshnessState"`
-	SyncedAt              *time.Time                      `json:"syncedAt,omitempty"`
-	GeneratedAt           time.Time                       `json:"generatedAt"`
-	Entries               []models.ProviderStatementEntry `json:"entries"`
+	AvailableBalanceMinor *int64 `json:"availableBalanceMinor,omitempty"`
+	// AvailableBalance is the standard Money object (FLEET-6.1) beside the
+	// flat field, absent whenever the flat field is.
+	AvailableBalance *money.Money                    `json:"availableBalance,omitempty"`
+	SourceVersion    int64                           `json:"sourceVersion"`
+	FreshnessState   string                          `json:"freshnessState"`
+	SyncedAt         *time.Time                      `json:"syncedAt,omitempty"`
+	GeneratedAt      time.Time                       `json:"generatedAt"`
+	Entries          []models.ProviderStatementEntry `json:"entries"`
 }
 
 // StatementInput narrows a provider statement.
@@ -113,6 +117,7 @@ func (s *Service) ProviderStatement(ctx context.Context, in StatementInput) (Pro
 			Direction:      direction,
 			AmountMinor:    allocation.AmountMinor,
 			Currency:       allocation.Currency,
+			Amount:         money.Money{AmountMinor: allocation.AmountMinor, Currency: allocation.Currency},
 			// The business reference type and ID are safe: they name the work,
 			// not what the customer paid for it.
 			BusinessReferenceType: allocation.BusinessReferenceType,
@@ -134,6 +139,7 @@ func (s *Service) ProviderStatement(ctx context.Context, in StatementInput) (Pro
 			Direction:     models.DirectionDebit,
 			AmountMinor:   withdrawal.AmountMinor,
 			Currency:      withdrawal.Currency,
+			Amount:        money.Money{AmountMinor: withdrawal.AmountMinor, Currency: withdrawal.Currency},
 			Status:        withdrawal.Status,
 			OccurredAt:    withdrawal.CreatedAt,
 			SourceVersion: withdrawal.Version,
@@ -154,5 +160,6 @@ func (s *Service) ProviderStatement(ctx context.Context, in StatementInput) (Pro
 		return zero, errorcodes.Unavailable(errorcodes.ProviderWalletStatementUnavailable,
 			"The provider statement is not available yet.")
 	}
+	statement.AvailableBalance = optionalMoney(statement.AvailableBalanceMinor, statement.Currency)
 	return statement, nil
 }

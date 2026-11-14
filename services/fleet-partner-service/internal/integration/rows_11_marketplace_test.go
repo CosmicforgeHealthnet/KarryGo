@@ -18,7 +18,9 @@ import (
 	dispatchmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch/models"
 	dispatchrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch/repositories"
 	dispatchusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch/usecases"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner"
+	fleetpartnerhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/http"
+	fleetpartnerrepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/repositories"
+	fleetpartnerusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/usecases"
 	mkthttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/http"
 	mktmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/models"
 	mktrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/repositories"
@@ -118,11 +120,11 @@ func newS11World(t *testing.T, label string) *s11World {
 			AssignmentEnabled:     true,
 			EnabledSourceServices: map[string]bool{mktmodels.SourceDispatch: true}},
 	})
-	operatingModes := fleetpartner.NewService(pool, fleetpartner.NewRepository(pool), membershipStub{},
-		audit.NewRecorder(), events.NewDomainPublisher(events.NewOutboxRepository(pool)), fleetpartner.Flags{})
+	operatingModes := fleetpartnerusecases.NewService(pool, fleetpartnerrepositories.NewRepository(pool), membershipStub{},
+		audit.NewRecorder(), events.NewDomainPublisher(events.NewOutboxRepository(pool)), fleetpartnerusecases.Flags{})
 	w.router = rowsRouter(t, pool, func(g *gin.RouterGroup, a *accesscontrol.Authorizer, s *idempotency.Store) {
 		mkthttp.NewHandler(w.service, a, s).RegisterTenantRoutes(g)
-		fleetpartner.NewHandler(operatingModes, a, nil).RegisterTenantRoutes(g)
+		fleetpartnerhttp.NewHandler(operatingModes, a, nil).RegisterTenantRoutes(g)
 	})
 	return w
 }

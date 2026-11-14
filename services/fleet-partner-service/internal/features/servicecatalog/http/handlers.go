@@ -30,12 +30,17 @@ const (
 
 // Handler serves the Section 15 service catalogue routes.
 type Handler struct {
-	service    *usecases.Service
+	service    UseCases
 	authorizer *accesscontrol.Authorizer
 }
 
 // NewHandler builds the handler.
-func NewHandler(service *usecases.Service, authorizer *accesscontrol.Authorizer) *Handler {
+func NewHandler(service UseCases, authorizer *accesscontrol.Authorizer) *Handler {
+	// A typed-nil service must still read as "not configured" to the
+	// handler's nil guards, exactly as the concrete pointer did.
+	if typed, ok := service.(*usecases.Service); ok && typed == nil {
+		service = nil
+	}
 	return &Handler{service: service, authorizer: authorizer}
 }
 

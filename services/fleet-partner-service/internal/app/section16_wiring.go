@@ -32,14 +32,14 @@ import (
 	routesusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/routes/usecases"
 	trackingrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/tracking/repositories"
 	trackingusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/tracking/usecases"
-	workforcefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
+	workforceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
 
 type section16CandidateSource struct {
 	pool         *pgxpool.Pool
 	eligibility  *eligibilityusecases.Service
-	workforce    *workforcefeature.Service
+	workforce    *workforceusecases.Service
 	assets       *assetsfeature.Service
 	restrictions interface {
 		Restricted(context.Context, string, string, string) (bool, error)
@@ -204,7 +204,7 @@ func NewSection16(o Section16Options) *Section16 {
 	return &Section16{Dispatch: dispatch, Routes: routes, Tracking: tracking}
 }
 
-func BuildSection16Service(cfg config.Config, pool *pgxpool.Pool, publisher *events.DomainPublisher, private *privateusecases.Service, eligibility *eligibilityusecases.Service, workforce *workforcefeature.Service, assets *assetsfeature.Service, restrictions interface {
+func BuildSection16Service(cfg config.Config, pool *pgxpool.Pool, publisher *events.DomainPublisher, private *privateusecases.Service, eligibility *eligibilityusecases.Service, workforce *workforceusecases.Service, assets *assetsfeature.Service, restrictions interface {
 	Restricted(context.Context, string, string, string) (bool, error)
 }) *Section16 {
 	var optimizer routesusecases.OptimizationPort

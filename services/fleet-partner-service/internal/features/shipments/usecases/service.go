@@ -69,7 +69,7 @@ type Flags struct {
 // Options configure the shipments service.
 type Options struct {
 	Pool       *pgxpool.Pool
-	Repository *repositories.Repository
+	Repository Store
 	Orders     OrdersPort
 	Events     EventPublisher
 	Audit      *audit.Recorder

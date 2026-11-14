@@ -31,7 +31,9 @@ import (
 	providerrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/repositories"
 	providerusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/usecases"
 	staffrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/repositories"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
+	workforcemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/models"
+	workforcerepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/repositories"
+	workforceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
@@ -51,7 +53,7 @@ type ws5Fixture struct {
 	org      string
 	branch   string
 	scope    tenant.Context
-	workflow *workforce.Service
+	workflow *workforceusecases.Service
 }
 
 func newWS5Fixture(t *testing.T, name string) *ws5Fixture {
@@ -66,7 +68,7 @@ func newWS5Fixture(t *testing.T, name string) *ws5Fixture {
 		Pool: pool, Providers: repo, Organizations: activeOrgReader{}, Events: publisher, Sender: sender,
 		InvitationSecret: []byte("ws5-invitation-secret"), AcceptURLTemplate: "https://fleet.example.test/provider/accept",
 	})
-	w := workforce.NewService(workforce.Options{Pool: pool, Events: publisher, Flags: workforce.Flags{
+	w := workforceusecases.NewService(workforceusecases.Options{Repository: workforcerepositories.NewRepository(), Pool: pool, Events: publisher, Flags: workforceusecases.Flags{
 		Workforce: true, Shifts: true, Leave: true, Qualifications: true, Training: true, Performance: true}})
 	return &ws5Fixture{pool: pool, repo: repo, service: service, sender: sender, org: org.ID, branch: branch,
 		workflow: w, scope: tenant.Context{OrganizationID: org.ID, OrganizationUserID: "oru_ws5",
@@ -411,13 +413,13 @@ func TestProviderAvailabilityIsDerivedAndExplainable(t *testing.T) {
 	}
 
 	// Mandatory qualification: missing, then expired, then expiring soon.
-	q, err := f.workflow.CreateQualification(ctx, scope, workforce.Qualification{Code: "RIDER-" + randomHex()[:4], Name: "Rider licence", ApplicableServices: []string{"DISPATCH"}})
+	q, err := f.workflow.CreateQualification(ctx, scope, workforcemodels.Qualification{Code: "RIDER-" + randomHex()[:4], Name: "Rider licence", ApplicableServices: []string{"DISPATCH"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	check(providerusecases.AvailabilityUnavailable, "QUALIFICATION_MISSING")
 	past := time.Now().Add(-time.Hour)
-	pq, err := f.workflow.AddProviderQualification(ctx, scope, m.ID, workforce.ProviderQualification{QualificationID: q.ID, ExpiresAt: &past})
+	pq, err := f.workflow.AddProviderQualification(ctx, scope, m.ID, workforcemodels.ProviderQualification{QualificationID: q.ID, ExpiresAt: &past})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -435,7 +437,7 @@ func TestProviderAvailabilityIsDerivedAndExplainable(t *testing.T) {
 
 	// Approved leave covering now.
 	now := time.Now().UTC()
-	leave, err := f.workflow.CreateLeave(ctx, scope, workforce.CreateLeaveInput{MembershipID: m.ID, LeaveType: "SICK", Reason: "flu", StartAt: now.Add(-time.Minute), EndAt: now.Add(time.Hour)})
+	leave, err := f.workflow.CreateLeave(ctx, scope, workforceusecases.CreateLeaveInput{MembershipID: m.ID, LeaveType: "SICK", Reason: "flu", StartAt: now.Add(-time.Minute), EndAt: now.Add(time.Hour)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -452,7 +454,7 @@ func TestProviderAvailabilityIsDerivedAndExplainable(t *testing.T) {
 	}
 
 	// A published shift covering now: off shift until assigned.
-	shift, err := f.workflow.CreateShift(ctx, scope, workforce.CreateShiftInput{BranchID: f.branch, Name: "Day", Role: "RIDER", Timezone: "Africa/Lagos",
+	shift, err := f.workflow.CreateShift(ctx, scope, workforceusecases.CreateShiftInput{BranchID: f.branch, Name: "Day", Role: "RIDER", Timezone: "Africa/Lagos",
 		StartAt: now.Add(-time.Hour), EndAt: now.Add(6 * time.Hour), RequiredCapacity: 2})
 	if err != nil {
 		t.Fatal(err)
@@ -461,7 +463,7 @@ func TestProviderAvailabilityIsDerivedAndExplainable(t *testing.T) {
 		t.Fatal(err)
 	}
 	check(providerusecases.AvailabilityUnavailable, "OFF_SHIFT")
-	if _, err = f.workflow.AssignShift(ctx, scope, shift.ID, workforce.AssignShiftInput{MembershipID: m.ID, AssignmentType: "PRIMARY"}); err != nil {
+	if _, err = f.workflow.AssignShift(ctx, scope, shift.ID, workforceusecases.AssignShiftInput{MembershipID: m.ID, AssignmentType: "PRIMARY"}); err != nil {
 		t.Fatal(err)
 	}
 	onShift := check(providerusecases.AvailabilityAvailable)
@@ -512,7 +514,7 @@ func TestProviderBranchesVehiclesAndServiceRoles(t *testing.T) {
 	ctx := context.Background()
 	m := f.membership(t, providermodels.StatusActive)
 	second := seedBranch(t, f.pool, f.org, "Second "+randomHex()[:6])
-	if _, err := f.workflow.CreateProfile(ctx, f.scope, workforce.CreateProfileInput{BranchID: second, MembershipID: m.ID,
+	if _, err := f.workflow.CreateProfile(ctx, f.scope, workforceusecases.CreateProfileInput{BranchID: second, MembershipID: m.ID,
 		EmployeeNumber: "EMP-" + randomHex()[:6], RelationshipType: "MANAGED_PROVIDER", Role: "RIDER", StartDate: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
@@ -632,7 +634,7 @@ func TestProviderPerformanceCountsMarketplaceAndPrivateWorkDistinctly(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snap.FormulaVersion != workforce.PerformanceFormulaVersion {
+	if snap.FormulaVersion != workforcemodels.PerformanceFormulaVersion {
 		t.Fatalf("formula = %s", snap.FormulaVersion)
 	}
 	var metrics struct {
@@ -670,15 +672,15 @@ func TestProviderPerformanceCountsMarketplaceAndPrivateWorkDistinctly(t *testing
 
 	// Explainable: every contributing assignment is listed with its outcome.
 	var inputs struct {
-		Assignments []workforce.ExplainedAssignment `json:"assignments"`
-		Complete    bool                            `json:"assignmentListComplete"`
+		Assignments []workforcemodels.ExplainedAssignment `json:"assignments"`
+		Complete    bool                                  `json:"assignmentListComplete"`
 	}
 	_ = json.Unmarshal(snap.MetricInputs, &inputs)
 	if len(inputs.Assignments) != 6 || !inputs.Complete {
 		t.Fatalf("explained assignments = %d complete=%v", len(inputs.Assignments), inputs.Complete)
 	}
 	for _, a := range inputs.Assignments {
-		if a.AssignmentID == declined && (a.Outcome != workforce.OutcomeDeclined || !a.SafetyRelated || a.DeclineCategory != "other") {
+		if a.AssignmentID == declined && (a.Outcome != workforcemodels.OutcomeDeclined || !a.SafetyRelated || a.DeclineCategory != "other") {
 			t.Fatalf("declined marketplace assignment explained as %+v", a)
 		}
 	}
@@ -768,13 +770,13 @@ func TestProviderSelfServiceInternalRoutes(t *testing.T) {
 	}
 	branch := seedBranch(t, wallet.pool, wallet.organization, "Self Hub "+randomHex()[:6])
 	publisher := events.NewDomainPublisher(events.NewOutboxRepository(wallet.pool))
-	w := workforce.NewService(workforce.Options{Pool: wallet.pool, Events: publisher, Flags: workforce.Flags{
+	w := workforceusecases.NewService(workforceusecases.Options{Repository: workforcerepositories.NewRepository(), Pool: wallet.pool, Events: publisher, Flags: workforceusecases.Flags{
 		Workforce: true, Shifts: true, Leave: true, Qualifications: true, Training: true, Performance: true}})
 	scope := tenant.Context{OrganizationID: wallet.organization, OrganizationUserID: "oru_planner", ActorType: tenant.ActorTypeOrganizationUser, ActorID: "oru_planner", CorrelationID: "self"}
 
 	// Seed the provider's own records through the real workforce usecases.
 	now := time.Now().UTC()
-	shift, err := w.CreateShift(ctx, scope, workforce.CreateShiftInput{BranchID: branch, Name: "Morning", Role: "RIDER", Timezone: "Africa/Lagos",
+	shift, err := w.CreateShift(ctx, scope, workforceusecases.CreateShiftInput{BranchID: branch, Name: "Morning", Role: "RIDER", Timezone: "Africa/Lagos",
 		StartAt: now.Add(24 * time.Hour), EndAt: now.Add(30 * time.Hour), RequiredCapacity: 1})
 	if err != nil {
 		t.Fatal(err)
@@ -782,26 +784,26 @@ func TestProviderSelfServiceInternalRoutes(t *testing.T) {
 	if _, err = w.UpdateShift(ctx, scope, shift.ID, shift.Version, "", nil, nil, "PUBLISHED"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = w.AssignShift(ctx, scope, shift.ID, workforce.AssignShiftInput{MembershipID: wallet.membership, AssignmentType: "PRIMARY"}); err != nil {
+	if _, err = w.AssignShift(ctx, scope, shift.ID, workforceusecases.AssignShiftInput{MembershipID: wallet.membership, AssignmentType: "PRIMARY"}); err != nil {
 		t.Fatal(err)
 	}
-	draft, err := w.CreateShift(ctx, scope, workforce.CreateShiftInput{BranchID: branch, Name: "Unpublished", Role: "RIDER", Timezone: "Africa/Lagos",
+	draft, err := w.CreateShift(ctx, scope, workforceusecases.CreateShiftInput{BranchID: branch, Name: "Unpublished", Role: "RIDER", Timezone: "Africa/Lagos",
 		StartAt: now.Add(48 * time.Hour), EndAt: now.Add(50 * time.Hour), RequiredCapacity: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = w.AssignShift(ctx, scope, draft.ID, workforce.AssignShiftInput{MembershipID: wallet.membership, AssignmentType: "PRIMARY"}); err != nil {
+	if _, err = w.AssignShift(ctx, scope, draft.ID, workforceusecases.AssignShiftInput{MembershipID: wallet.membership, AssignmentType: "PRIMARY"}); err != nil {
 		t.Fatal(err)
 	}
-	q, err := w.CreateQualification(ctx, scope, workforce.Qualification{Code: "SELF-" + randomHex()[:4], Name: "Safety induction", ApplicableServices: []string{"DISPATCH"}})
+	q, err := w.CreateQualification(ctx, scope, workforcemodels.Qualification{Code: "SELF-" + randomHex()[:4], Name: "Safety induction", ApplicableServices: []string{"DISPATCH"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	course, err := w.CreateCourse(ctx, scope, workforce.Course{Code: "C-" + randomHex()[:4], Title: "Defensive riding", PassingScore: 70})
+	course, err := w.CreateCourse(ctx, scope, workforcemodels.Course{Code: "C-" + randomHex()[:4], Title: "Defensive riding", PassingScore: 70})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = w.Enroll(ctx, scope, workforce.EnrollInput{CourseID: course.ID, MembershipID: wallet.membership}); err != nil {
+	if _, err = w.Enroll(ctx, scope, workforceusecases.EnrollInput{CourseID: course.ID, MembershipID: wallet.membership}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = w.GeneratePerformance(ctx, tenant.Context{OrganizationID: wallet.organization, ActorType: tenant.ActorTypeSystem, ActorID: "test"},
@@ -855,7 +857,7 @@ func TestProviderSelfServiceInternalRoutes(t *testing.T) {
 	}
 	code, body, raw = selfCall(t, router, dispatch, "GET", base+"/performance", nil, nil)
 	snaps := body["data"].([]any)
-	if code != 200 || len(snaps) != 1 || snaps[0].(map[string]any)["formulaVersion"] != workforce.PerformanceFormulaVersion {
+	if code != 200 || len(snaps) != 1 || snaps[0].(map[string]any)["formulaVersion"] != workforcemodels.PerformanceFormulaVersion {
 		t.Fatalf("performance = %d %s", code, raw)
 	}
 

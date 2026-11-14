@@ -1,12 +1,27 @@
 package finance
 
 import (
-	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
+
+	"cosmicforge/logistics/shared/go/apperrors"
+
+	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
 )
 
+// rejection builds a standard error whose code is the stable machine code the
+// route has always reported.
+func rejection(status int, code, message string) *apperrors.Error {
+	return apperrors.New(status, apperrors.Code(code), message, nil)
+}
+
+// RegisterInternalRoutes mounts wallet event ingestion and the operator replay
+// routes. Responses use the standard envelopes. No top-level alias is kept:
+// payment-wallet-service's HTTPPublisher classifies a delivery by HTTP status
+// alone and discards the body, and the replay routes have no service caller.
 func RegisterInternalRoutes(group *gin.RouterGroup, service *Service, allowed []string) {
 	allow := map[string]bool{}
 	for _, v := range allowed {
@@ -14,37 +29,41 @@ func RegisterInternalRoutes(group *gin.RouterGroup, service *Service, allowed []
 	}
 	group.POST("/finance/events", func(c *gin.Context) {
 		if !allow[c.GetString(middleware.ServiceCallerKey)] {
-			c.JSON(http.StatusForbidden, gin.H{"status": "REJECTED", "code": "caller_not_allowed"})
+			respond.Error(c, rejection(http.StatusForbidden, "caller_not_allowed",
+				"Service is not allowed to call this endpoint."))
 			return
 		}
 		raw, err := io.ReadAll(io.LimitReader(c.Request.Body, 1<<20))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"status": "REJECTED", "code": "invalid_envelope"})
+			respond.Error(c, rejection(http.StatusBadRequest, "invalid_envelope",
+				"The event body could not be read."))
 			return
 		}
 		status, err := service.IngestWalletEvent(c, raw)
 		if err != nil {
-			code := "invalid_envelope"
-			httpStatus := http.StatusUnprocessableEntity
 			if err == ErrEventConflict {
-				code = "payload_hash_mismatch"
-				httpStatus = http.StatusConflict
+				respond.Error(c, rejection(http.StatusConflict, "payload_hash_mismatch",
+					"This event ID was already received with a different payload."))
+				return
 			}
-			c.JSON(httpStatus, gin.H{"status": "REJECTED", "code": code})
+			respond.Error(c, rejection(http.StatusUnprocessableEntity, "invalid_envelope",
+				"The event envelope is invalid."))
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"status": status})
+		respond.OK(c, gin.H{"status": status})
 	})
 	replay := func(projection bool) gin.HandlerFunc {
 		return func(c *gin.Context) {
 			caller := c.GetString(middleware.ServiceCallerKey)
 			if !allow[caller] {
-				c.JSON(http.StatusForbidden, gin.H{"status": "REJECTED", "code": "caller_not_allowed"})
+				respond.Error(c, rejection(http.StatusForbidden, "caller_not_allowed",
+					"Service is not allowed to call this endpoint."))
 				return
 			}
 			organizationID := c.Query("organizationId")
 			if organizationID == "" {
-				c.JSON(http.StatusBadRequest, gin.H{"status": "REJECTED", "code": "organization_required"})
+				respond.Error(c, rejection(http.StatusBadRequest, "organization_required",
+					"organizationId is required."))
 				return
 			}
 			var err error
@@ -58,10 +77,11 @@ func RegisterInternalRoutes(group *gin.RouterGroup, service *Service, allowed []
 				if err == ErrNotFound {
 					status = http.StatusNotFound
 				}
-				c.JSON(status, gin.H{"status": "REJECTED", "code": "replay_not_available"})
+				respond.Error(c, rejection(status, "replay_not_available",
+					"This record cannot be replayed."))
 				return
 			}
-			c.JSON(http.StatusOK, gin.H{"status": "PENDING"})
+			respond.OK(c, gin.H{"status": "PENDING"})
 		}
 	}
 	group.POST("/finance/operations/:id/replay", replay(false))

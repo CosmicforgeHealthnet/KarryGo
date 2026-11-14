@@ -9,7 +9,9 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/assets"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
+	workforcemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/models"
+	workforcerepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/repositories"
+	workforceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
@@ -69,16 +71,16 @@ func TestSection17And18Concurrency(t *testing.T) {
 	scope := tenant.Context{OrganizationID: org.ID, OrganizationUserID: memberA, ActorType: tenant.ActorTypeOrganizationUser, ActorID: memberA, CorrelationID: "sections-17-18-concurrency"}
 	now := time.Now().UTC().Truncate(time.Second)
 	publisher := events.NewDomainPublisher(events.NewOutboxRepository(pool))
-	w := workforce.NewService(workforce.Options{Pool: pool, Events: publisher, Flags: workforce.Flags{Workforce: true, Shifts: true, Leave: true, Qualifications: true, Training: true, Performance: true, Workers: true}, Now: func() time.Time { return now }})
-	if _, err := w.CreateProfile(ctx, scope, workforce.CreateProfileInput{BranchID: branch, MembershipID: memberA, EmployeeNumber: "EMP-CONCURRENCY", RelationshipType: "MANAGED_PROVIDER", Role: "DRIVER", StartDate: now}); err != nil {
+	w := workforceusecases.NewService(workforceusecases.Options{Repository: workforcerepositories.NewRepository(), Pool: pool, Events: publisher, Flags: workforceusecases.Flags{Workforce: true, Shifts: true, Leave: true, Qualifications: true, Training: true, Performance: true, Workers: true}, Now: func() time.Time { return now }})
+	if _, err := w.CreateProfile(ctx, scope, workforceusecases.CreateProfileInput{BranchID: branch, MembershipID: memberA, EmployeeNumber: "EMP-CONCURRENCY", RelationshipType: "MANAGED_PROVIDER", Role: "DRIVER", StartDate: now}); err != nil {
 		t.Fatal(err)
 	}
 
-	shiftA, err := w.CreateShift(ctx, scope, workforce.CreateShiftInput{BranchID: branch, Name: "Overlap A", Role: "DRIVER", StartAt: now.Add(time.Hour), EndAt: now.Add(2 * time.Hour), Timezone: "UTC", RequiredCapacity: 1})
+	shiftA, err := w.CreateShift(ctx, scope, workforceusecases.CreateShiftInput{BranchID: branch, Name: "Overlap A", Role: "DRIVER", StartAt: now.Add(time.Hour), EndAt: now.Add(2 * time.Hour), Timezone: "UTC", RequiredCapacity: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
-	shiftB, err := w.CreateShift(ctx, scope, workforce.CreateShiftInput{BranchID: branch, Name: "Overlap B", Role: "DRIVER", StartAt: now.Add(90 * time.Minute), EndAt: now.Add(3 * time.Hour), Timezone: "UTC", RequiredCapacity: 1})
+	shiftB, err := w.CreateShift(ctx, scope, workforceusecases.CreateShiftInput{BranchID: branch, Name: "Overlap B", Role: "DRIVER", StartAt: now.Add(90 * time.Minute), EndAt: now.Add(3 * time.Hour), Timezone: "UTC", RequiredCapacity: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,50 +93,54 @@ func TestSection17And18Concurrency(t *testing.T) {
 		t.Fatal(err)
 	}
 	assignments, assignmentErrs := concurrentResults(
-		func() (workforce.ShiftAssignment, error) {
-			return w.AssignShift(ctx, scope, shiftA.ID, workforce.AssignShiftInput{MembershipID: memberA})
+		func() (workforcemodels.ShiftAssignment, error) {
+			return w.AssignShift(ctx, scope, shiftA.ID, workforceusecases.AssignShiftInput{MembershipID: memberA})
 		},
-		func() (workforce.ShiftAssignment, error) {
-			return w.AssignShift(ctx, scope, shiftB.ID, workforce.AssignShiftInput{MembershipID: memberA})
+		func() (workforcemodels.ShiftAssignment, error) {
+			return w.AssignShift(ctx, scope, shiftB.ID, workforceusecases.AssignShiftInput{MembershipID: memberA})
 		},
 	)
 	requireSuccesses(t, 1, assignmentErrs)
-	var assigned workforce.ShiftAssignment
+	var assigned workforcemodels.ShiftAssignment
 	for i, assignmentErr := range assignmentErrs {
 		if assignmentErr == nil {
 			assigned = assignments[i]
 		}
 	}
 	_, attendanceErrs := concurrentResults(
-		func() (workforce.ShiftAssignment, error) {
+		func() (workforcemodels.ShiftAssignment, error) {
 			return w.AssignmentAction(ctx, scope, assigned.ID, "CHECKED_IN", "MANUAL", assigned.Version)
 		},
-		func() (workforce.ShiftAssignment, error) {
+		func() (workforcemodels.ShiftAssignment, error) {
 			return w.AssignmentAction(ctx, scope, assigned.ID, "CANCELLED", "MANUAL", assigned.Version)
 		},
 	)
 	requireSuccesses(t, 1, attendanceErrs)
 
-	leave, err := w.CreateLeave(ctx, scope, workforce.CreateLeaveInput{MembershipID: memberA, LeaveType: "ANNUAL", StartAt: now.Add(24 * time.Hour), EndAt: now.Add(25 * time.Hour)})
+	leave, err := w.CreateLeave(ctx, scope, workforceusecases.CreateLeaveInput{MembershipID: memberA, LeaveType: "ANNUAL", StartAt: now.Add(24 * time.Hour), EndAt: now.Add(25 * time.Hour)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, leaveErrs := concurrentResults(
-		func() (workforce.Leave, error) { return w.LeaveAction(ctx, scope, leave.ID, "APPROVED", leave.Version) },
-		func() (workforce.Leave, error) { return w.LeaveAction(ctx, scope, leave.ID, "APPROVED", leave.Version) },
+		func() (workforcemodels.Leave, error) {
+			return w.LeaveAction(ctx, scope, leave.ID, "APPROVED", leave.Version)
+		},
+		func() (workforcemodels.Leave, error) {
+			return w.LeaveAction(ctx, scope, leave.ID, "APPROVED", leave.Version)
+		},
 	)
 	requireSuccesses(t, 1, leaveErrs)
 
-	qualification, err := w.CreateQualification(ctx, scope, workforce.Qualification{Code: "CONCURRENT", Name: "Concurrent qualification"})
+	qualification, err := w.CreateQualification(ctx, scope, workforcemodels.Qualification{Code: "CONCURRENT", Name: "Concurrent qualification"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, qualificationCreateErrs := concurrentResults(
-		func() (workforce.ProviderQualification, error) {
-			return w.AddProviderQualification(ctx, scope, memberA, workforce.ProviderQualification{QualificationID: qualification.ID})
+		func() (workforcemodels.ProviderQualification, error) {
+			return w.AddProviderQualification(ctx, scope, memberA, workforcemodels.ProviderQualification{QualificationID: qualification.ID})
 		},
-		func() (workforce.ProviderQualification, error) {
-			return w.AddProviderQualification(ctx, scope, memberA, workforce.ProviderQualification{QualificationID: qualification.ID})
+		func() (workforcemodels.ProviderQualification, error) {
+			return w.AddProviderQualification(ctx, scope, memberA, workforcemodels.ProviderQualification{QualificationID: qualification.ID})
 		},
 	)
 	requireSuccesses(t, 1, qualificationCreateErrs)
@@ -144,33 +150,33 @@ func TestSection17And18Concurrency(t *testing.T) {
 	}
 	providerQualification := providerQualifications[0]
 	_, verificationErrs := concurrentResults(
-		func() (workforce.ProviderQualification, error) {
+		func() (workforcemodels.ProviderQualification, error) {
 			return w.QualificationAction(ctx, scope, providerQualification.ID, "VERIFIED", "verification-a", providerQualification.Version)
 		},
-		func() (workforce.ProviderQualification, error) {
+		func() (workforcemodels.ProviderQualification, error) {
 			return w.QualificationAction(ctx, scope, providerQualification.ID, "REJECTED", "", providerQualification.Version)
 		},
 	)
 	requireSuccesses(t, 1, verificationErrs)
 
-	course, err := w.CreateCourse(ctx, scope, workforce.Course{Code: "CONCURRENT", Title: "Concurrent completion", PassingScore: 70})
+	course, err := w.CreateCourse(ctx, scope, workforcemodels.Course{Code: "CONCURRENT", Title: "Concurrent completion", PassingScore: 70})
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, completionErrs := concurrentResults(
-		func() (workforce.Completion, error) {
-			return w.CompleteCourse(ctx, scope, course.ID, workforce.Completion{MembershipID: memberA, Score: 90, CompletedAt: now})
+		func() (workforcemodels.Completion, error) {
+			return w.CompleteCourse(ctx, scope, course.ID, workforcemodels.Completion{MembershipID: memberA, Score: 90, CompletedAt: now})
 		},
-		func() (workforce.Completion, error) {
-			return w.CompleteCourse(ctx, scope, course.ID, workforce.Completion{MembershipID: memberA, Score: 90, CompletedAt: now})
+		func() (workforcemodels.Completion, error) {
+			return w.CompleteCourse(ctx, scope, course.ID, workforcemodels.Completion{MembershipID: memberA, Score: 90, CompletedAt: now})
 		},
 	)
 	requireSuccesses(t, 1, completionErrs)
 	performance, performanceErrs := concurrentResults(
-		func() (workforce.PerformanceSnapshot, error) {
+		func() (workforcemodels.PerformanceSnapshot, error) {
 			return w.GeneratePerformance(ctx, scope, memberA, now.Add(-time.Hour), now)
 		},
-		func() (workforce.PerformanceSnapshot, error) {
+		func() (workforcemodels.PerformanceSnapshot, error) {
 			return w.GeneratePerformance(ctx, scope, memberA, now.Add(-time.Hour), now)
 		},
 	)
