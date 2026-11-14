@@ -72,6 +72,15 @@ func limit(n int) int {
 	}
 	return n
 }
+
+// validPage refuses a negative page window as a client error instead of
+// letting PostgreSQL reject the OFFSET with a server error.
+func validPage(f Page) error {
+	if f.Limit < 0 || f.Offset < 0 {
+		return apperrors.BadRequest("limit and offset must not be negative.", nil)
+	}
+	return nil
+}
 func (s *Service) memberExists(ctx context.Context, q database.Querier, org, id string) bool {
 	var ok bool
 	_ = q.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM fleet_partner_organization_provider_memberships WHERE organization_id=$1 AND id=$2 AND status='ACTIVE') OR EXISTS(SELECT 1 FROM fleet_partner_organization_users WHERE organization_id=$1 AND id=$2 AND status='ACTIVE')`, org, id).Scan(&ok)
@@ -140,6 +149,9 @@ func (s *Service) GetProfile(ctx context.Context, t tenant.Context, id string) (
 }
 func (s *Service) ListProfiles(ctx context.Context, t tenant.Context, f Page) ([]Profile, error) {
 	if e := s.gate(s.o.Flags.Workforce, false); e != nil {
+		return nil, e
+	}
+	if e := validPage(f); e != nil {
 		return nil, e
 	}
 	rows, e := s.o.Pool.Query(ctx, `SELECT `+profileCols+` FROM fleet_partner_workforce_profiles WHERE organization_id=$1 AND($2='' OR branch_id=$2)AND($3='' OR status=$3) ORDER BY created_at DESC LIMIT $4 OFFSET $5`, t.OrganizationID, f.BranchID, f.Status, limit(f.Limit), f.Offset)
@@ -242,6 +254,9 @@ func (s *Service) GetShift(ctx context.Context, t tenant.Context, id string) (Sh
 }
 func (s *Service) ListShifts(ctx context.Context, t tenant.Context, f Page) ([]Shift, error) {
 	if e := s.gate(s.o.Flags.Shifts, false); e != nil {
+		return nil, e
+	}
+	if e := validPage(f); e != nil {
 		return nil, e
 	}
 	rows, e := s.o.Pool.Query(ctx, `SELECT `+shiftCols+` FROM fleet_partner_shifts WHERE organization_id=$1 AND($2=''OR branch_id=$2)AND($3=''OR status=$3)ORDER BY start_at DESC LIMIT $4 OFFSET $5`, t.OrganizationID, f.BranchID, f.Status, limit(f.Limit), f.Offset)
@@ -442,6 +457,9 @@ func (s *Service) GetLeave(ctx context.Context, t tenant.Context, id string) (Le
 }
 func (s *Service) ListLeave(ctx context.Context, t tenant.Context, f Page) ([]Leave, error) {
 	if e := s.gate(s.o.Flags.Leave, false); e != nil {
+		return nil, e
+	}
+	if e := validPage(f); e != nil {
 		return nil, e
 	}
 	rows, e := s.o.Pool.Query(ctx, `SELECT `+leaveCols+` FROM fleet_partner_leave_records WHERE organization_id=$1 AND($2=''OR status=$2)ORDER BY start_at DESC LIMIT $3 OFFSET $4`, t.OrganizationID, f.Status, limit(f.Limit), f.Offset)

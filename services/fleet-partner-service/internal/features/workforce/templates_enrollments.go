@@ -151,6 +151,9 @@ func (s *Service) ListShiftTemplates(ctx context.Context, t tenant.Context, f Pa
 	if e := s.gate(s.o.Flags.Shifts, false); e != nil {
 		return nil, e
 	}
+	if e := validPage(f); e != nil {
+		return nil, e
+	}
 	rows, e := s.o.Pool.Query(ctx, `SELECT `+templateCols+` FROM fleet_partner_shift_templates WHERE organization_id=$1 AND($2=''OR branch_id=$2) AND($3=''OR status=$3) ORDER BY name,id LIMIT $4 OFFSET $5`,
 		t.OrganizationID, f.BranchID, f.Status, limit(f.Limit), f.Offset)
 	if e != nil {
@@ -414,6 +417,9 @@ func (s *Service) Enroll(ctx context.Context, t tenant.Context, in EnrollInput) 
 // ListEnrollments returns enrolments, optionally for one member or status.
 func (s *Service) ListEnrollments(ctx context.Context, t tenant.Context, membershipID string, f Page) ([]Enrollment, error) {
 	if e := s.gate(s.o.Flags.Training, false); e != nil {
+		return nil, e
+	}
+	if e := validPage(f); e != nil {
 		return nil, e
 	}
 	rows, e := s.o.Pool.Query(ctx, `SELECT `+enrollmentCols+` FROM fleet_partner_training_enrollments

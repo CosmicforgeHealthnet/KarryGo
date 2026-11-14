@@ -147,6 +147,9 @@ func (s *Service) ListAssets(ctx context.Context, t tenant.Context, f Page) ([]A
 	if e := s.gate(s.o.Flags.Assets, false); e != nil {
 		return nil, e
 	}
+	if e := validPage(f); e != nil {
+		return nil, e
+	}
 	rows, e := s.o.Pool.Query(ctx, `SELECT `+assetCols+` FROM fleet_partner_assets WHERE organization_id=$1 AND($2=''OR branch_id=$2)AND($3=''OR operational_status=$3 OR lifecycle_status=$3)ORDER BY created_at DESC LIMIT $4 OFFSET $5`, t.OrganizationID, f.BranchID, f.Status, lim(f.Limit), f.Offset)
 	if e != nil {
 		return nil, e
@@ -222,6 +225,15 @@ func (s *Service) UpdateAsset(ctx context.Context, t tenant.Context, id string, 
 }
 func mustJSON(v any) []byte { b, _ := json.Marshal(v); return b }
 
+// validPage refuses a negative page window as a client error instead of
+// letting PostgreSQL reject the OFFSET with a server error.
+func validPage(f Page) error {
+	if f.Limit < 0 || f.Offset < 0 {
+		return apperrors.BadRequest("limit and offset must not be negative.", nil)
+	}
+	return nil
+}
+
 func (s *Service) Assign(ctx context.Context, t tenant.Context, assetID string, v Assignment) (Assignment, error) {
 	if e := s.gate(s.o.Flags.Assignments, true); e != nil {
 		return v, e
@@ -279,7 +291,12 @@ func (s *Service) AddDocument(ctx context.Context, t tenant.Context, assetID str
 	v.OrganizationID = t.OrganizationID
 	v.AssetID = assetID
 	v.VerificationStatus = "PENDING"
-	e := s.o.Pool.QueryRow(ctx, `INSERT INTO fleet_partner_asset_documents(id,organization_id,asset_id,media_file_id,document_type,issued_at,expires_at)VALUES($1,$2,$3,$4,$5,$6,$7)RETURNING version,created_at,updated_at`, v.ID, v.OrganizationID, assetID, v.MediaFileID, v.DocumentType, v.IssuedAt, v.ExpiresAt).Scan(&v.Version, &v.CreatedAt, &v.UpdatedAt)
+	e := s.tx(ctx, func(tx pgx.Tx) error {
+		if x := tx.QueryRow(ctx, `INSERT INTO fleet_partner_asset_documents(id,organization_id,asset_id,media_file_id,document_type,issued_at,expires_at)VALUES($1,$2,$3,$4,$5,$6,$7)RETURNING version,created_at,updated_at`, v.ID, v.OrganizationID, assetID, v.MediaFileID, v.DocumentType, v.IssuedAt, v.ExpiresAt).Scan(&v.Version, &v.CreatedAt, &v.UpdatedAt); x != nil {
+			return x
+		}
+		return s.record(ctx, tx, t, "asset.document_added.v1", "asset_document", v.ID, v.Version, v)
+	})
 	return v, e
 }
 func (s *Service) ListDocuments(ctx context.Context, t tenant.Context, assetID string) ([]Document, error) {
@@ -405,6 +422,9 @@ func (s *Service) ListInspections(ctx context.Context, t tenant.Context, f Page)
 	if e := s.gate(s.o.Flags.Inspections, false); e != nil {
 		return nil, e
 	}
+	if e := validPage(f); e != nil {
+		return nil, e
+	}
 	rows, e := s.o.Pool.Query(ctx, `SELECT `+inspectionCols+` FROM fleet_partner_inspections WHERE organization_id=$1 AND($2=''OR status=$2)ORDER BY created_at DESC LIMIT $3 OFFSET $4`, t.OrganizationID, f.Status, lim(f.Limit), f.Offset)
 	if e != nil {
 		return nil, e
@@ -480,6 +500,9 @@ func (s *Service) CompleteInspection(ctx context.Context, t tenant.Context, id s
 		} else if a.Advisory && result == "PASS" {
 			result = "PASS_WITH_ADVISORY"
 		}
+	}
+	if len(in.DefectSummary) == 0 {
+		in.DefectSummary = json.RawMessage(`[]`)
 	}
 	var v Inspection
 	workID := ""

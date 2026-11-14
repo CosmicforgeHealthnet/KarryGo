@@ -161,6 +161,10 @@ func TestRow17_2b_ShiftListGet(t *testing.T) {
 	if len(limited) != 1 || limited[0]["id"] != other.ID {
 		t.Fatalf("paging: %v", limited)
 	}
+	// An invalid page window is a client error, never a server error.
+	rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/shifts?offset=-1", nil, nil), 400, "negative offset")
+	rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/workforce/profiles?offset=-3", nil, nil), 400, "negative profile offset")
+	rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/leave?offset=-3", nil, nil), 400, "negative leave offset")
 	if items := rowsExpect(t, rowsDo(t, f.router, f.B, "GET", "/fleet-partner/v1/shifts", nil, nil), 200, "other org").Items(t); len(items) != 0 {
 		t.Fatalf("other organization saw shifts: %v", items)
 	}

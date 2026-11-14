@@ -32,15 +32,33 @@ func (s *Service) SaveSchedule(ctx context.Context, t tenant.Context, id string,
 		}
 		v.ID = ids.New("msc")
 		v.OrganizationID = t.OrganizationID
-		var e error
-		v, e = scanSchedule(s.o.Pool.QueryRow(ctx, `INSERT INTO fleet_partner_maintenance_schedules(id,organization_id,asset_id,trigger_type,interval_value,next_due_date,next_due_odometer,next_due_hours,critical)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)RETURNING `+scheduleCols, v.ID, v.OrganizationID, v.AssetID, v.TriggerType, v.IntervalValue, v.NextDueDate, v.NextDueOdometer, v.NextDueHours, v.Critical))
+		e := s.tx(ctx, func(tx pgx.Tx) error {
+			var x error
+			v, x = scanSchedule(tx.QueryRow(ctx, `INSERT INTO fleet_partner_maintenance_schedules(id,organization_id,asset_id,trigger_type,interval_value,next_due_date,next_due_odometer,next_due_hours,critical)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)RETURNING `+scheduleCols, v.ID, v.OrganizationID, v.AssetID, v.TriggerType, v.IntervalValue, v.NextDueDate, v.NextDueOdometer, v.NextDueHours, v.Critical))
+			if x != nil {
+				return x
+			}
+			return s.record(ctx, tx, t, "maintenance_schedule.created.v1", "maintenance_schedule", v.ID, v.Version, v)
+		})
 		return v, e
 	}
 	if _, e := s.GetSchedule(ctx, t, id); e != nil {
 		return v, e
 	}
-	var e error
-	v, e = scanSchedule(s.o.Pool.QueryRow(ctx, `UPDATE fleet_partner_maintenance_schedules SET next_due_date=COALESCE($4,next_due_date),next_due_odometer=COALESCE($5,next_due_odometer),next_due_hours=COALESCE($6,next_due_hours),status=COALESCE(NULLIF($7,''),status),version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND version=$3 RETURNING `+scheduleCols, t.OrganizationID, id, expected, v.NextDueDate, v.NextDueOdometer, v.NextDueHours, v.Status))
+	if expected <= 0 {
+		return v, apperrors.BadRequest("expectedVersion is required.", nil)
+	}
+	e := s.tx(ctx, func(tx pgx.Tx) error {
+		var x error
+		v, x = scanSchedule(tx.QueryRow(ctx, `UPDATE fleet_partner_maintenance_schedules SET next_due_date=COALESCE($4,next_due_date),next_due_odometer=COALESCE($5,next_due_odometer),next_due_hours=COALESCE($6,next_due_hours),status=COALESCE(NULLIF($7,''),status),version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND version=$3 RETURNING `+scheduleCols, t.OrganizationID, id, expected, v.NextDueDate, v.NextDueOdometer, v.NextDueHours, v.Status))
+		if errors.Is(x, pgx.ErrNoRows) {
+			return apperrors.Conflict("Maintenance schedule version conflict.", nil)
+		}
+		if x != nil {
+			return x
+		}
+		return s.record(ctx, tx, t, "maintenance_schedule.updated.v1", "maintenance_schedule", id, v.Version, v)
+	})
 	return v, e
 }
 func (s *Service) GetSchedule(ctx context.Context, t tenant.Context, id string) (Schedule, error) {
@@ -294,6 +312,13 @@ func (s *Service) SaveBreakdown(ctx context.Context, t tenant.Context, id string
 	if e := s.gate(s.o.Flags.Breakdowns, true); e != nil {
 		return v, e
 	}
+	if v.ReplacementAssetID != "" {
+		// The replacement must be an asset this caller can see; the foreign
+		// key alone would accept another organization's asset.
+		if _, e := s.GetAsset(ctx, t, v.ReplacementAssetID); e != nil {
+			return v, e
+		}
+	}
 	if id == "" {
 		if _, e := s.GetAsset(ctx, t, v.AssetID); e != nil {
 			return v, e
@@ -304,7 +329,7 @@ func (s *Service) SaveBreakdown(ctx context.Context, t tenant.Context, id string
 			v.OccurredAt = s.o.Now()
 		}
 		e := s.tx(ctx, func(tx pgx.Tx) error {
-			if e := tx.QueryRow(ctx, `INSERT INTO fleet_partner_breakdowns(id,organization_id,asset_id,provider_membership_id,trip_reference,location_reference,occurred_at,severity,trip_impact,rescue_status,towing_reference,replacement_asset_id)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,COALESCE(NULLIF($10,''),'REQUESTED'),$11,NULLIF($12,''))RETURNING status,version,created_at,updated_at`, v.ID, v.OrganizationID, v.AssetID, v.ProviderMembershipID, v.TripReference, v.LocationReference, v.OccurredAt, v.Severity, v.TripImpact, v.RescueStatus, v.TowingReference, v.ReplacementAssetID).Scan(&v.Status, &v.Version, &v.CreatedAt, &v.UpdatedAt); e != nil {
+			if e := tx.QueryRow(ctx, `INSERT INTO fleet_partner_breakdowns(id,organization_id,asset_id,provider_membership_id,trip_reference,location_reference,occurred_at,severity,trip_impact,rescue_status,towing_reference,replacement_asset_id)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,COALESCE(NULLIF($10,''),'REQUESTED'),$11,NULLIF($12,''))RETURNING rescue_status,status,version,created_at,updated_at`, v.ID, v.OrganizationID, v.AssetID, v.ProviderMembershipID, v.TripReference, v.LocationReference, v.OccurredAt, v.Severity, v.TripImpact, v.RescueStatus, v.TowingReference, v.ReplacementAssetID).Scan(&v.RescueStatus, &v.Status, &v.Version, &v.CreatedAt, &v.UpdatedAt); e != nil {
 				return e
 			}
 			priority := "HIGH"
@@ -334,7 +359,7 @@ func (s *Service) SaveBreakdown(ctx context.Context, t tenant.Context, id string
 		return v, apperrors.BadRequest("expectedVersion is required.", nil)
 	}
 	e = s.tx(ctx, func(tx pgx.Tx) error {
-		if e := tx.QueryRow(ctx, `UPDATE fleet_partner_breakdowns SET rescue_status=COALESCE(NULLIF($4,''),rescue_status),towing_reference=COALESCE(NULLIF($5,''),towing_reference),replacement_asset_id=COALESCE(NULLIF($6,''),replacement_asset_id),status=COALESCE(NULLIF($7,''),status),version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND version=$3 RETURNING asset_id,provider_membership_id,trip_reference,location_reference,occurred_at,severity,trip_impact,organization_id,version,created_at,updated_at`, t.OrganizationID, id, expected, v.RescueStatus, v.TowingReference, v.ReplacementAssetID, v.Status).Scan(&v.AssetID, &v.ProviderMembershipID, &v.TripReference, &v.LocationReference, &v.OccurredAt, &v.Severity, &v.TripImpact, &v.OrganizationID, &v.Version, &v.CreatedAt, &v.UpdatedAt); e != nil {
+		if e := tx.QueryRow(ctx, `UPDATE fleet_partner_breakdowns SET rescue_status=COALESCE(NULLIF($4,''),rescue_status),towing_reference=COALESCE(NULLIF($5,''),towing_reference),replacement_asset_id=COALESCE(NULLIF($6,''),replacement_asset_id),status=COALESCE(NULLIF($7,''),status),version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND version=$3 RETURNING asset_id,provider_membership_id,trip_reference,location_reference,occurred_at,severity,trip_impact,rescue_status,towing_reference,COALESCE(replacement_asset_id,''),status,organization_id,version,created_at,updated_at`, t.OrganizationID, id, expected, v.RescueStatus, v.TowingReference, v.ReplacementAssetID, v.Status).Scan(&v.AssetID, &v.ProviderMembershipID, &v.TripReference, &v.LocationReference, &v.OccurredAt, &v.Severity, &v.TripImpact, &v.RescueStatus, &v.TowingReference, &v.ReplacementAssetID, &v.Status, &v.OrganizationID, &v.Version, &v.CreatedAt, &v.UpdatedAt); e != nil {
 			return apperrors.Conflict("Breakdown version conflict.", e)
 		}
 		v.ID = id
@@ -392,14 +417,31 @@ func (s *Service) SavePart(ctx context.Context, t tenant.Context, id string, exp
 		}
 		v.ID = ids.New("prt")
 		v.OrganizationID = t.OrganizationID
-		e := s.o.Pool.QueryRow(ctx, `INSERT INTO fleet_partner_parts(id,organization_id,branch_id,sku,name,stock_unit,reorder_level,warranty_information)VALUES($1,$2,$3,$4,$5,$6,$7,$8)RETURNING current_quantity_projection,status,version,created_at,updated_at`, v.ID, v.OrganizationID, v.BranchID, v.SKU, v.Name, v.StockUnit, v.ReorderLevel, v.WarrantyInformation).Scan(&v.CurrentQuantityProjection, &v.Status, &v.Version, &v.CreatedAt, &v.UpdatedAt)
+		e := s.tx(ctx, func(tx pgx.Tx) error {
+			if x := tx.QueryRow(ctx, `INSERT INTO fleet_partner_parts(id,organization_id,branch_id,sku,name,stock_unit,reorder_level,warranty_information)VALUES($1,$2,$3,$4,$5,$6,$7,$8)RETURNING current_quantity_projection,status,version,created_at,updated_at`, v.ID, v.OrganizationID, v.BranchID, v.SKU, v.Name, v.StockUnit, v.ReorderLevel, v.WarrantyInformation).Scan(&v.CurrentQuantityProjection, &v.Status, &v.Version, &v.CreatedAt, &v.UpdatedAt); x != nil {
+				return x
+			}
+			return s.record(ctx, tx, t, "part.created.v1", "part", v.ID, v.Version, v)
+		})
 		return v, e
 	}
 	if _, e := s.GetPart(ctx, t, id); e != nil {
 		return v, e
 	}
-	e := s.o.Pool.QueryRow(ctx, `UPDATE fleet_partner_parts SET name=COALESCE(NULLIF($4,''),name),reorder_level=CASE WHEN $5>=0 THEN $5 ELSE reorder_level END,status=COALESCE(NULLIF($6,''),status),version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND version=$3 RETURNING branch_id,sku,stock_unit,current_quantity_projection,warranty_information,organization_id,version,created_at,updated_at`, t.OrganizationID, id, expected, v.Name, v.ReorderLevel, v.Status).Scan(&v.BranchID, &v.SKU, &v.StockUnit, &v.CurrentQuantityProjection, &v.WarrantyInformation, &v.OrganizationID, &v.Version, &v.CreatedAt, &v.UpdatedAt)
-	v.ID = id
+	if expected <= 0 {
+		return v, apperrors.BadRequest("expectedVersion is required.", nil)
+	}
+	e := s.tx(ctx, func(tx pgx.Tx) error {
+		x := tx.QueryRow(ctx, `UPDATE fleet_partner_parts SET name=COALESCE(NULLIF($4,''),name),reorder_level=CASE WHEN $5>=0 THEN $5 ELSE reorder_level END,status=COALESCE(NULLIF($6,''),status),version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2 AND version=$3 RETURNING branch_id,sku,name,stock_unit,current_quantity_projection,reorder_level,warranty_information,status,organization_id,version,created_at,updated_at`, t.OrganizationID, id, expected, v.Name, v.ReorderLevel, v.Status).Scan(&v.BranchID, &v.SKU, &v.Name, &v.StockUnit, &v.CurrentQuantityProjection, &v.ReorderLevel, &v.WarrantyInformation, &v.Status, &v.OrganizationID, &v.Version, &v.CreatedAt, &v.UpdatedAt)
+		if errors.Is(x, pgx.ErrNoRows) {
+			return apperrors.Conflict("Part version conflict.", nil)
+		}
+		if x != nil {
+			return x
+		}
+		v.ID = id
+		return s.record(ctx, tx, t, "part.updated.v1", "part", id, v.Version, v)
+	})
 	return v, e
 }
 func (s *Service) GetPart(ctx context.Context, t tenant.Context, id string) (Part, error) {
