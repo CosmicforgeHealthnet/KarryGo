@@ -36,7 +36,7 @@ import (
 	documenthttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/documents/http"
 	engagementhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/http"
 	exportshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/http"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
+	financeopshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/http"
 	legalholdhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/http"
 	manifestshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/manifests/http"
 	mkthttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/http"
@@ -260,7 +260,7 @@ func enumerateManifestBackedRoutes(t *testing.T) []liveRoute {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}
 
-	financeOpsH := financeops.NewHandler(nil, nil, nil)
+	financeOpsH := financeopshttp.NewHandler(nil, nil, nil)
 	for _, r := range financeOpsH.TenantRoutes() {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}

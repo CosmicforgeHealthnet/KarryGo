@@ -1,4 +1,4 @@
-package financeops
+package models
 
 import (
 	"encoding/json"
@@ -57,7 +57,7 @@ func TestSubmissionRequiresEveryIdentity(t *testing.T) {
 // recompute from.
 func TestSubmissionCarriesFleetsResolvedFiguresVerbatim(t *testing.T) {
 	submission := validSubmission()
-	raw, err := submission.payload()
+	raw, err := submission.Payload()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestSubmissionCarriesFleetsResolvedFiguresVerbatim(t *testing.T) {
 // existed, and one with a reference must carry it.
 func TestSubmissionPaymentReferenceIsSentOnlyWhenPresent(t *testing.T) {
 	submission := validSubmission()
-	before, err := submission.payload()
+	before, err := submission.Payload()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestSubmissionPaymentReferenceIsSentOnlyWhenPresent(t *testing.T) {
 
 	submission.SourceService, submission.ProviderType = "dispatch", "dispatch"
 	submission.SourceJobID, submission.PaymentSourceReference = "trip_1", "booking_1"
-	raw, err := submission.payload()
+	raw, err := submission.Payload()
 	if err != nil {
 		t.Fatal(err)
 	}

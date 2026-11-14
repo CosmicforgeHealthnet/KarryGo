@@ -1,4 +1,4 @@
-package financeops
+package models
 
 // Section 12/13: handing one Fleet settlement instruction to the money
 // authority.
@@ -81,7 +81,7 @@ func (s ManagedSettlementSubmission) Validate() error {
 	return nil
 }
 
-// payload is the wire body the Wallet adapter sends.
+// Payload is the wire body the Wallet adapter sends.
 //
 // payment_source_reference is added only when there is one. The posting
 // operation fingerprints this payload, so an instruction without a payment
@@ -89,7 +89,7 @@ func (s ManagedSettlementSubmission) Validate() error {
 // existed: otherwise an operation recorded earlier (OUTCOME_UNKNOWN or
 // awaiting retry) would be refused as an idempotency conflict on its next
 // attempt.
-func (s ManagedSettlementSubmission) payload() (json.RawMessage, error) {
+func (s ManagedSettlementSubmission) Payload() (json.RawMessage, error) {
 	body := s.wireFields()
 	if reference := strings.TrimSpace(s.PaymentSourceReference); reference != "" {
 		body["payment_source_reference"] = reference

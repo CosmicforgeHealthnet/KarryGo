@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
+	financeopsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/models"
+	financeopsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
@@ -21,25 +22,25 @@ import (
 // payment-wallet and accounting clients. It is the same adapter BuildComponents
 // wires; integration tests use it so the wire contract they exercise is the
 // production one.
-func NewFinancePostingAdapter(wallet, accounting *platformclients.Client) financeops.PostingPort {
+func NewFinancePostingAdapter(wallet, accounting *platformclients.Client) financeopsusecases.PostingPort {
 	return financialPostingAdapter{wallet: walletPostingAdapter{client: wallet}, accounting: accountingPostingAdapter{client: accounting}}
 }
 
 // ManagedSettlementSubmitter adapts the financeops posting service to the
 // fleetpartner money-authority port.
-type ManagedSettlementSubmitter struct{ Finance *financeops.Service }
+type ManagedSettlementSubmitter struct{ Finance *financeopsusecases.Service }
 
 // SubmitManagedSettlement implements fleetpartner.SettlementSubmitter.
 func (a ManagedSettlementSubmitter) SubmitManagedSettlement(ctx context.Context, in fleetpartner.SettlementSubmission) (fleetpartner.SettlementOutcome, error) {
 	if a.Finance == nil {
 		return fleetpartner.SettlementOutcome{Disposition: fleetpartner.SettlementUnavailable, ErrorCode: "posting_unavailable"},
-			financeops.ErrManagedSettlementUnavailable
+			financeopsmodels.ErrManagedSettlementUnavailable
 	}
 	t := tenant.Context{
 		OrganizationID: in.OrganizationID, ActorType: tenant.ActorTypeSystem,
 		ActorID: "managed-settlement-delivery", CorrelationID: in.CorrelationID,
 	}
-	result, err := a.Finance.SubmitManagedSettlement(ctx, t, financeops.ManagedSettlementSubmission{
+	result, err := a.Finance.SubmitManagedSettlement(ctx, t, financeopsmodels.ManagedSettlementSubmission{
 		InstructionID: in.InstructionID, InstructionVersion: in.InstructionVersion,
 		OrganizationID: in.OrganizationID, MembershipID: in.MembershipID,
 		ProviderID: in.ProviderID, ProviderType: in.ProviderType,

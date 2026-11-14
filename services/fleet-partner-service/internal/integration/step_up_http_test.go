@@ -22,7 +22,10 @@ import (
 	exportsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/models"
 	exportsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/repositories"
 	exportsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/usecases"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
+	financeopshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/http"
+	financeopsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/models"
+	financeopsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/repositories"
+	financeopsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations"
 	legalholdmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/models"
 	legalholdusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/usecases"
@@ -338,7 +341,7 @@ func TestStepUp_FinancialActionsAndSensitiveExports(t *testing.T) {
 			Flags: exportsusecases.Flags{Enabled: true, WritesEnabled: true}, MaxRows: 10, RetentionTTL: time.Hour, Now: time.Now,
 		})
 		companywallethttp.NewHandler(companywalletusecases.NewService(companywalletusecases.Options{Pool: pool}), authorizer).RegisterTenantRoutes(g)
-		financeops.NewHandler(financeops.NewService(financeops.Options{Pool: pool, Flags: financeops.Flags{Payroll: true}}), authorizer, idempotency.NewStore(pool, 0)).RegisterTenantRoutes(g)
+		financeopshttp.NewHandler(financeopsusecases.NewService(financeopsusecases.Options{Store: financeopsrepos.NewRepository(pool), Flags: financeopsmodels.Flags{Payroll: true}}), authorizer, idempotency.NewStore(pool, 0)).RegisterTenantRoutes(g)
 		exportshttp.NewHandler(exportService, authorizer, idempotency.NewStore(pool, 0)).RegisterTenantRoutes(g)
 	})
 	pool := h.pool

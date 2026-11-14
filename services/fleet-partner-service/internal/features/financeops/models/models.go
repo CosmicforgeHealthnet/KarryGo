@@ -1,6 +1,9 @@
-// Package financeops implements Fleet-owned billing and compensation records.
-// Wallet balances, ledger entries and payment execution remain external.
-package financeops
+// Package models holds the Section 22 finance-operations domain: Fleet-owned
+// billing (invoices, receivables, credit notes), expenses, budgets, claims,
+// compensation rules, payroll, subcontractor settlements and the posting
+// requests handed to the money authority. Wallet balances, ledger entries and
+// payment execution remain external.
+package models
 
 import (
 	"encoding/json"

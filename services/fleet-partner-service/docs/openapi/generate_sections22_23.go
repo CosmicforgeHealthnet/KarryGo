@@ -7,7 +7,7 @@ package main
 import (
 	communicationshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/http"
 	engagementhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/http"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
+	financeopshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/http"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -23,7 +23,7 @@ type route struct {
 
 func main() {
 	var finance []route
-	for _, r := range financeops.TenantRoutes() {
+	for _, r := range financeopshttp.TenantRoutes() {
 		finance = append(finance, route{r.Method, r.Path, r.OperationID, r.Permission, r.FeatureFlag, r.AuthClass, r.IdempotencyRequired, r.ExpectedVersionRequired})
 	}
 	var communications []route

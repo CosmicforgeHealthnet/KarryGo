@@ -2,10 +2,11 @@ package integration_test
 
 import (
 	"context"
-	"testing"
-
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
+	financeopsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/models"
+	financeopsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/repositories"
+	financeopsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
+	"testing"
 )
 
 // An organization-wide caller carries a nil PermittedBranchIDs slice, which
@@ -25,7 +26,7 @@ func TestOrganizationWideListIncludesBranchRows(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	svc := financeops.NewService(financeops.Options{Pool: pool, Flags: financeops.Flags{Expenses: true}})
+	svc := financeopsusecases.NewService(financeopsusecases.Options{Store: financeopsrepos.NewRepository(pool), Flags: financeopsmodels.Flags{Expenses: true}})
 
 	all, err := svc.ListExpenses(ctx, tenant.Context{OrganizationID: org.ID})
 	if err != nil {

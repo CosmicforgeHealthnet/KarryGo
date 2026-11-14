@@ -18,10 +18,13 @@ import (
 	documentrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/documents/repositories"
 	documentusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/documents/usecases"
 	engagementhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/http"
-	engagementrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/repositories"
 	engagementmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/models"
+	engagementrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/repositories"
 	engagementusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/usecases"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
+	financeopshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/http"
+	financeopsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/models"
+	financeopsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/repositories"
+	financeopsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/usecases"
 	marketplaceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
 	staffrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/repositories"
@@ -142,7 +145,7 @@ func TestDispatcherPermission_CannotReachPayrollOrCompensation(t *testing.T) {
 	pool := testPool(t)
 	org := createOrganization(t, pool, "Field Visibility Dispatcher Co", "RC-FV-DISP-1")
 	authorizer := accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(pool), nil, 0)
-	service := financeops.NewService(financeops.Options{Pool: pool, Flags: financeops.Flags{Payroll: true, Compensation: true}})
+	service := financeopsusecases.NewService(financeopsusecases.Options{Store: financeopsrepos.NewRepository(pool), Flags: financeopsmodels.Flags{Payroll: true, Compensation: true}})
 
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
@@ -157,7 +160,7 @@ func TestDispatcherPermission_CannotReachPayrollOrCompensation(t *testing.T) {
 		c.Next()
 	})
 	group := engine.Group("/fleet-partner/v1")
-	financeops.NewHandler(service, authorizer, nil).RegisterTenantRoutes(group)
+	financeopshttp.NewHandler(service, authorizer, nil).RegisterTenantRoutes(group)
 
 	// rol_system_dispatcher holds workforce.*/shifts.*/dispatch-shaped
 	// permissions but never payroll.*/compensation.* (migrations 000050:
@@ -258,8 +261,8 @@ func TestSupportPermission_CannotReachWalletPayrollOrDocuments(t *testing.T) {
 	walletService := companywalletusecases.NewService(companywalletusecases.Options{Pool: pool, Flags: companywalletusecases.Flags{}})
 	companywallethttp.NewHandler(walletService, authorizer).RegisterTenantRoutes(group)
 
-	financeopsService := financeops.NewService(financeops.Options{Pool: pool, Flags: financeops.Flags{Payroll: true}})
-	financeops.NewHandler(financeopsService, authorizer, nil).RegisterTenantRoutes(group)
+	financeopsService := financeopsusecases.NewService(financeopsusecases.Options{Store: financeopsrepos.NewRepository(pool), Flags: financeopsmodels.Flags{Payroll: true}})
+	financeopshttp.NewHandler(financeopsService, authorizer, nil).RegisterTenantRoutes(group)
 
 	documentService := documentusecases.NewService(documentusecases.Options{
 		Pool: pool, Documents: documentrepos.NewRepository(pool), Flags: documentusecases.Flags{},

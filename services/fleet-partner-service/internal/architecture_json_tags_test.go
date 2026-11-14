@@ -55,7 +55,7 @@ var jsonTagExemptTypes = map[string]string{
 	"fleetpartner.CompensationResolution":           "POST /completed-work response (internal)",
 	"fleetpartner.ManagedWorkSettlementInstruction": "POST /completed-work response (internal)",
 	"dispatch.TrackingEvent":                        "POST /tracking/events ingress (internal); payload hash is computed over its JSON",
-	"financeops.PaymentEvent":                       "POST /finance/payment-events ingress (internal)",
+	"financeops/models.PaymentEvent":                "POST /finance/payment-events ingress (internal)",
 	"engagement/models.SupportEvent":                "POST /support/events ingress (internal)",
 	"engagement/models.MeasurementInput":            "POST /sla/measurements ingress (internal)",
 }

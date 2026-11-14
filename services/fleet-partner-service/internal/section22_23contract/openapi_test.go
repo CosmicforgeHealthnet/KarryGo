@@ -3,7 +3,7 @@ package section22_23contract
 import (
 	communicationshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/http"
 	engagementhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/http"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
+	financeopshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/http"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -79,7 +79,7 @@ func braces(path string) string {
 }
 func TestSection22BidirectionalRouteParity(t *testing.T) {
 	var rs []route
-	for _, r := range financeops.TenantRoutes() {
+	for _, r := range financeopshttp.TenantRoutes() {
 		rs = append(rs, route{r.Method, r.Path, r.OperationID, r.Permission, r.FeatureFlag, r.AuthClass, r.IdempotencyRequired, r.ExpectedVersionRequired})
 	}
 	check(t, "section22-finance-billing-payroll.openapi.json", rs)

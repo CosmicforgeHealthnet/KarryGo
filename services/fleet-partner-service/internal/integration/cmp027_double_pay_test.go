@@ -18,7 +18,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
+	financeopsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/models"
+	financeopsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/repositories"
+	financeopsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
@@ -74,11 +76,11 @@ func TestCMP027_PayrollDoesNotRepayWorkSettledComponent(t *testing.T) {
 	scope, branch, _ := section2223Scope(t, pool)
 	ctx := context.Background()
 
-	svc := financeops.NewService(financeops.Options{
-		Pool:   pool,
+	svc := financeopsusecases.NewService(financeopsusecases.Options{
+		Store:  financeopsrepos.NewRepository(pool),
 		Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)),
 		Wallet: &sectionPosting{},
-		Flags:  financeops.Flags{Compensation: true, Payroll: true},
+		Flags:  financeopsmodels.Flags{Compensation: true, Payroll: true},
 	})
 	approver := scope
 	approver.ActorID = ids.New("usr")
@@ -87,7 +89,7 @@ func TestCMP027_PayrollDoesNotRepayWorkSettledComponent(t *testing.T) {
 	paidMembership, paidAssignment := seedCompletedAssignment(t, pool, scope, branch)
 	_, unpaidAssignment := seedCompletedAssignment(t, pool, scope, branch)
 
-	rule, err := svc.CreateCompensationRule(ctx, scope, financeops.CompensationRuleInput{
+	rule, err := svc.CreateCompensationRule(ctx, scope, financeopsmodels.CompensationRuleInput{
 		Name: "Per job", RuleType: "PER_JOB", Currency: "NGN",
 		CalculationConfiguration: json.RawMessage(`{"amountMinor":700}`),
 		EffectiveFrom:            time.Now().UTC().AddDate(0, 0, -7),
@@ -104,7 +106,7 @@ func TestCMP027_PayrollDoesNotRepayWorkSettledComponent(t *testing.T) {
 	// money, by this exact rule.
 	recordWorkSettled(t, pool, scope.OrganizationID, paidMembership, paidAssignment, ruleID, 700)
 
-	period, err := svc.CreatePayrollPeriod(ctx, scope, financeops.PayrollPeriodInput{
+	period, err := svc.CreatePayrollPeriod(ctx, scope, financeopsmodels.PayrollPeriodInput{
 		BranchID: branch, Currency: "NGN",
 		PeriodStart: time.Now().UTC().AddDate(0, 0, -1),
 		PeriodEnd:   time.Now().UTC().AddDate(0, 0, 1),
@@ -143,11 +145,11 @@ func TestCMP027_RecalculationDoesNotAccumulateDuplicates(t *testing.T) {
 	scope, branch, _ := section2223Scope(t, pool)
 	ctx := context.Background()
 
-	svc := financeops.NewService(financeops.Options{
-		Pool:   pool,
+	svc := financeopsusecases.NewService(financeopsusecases.Options{
+		Store:  financeopsrepos.NewRepository(pool),
 		Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)),
 		Wallet: &sectionPosting{},
-		Flags:  financeops.Flags{Compensation: true, Payroll: true},
+		Flags:  financeopsmodels.Flags{Compensation: true, Payroll: true},
 	})
 	approver := scope
 	approver.ActorID = ids.New("usr")
@@ -155,7 +157,7 @@ func TestCMP027_RecalculationDoesNotAccumulateDuplicates(t *testing.T) {
 
 	paidMembership, paidAssignment := seedCompletedAssignment(t, pool, scope, branch)
 
-	rule, err := svc.CreateCompensationRule(ctx, scope, financeops.CompensationRuleInput{
+	rule, err := svc.CreateCompensationRule(ctx, scope, financeopsmodels.CompensationRuleInput{
 		Name: "Per job", RuleType: "PER_JOB", Currency: "NGN",
 		CalculationConfiguration: json.RawMessage(`{"amountMinor":900}`),
 		EffectiveFrom:            time.Now().UTC().AddDate(0, 0, -7),
@@ -169,7 +171,7 @@ func TestCMP027_RecalculationDoesNotAccumulateDuplicates(t *testing.T) {
 	}
 	recordWorkSettled(t, pool, scope.OrganizationID, paidMembership, paidAssignment, ruleID, 900)
 
-	period, err := svc.CreatePayrollPeriod(ctx, scope, financeops.PayrollPeriodInput{
+	period, err := svc.CreatePayrollPeriod(ctx, scope, financeopsmodels.PayrollPeriodInput{
 		BranchID: branch, Currency: "NGN",
 		PeriodStart: time.Now().UTC().AddDate(0, 0, -1),
 		PeriodEnd:   time.Now().UTC().AddDate(0, 0, 1),

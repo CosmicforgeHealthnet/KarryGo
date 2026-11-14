@@ -2,13 +2,12 @@ package app
 
 import (
 	"context"
+	financeopsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/models"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
 )
 
 func TestFinancialPostingAdapterRoutesToAuthoritativeService(t *testing.T) {
@@ -59,16 +58,16 @@ func TestFinancialPostingAdapterRoutesToAuthoritativeService(t *testing.T) {
 		accounting: accountingPostingAdapter{client: platformclients.New(platformclients.Options{ServiceName: "accounting-service", BaseURL: accounting.URL, Secret: []byte("test-secret")})},
 	}
 	meta := platformclients.CallMeta{OrganizationID: "org-1", IdempotencyKey: "key-1"}
-	if _, err := adapter.Submit(context.Background(), meta, financeops.PostingRequest{OrganizationID: "org-1", RecordType: "PAYROLL_ITEM", RecordID: "item-1", OperationType: "PROVIDER_ALLOCATION", IdempotencyKey: "key-1", Payload: json.RawMessage(`{"amountMinor":500}`)}); err != nil {
+	if _, err := adapter.Submit(context.Background(), meta, financeopsmodels.PostingRequest{OrganizationID: "org-1", RecordType: "PAYROLL_ITEM", RecordID: "item-1", OperationType: "PROVIDER_ALLOCATION", IdempotencyKey: "key-1", Payload: json.RawMessage(`{"amountMinor":500}`)}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := adapter.ReadByKey(context.Background(), meta, financeops.PostingRequest{OrganizationID: "org-1", OperationType: "PAYROLL_REVERSAL", IdempotencyKey: "key-1"}); err != nil {
+	if _, err := adapter.ReadByKey(context.Background(), meta, financeopsmodels.PostingRequest{OrganizationID: "org-1", OperationType: "PAYROLL_REVERSAL", IdempotencyKey: "key-1"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := adapter.Submit(context.Background(), meta, financeops.PostingRequest{OrganizationID: "org-1", RecordType: "EXPENSE", RecordID: "exp-1", OperationType: "EXPENSE_POST", IdempotencyKey: "key-2", AmountMinor: 1250, Currency: "NGN"}); err != nil {
+	if _, err := adapter.Submit(context.Background(), meta, financeopsmodels.PostingRequest{OrganizationID: "org-1", RecordType: "EXPENSE", RecordID: "exp-1", OperationType: "EXPENSE_POST", IdempotencyKey: "key-2", AmountMinor: 1250, Currency: "NGN"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := adapter.ReadByKey(context.Background(), meta, financeops.PostingRequest{OrganizationID: "org-1", OperationType: "EXPENSE_POST", IdempotencyKey: "key-2"}); err != nil {
+	if _, err := adapter.ReadByKey(context.Background(), meta, financeopsmodels.PostingRequest{OrganizationID: "org-1", OperationType: "EXPENSE_POST", IdempotencyKey: "key-2"}); err != nil {
 		t.Fatal(err)
 	}
 	if !adapter.Configured("SETTLEMENT_REQUEST") || walletCalls != 2 || accountingCalls != 2 {

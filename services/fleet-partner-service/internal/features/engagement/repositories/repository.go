@@ -127,7 +127,7 @@ func (r *Repository) LockSupportCase(ctx context.Context, q database.Querier, or
 
 // InsertEventSupportCase projects a platform case first seen through an event.
 func (r *Repository) InsertEventSupportCase(ctx context.Context, q database.Querier, id string, in models.SupportEvent) error {
-	_, err := r.q(q).Exec(ctx, `INSERT INTO fleet_partner_support_case_projections(id,organization_id,support_service_case_id,case_type,status,priority,source_version,last_synced_at,gap_status) VALUES($1,$2,$3,'PLATFORM',$4,$5,$6,now(),CASE WHEN $6=1 THEN 'CURRENT' ELSE 'GAP_DETECTED' END)`, id, in.OrganizationID, in.CaseID, in.Status, in.Priority, in.SourceVersion)
+	_, err := r.q(q).Exec(ctx, `INSERT INTO fleet_partner_support_case_projections(id,organization_id,support_service_case_id,case_type,status,priority,source_version,last_synced_at,gap_status) VALUES($1,$2,$3,'PLATFORM',$4,$5,$6::bigint,now(),CASE WHEN $6::bigint=1 THEN 'CURRENT' ELSE 'GAP_DETECTED' END)`, id, in.OrganizationID, in.CaseID, in.Status, in.Priority, in.SourceVersion)
 	return err
 }
 

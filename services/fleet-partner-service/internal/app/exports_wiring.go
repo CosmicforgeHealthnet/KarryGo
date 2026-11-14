@@ -16,7 +16,7 @@ import (
 	engagementusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/usecases"
 	exportsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/repositories"
 	exportsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/usecases"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
+	financeopsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/usecases"
 	ordersusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/orders/usecases"
 	safetyfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
 	searchusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/search/usecases"
@@ -273,7 +273,7 @@ func (a complianceIncidentsExporter) Rows(ctx context.Context, t tenant.Context,
 	return rows, nil
 }
 
-type invoicesReceivablesExporter struct{ finance *financeops.Service }
+type invoicesReceivablesExporter struct{ finance *financeopsusecases.Service }
 
 func (invoicesReceivablesExporter) Type() string { return "INVOICES_RECEIVABLES" }
 func (invoicesReceivablesExporter) Columns() []string {
@@ -463,7 +463,7 @@ func BuildExportsService(cfg config.Config, pool *pgxpool.Pool, publisher *event
 	metrics *observability.Metrics, search *searchusecases.Service,
 	shipments *shipmentsusecases.Service, workforce *workforcefeature.Service,
 	assets *assetsfeature.Service, warehouse *warehousefeature.Service,
-	safety *safetyfeature.OperationsService, finance *financeops.Service,
+	safety *safetyfeature.OperationsService, finance *financeopsusecases.Service,
 	engagementService *engagementusecases.Service) *exportsusecases.Service {
 	orders := BuildOrdersService(cfg, pool, nil, publisher, search)
 
@@ -548,7 +548,7 @@ func NewComplianceIncidentsExporter(safety *safetyfeature.OperationsService) exp
 }
 
 // NewInvoicesReceivablesExporter builds the safe invoice/receivable adapter.
-func NewInvoicesReceivablesExporter(finance *financeops.Service) exportsusecases.Exporter {
+func NewInvoicesReceivablesExporter(finance *financeopsusecases.Service) exportsusecases.Exporter {
 	return invoicesReceivablesExporter{finance: finance}
 }
 

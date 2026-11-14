@@ -21,7 +21,9 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/app"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
+	financeopsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/models"
+	financeopsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/repositories"
+	financeopsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/audit"
@@ -140,7 +142,7 @@ type settlementHarness struct {
 	pool        *pgxpool.Pool
 	wallet      *fakeWallet
 	server      *httptest.Server
-	finance     *financeops.Service
+	finance     *financeopsusecases.Service
 	fleet       *fleetpartner.Service
 	orgID       string
 	instruction fleetpartner.ManagedWorkSettlementInstruction
@@ -157,7 +159,7 @@ func settlementFlags() fleetpartner.Flags {
 // newSettlementHarness wires the production delivery path over a Wallet fake
 // and records one managed completion, which commits one instruction and its
 // delivery job.
-func newSettlementHarness(t *testing.T, financeFlags financeops.Flags) *settlementHarness {
+func newSettlementHarness(t *testing.T, financeFlags financeopsmodels.Flags) *settlementHarness {
 	t.Helper()
 	return newSettlementHarnessFor(t, financeFlags, fleetpartner.ServiceTaxi, nil)
 }
@@ -165,7 +167,7 @@ func newSettlementHarness(t *testing.T, financeFlags financeops.Flags) *settleme
 // newSettlementHarnessFor records the managed completion for the given
 // execution service, letting the caller shape the completed-work request the
 // way that service builds it.
-func newSettlementHarnessFor(t *testing.T, financeFlags financeops.Flags, category string,
+func newSettlementHarnessFor(t *testing.T, financeFlags financeopsmodels.Flags, category string,
 	shape func(*providercompat.CompletedWorkRequest)) *settlementHarness {
 	t.Helper()
 	pool := testPool(t)
@@ -180,8 +182,8 @@ func newSettlementHarnessFor(t *testing.T, financeFlags financeops.Flags, catego
 		RetryBackoffBase: time.Millisecond, RetryBackoffMax: 5 * time.Millisecond,
 	})
 	publisher := events.NewDomainPublisher(events.NewOutboxRepository(pool))
-	h.finance = financeops.NewService(financeops.Options{
-		Pool: pool, Events: publisher,
+	h.finance = financeopsusecases.NewService(financeopsusecases.Options{
+		Store: financeopsrepos.NewRepository(pool), Events: publisher,
 		Wallet: app.NewFinancePostingAdapter(client, nil), Flags: financeFlags,
 	})
 	h.fleet = fleetpartner.NewService(pool, fleetpartner.NewRepository(pool), membershipStub{},
@@ -232,7 +234,7 @@ func newSettlementHarnessFor(t *testing.T, financeFlags financeops.Flags, catego
 	return h
 }
 
-func postingOn() financeops.Flags { return financeops.Flags{Posting: true} }
+func postingOn() financeopsmodels.Flags { return financeopsmodels.Flags{Posting: true} }
 
 func (h *settlementHarness) deliver(t *testing.T) (fleetpartner.ManagedWorkSettlementInstruction, error) {
 	t.Helper()
@@ -258,7 +260,7 @@ func (h *settlementHarness) count(t *testing.T, sql string, args ...any) int {
 }
 
 func (h *settlementHarness) postingOperations(t *testing.T) int {
-	return h.count(t, `SELECT count(*) FROM fleet_partner_financial_posting_operations WHERE organization_id=$1 AND operation_type=$2`, h.orgID, financeops.OperationManagedWorkSettlement)
+	return h.count(t, `SELECT count(*) FROM fleet_partner_financial_posting_operations WHERE organization_id=$1 AND operation_type=$2`, h.orgID, financeopsmodels.OperationManagedWorkSettlement)
 }
 
 func (h *settlementHarness) events(t *testing.T, eventType string) int {
@@ -415,7 +417,7 @@ func TestManagedSettlementLostResponseIsReadBackNotResent(t *testing.T) {
 		t.Fatalf("posts=%d journals=%d reads=%d: the outcome must be read back, never resent", posts, journals, reads)
 	}
 	if n := h.count(t, `SELECT count(*) FROM fleet_partner_financial_posting_attempts a JOIN fleet_partner_financial_posting_operations o ON o.id=a.operation_id WHERE o.organization_id=$1 AND o.operation_type=$2 AND a.outcome='READ_BACK_CONFIRMED'`,
-		h.orgID, financeops.OperationManagedWorkSettlement); n != 1 {
+		h.orgID, financeopsmodels.OperationManagedWorkSettlement); n != 1 {
 		t.Fatalf("READ_BACK_CONFIRMED attempts = %d, want 1", n)
 	}
 }
@@ -471,7 +473,7 @@ func TestManagedSettlementRefusalIsTerminal(t *testing.T) {
 		t.Fatal("a refused instruction must emit one failed event")
 	}
 	if n := h.count(t, `SELECT count(*) FROM fleet_partner_financial_posting_operations WHERE organization_id=$1 AND operation_type=$2 AND status='FAILED'`,
-		h.orgID, financeops.OperationManagedWorkSettlement); n != 1 {
+		h.orgID, financeopsmodels.OperationManagedWorkSettlement); n != 1 {
 		t.Fatal("the refused posting operation must be FAILED so reconciliation never resends it")
 	}
 	h.wallet.set(func(f *fakeWallet) { f.refuse = false })
@@ -515,7 +517,7 @@ func TestManagedSettlementConcurrentDeliveriesSendOnce(t *testing.T) {
 }
 
 func TestManagedSettlementNeverPostsWhenDisabled(t *testing.T) {
-	cases := map[string]financeops.Flags{
+	cases := map[string]financeopsmodels.Flags{
 		"posting off": {Posting: false},
 		"kill switch": {Posting: true, KillSwitch: true},
 	}
@@ -649,7 +651,7 @@ func TestManagedSettlementCarriesDispatchsPaymentReferenceToWallet(t *testing.T)
 	}
 	if _, err := h.pool.Exec(context.Background(),
 		`UPDATE fleet_partner_financial_posting_operations SET status='OUTCOME_UNKNOWN' WHERE organization_id=$1 AND operation_type=$2`,
-		h.orgID, financeops.OperationManagedWorkSettlement); err != nil {
+		h.orgID, financeopsmodels.OperationManagedWorkSettlement); err != nil {
 		t.Fatal(err)
 	}
 	if got, err := h.deliver(t); err != nil || got.Status != fleetpartner.InstructionPosted {

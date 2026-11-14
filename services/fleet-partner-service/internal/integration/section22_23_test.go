@@ -14,10 +14,12 @@ import (
 	communicationsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/models"
 	communicationsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/repositories"
 	communicationsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/usecases"
-	engagementrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/repositories"
 	engagementmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/models"
+	engagementrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/repositories"
 	engagementusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/usecases"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
+	financeopsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/models"
+	financeopsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/repositories"
+	financeopsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
@@ -55,17 +57,17 @@ type sectionPosting struct {
 }
 
 func (*sectionPosting) Configured(string) bool { return true }
-func (p *sectionPosting) Submit(_ context.Context, _ platformclients.CallMeta, r financeops.PostingRequest) (financeops.PostingOutcome, error) {
+func (p *sectionPosting) Submit(_ context.Context, _ platformclients.CallMeta, r financeopsmodels.PostingRequest) (financeopsmodels.PostingOutcome, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.submitted++
-	return financeops.PostingOutcome{Reference: "wallet-" + r.RecordID, Status: "POSTED", SourceVersion: 1}, &platformclients.Error{Service: "wallet-test", Outcome: platformclients.OutcomeUnknown}
+	return financeopsmodels.PostingOutcome{Reference: "wallet-" + r.RecordID, Status: "POSTED", SourceVersion: 1}, &platformclients.Error{Service: "wallet-test", Outcome: platformclients.OutcomeUnknown}
 }
-func (p *sectionPosting) ReadByKey(_ context.Context, _ platformclients.CallMeta, r financeops.PostingRequest) (financeops.PostingOutcome, error) {
+func (p *sectionPosting) ReadByKey(_ context.Context, _ platformclients.CallMeta, r financeopsmodels.PostingRequest) (financeopsmodels.PostingOutcome, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.read++
-	return financeops.PostingOutcome{Reference: "wallet-" + r.RecordID, Status: "POSTED", SourceVersion: 1}, nil
+	return financeopsmodels.PostingOutcome{Reference: "wallet-" + r.RecordID, Status: "POSTED", SourceVersion: 1}, nil
 }
 
 type sectionSupport struct {
@@ -150,8 +152,8 @@ func TestSection22FinancePayrollAndAuthorityBoundaries(t *testing.T) {
 	scope, branch, customer := section2223Scope(t, pool)
 	ctx := context.Background()
 	posting := &sectionPosting{}
-	svc := financeops.NewService(financeops.Options{Pool: pool, Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)), Media: section2223Media{}, Wallet: posting, Flags: financeops.Flags{Invoices: true, Receivables: true, Expenses: true, Budgets: true, Compensation: true, Payroll: true, Settlements: true, Claims: true, Posting: true}})
-	invoice, err := svc.CreateInvoice(ctx, scope, financeops.InvoiceInput{BranchID: branch, CustomerID: customer, Currency: "ngn", DueDate: time.Now().UTC().Add(24 * time.Hour), Lines: []financeops.InvoiceLineInput{{SourceType: "SHIPMENT", SourceReference: "shipment-1", Description: "Delivery", Quantity: 3, UnitAmountMinor: 1200, TaxAmountMinor: 200}}})
+	svc := financeopsusecases.NewService(financeopsusecases.Options{Store: financeopsrepos.NewRepository(pool), Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)), Media: section2223Media{}, Wallet: posting, Flags: financeopsmodels.Flags{Invoices: true, Receivables: true, Expenses: true, Budgets: true, Compensation: true, Payroll: true, Settlements: true, Claims: true, Posting: true}})
+	invoice, err := svc.CreateInvoice(ctx, scope, financeopsmodels.InvoiceInput{BranchID: branch, CustomerID: customer, Currency: "ngn", DueDate: time.Now().UTC().Add(24 * time.Hour), Lines: []financeopsmodels.InvoiceLineInput{{SourceType: "SHIPMENT", SourceReference: "shipment-1", Description: "Delivery", Quantity: 3, UnitAmountMinor: 1200, TaxAmountMinor: 200}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,17 +168,17 @@ func TestSection22FinancePayrollAndAuthorityBoundaries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = svc.UpdateInvoice(ctx, scope, invoice["id"].(string), financeops.InvoiceInput{ExpectedVersion: v64(invoice, "version"), CustomerID: customer, Currency: "NGN", DueDate: time.Now().Add(time.Hour), Lines: []financeops.InvoiceLineInput{{SourceType: "SHIPMENT", SourceReference: "x", Description: "x", Quantity: 1, UnitAmountMinor: 1}}}); err == nil {
+	if _, err = svc.UpdateInvoice(ctx, scope, invoice["id"].(string), financeopsmodels.InvoiceInput{ExpectedVersion: v64(invoice, "version"), CustomerID: customer, Currency: "NGN", DueDate: time.Now().Add(time.Hour), Lines: []financeopsmodels.InvoiceLineInput{{SourceType: "SHIPMENT", SourceReference: "x", Description: "x", Quantity: 1, UnitAmountMinor: 1}}}); err == nil {
 		t.Fatal("issued invoice was mutable")
 	}
 	receivables, err := svc.ListReceivables(ctx, scope)
 	if err != nil || len(receivables) != 1 {
 		t.Fatalf("receivable=%+v err=%v", receivables, err)
 	}
-	if err = svc.ApplyPayment(ctx, financeops.PaymentEvent{EventID: "pay-1", OrganizationID: scope.OrganizationID, InvoiceID: invoice["id"].(string), PaymentReference: "payment-1", Currency: "NGN", AmountMinor: 1800, SourceVersion: 1}); err != nil {
+	if err = svc.ApplyPayment(ctx, financeopsmodels.PaymentEvent{EventID: "pay-1", OrganizationID: scope.OrganizationID, InvoiceID: invoice["id"].(string), PaymentReference: "payment-1", Currency: "NGN", AmountMinor: 1800, SourceVersion: 1}); err != nil {
 		t.Fatal(err)
 	}
-	if err = svc.ApplyPayment(ctx, financeops.PaymentEvent{EventID: "pay-1", OrganizationID: scope.OrganizationID, InvoiceID: invoice["id"].(string), PaymentReference: "payment-1", Currency: "NGN", AmountMinor: 1800, SourceVersion: 1}); err != nil {
+	if err = svc.ApplyPayment(ctx, financeopsmodels.PaymentEvent{EventID: "pay-1", OrganizationID: scope.OrganizationID, InvoiceID: invoice["id"].(string), PaymentReference: "payment-1", Currency: "NGN", AmountMinor: 1800, SourceVersion: 1}); err != nil {
 		t.Fatal(err)
 	}
 	var paymentRows int
@@ -187,7 +189,7 @@ func TestSection22FinancePayrollAndAuthorityBoundaries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = svc.CreditInvoice(ctx, scope, invoice["id"].(string), financeops.CreditNoteInput{AmountMinor: 1000, Reason: "service credit", ExpectedVersion: v64(invoice, "version")}); err != nil {
+	if _, err = svc.CreditInvoice(ctx, scope, invoice["id"].(string), financeopsmodels.CreditNoteInput{AmountMinor: 1000, Reason: "service credit", ExpectedVersion: v64(invoice, "version")}); err != nil {
 		t.Fatal(err)
 	}
 	receivables, err = svc.ListReceivables(ctx, scope)
@@ -198,11 +200,11 @@ func TestSection22FinancePayrollAndAuthorityBoundaries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = svc.CreditInvoice(ctx, scope, invoice["id"].(string), financeops.CreditNoteInput{AmountMinor: 1100, Reason: "too much", ExpectedVersion: v64(invoice, "version")}); err == nil {
+	if _, err = svc.CreditInvoice(ctx, scope, invoice["id"].(string), financeopsmodels.CreditNoteInput{AmountMinor: 1100, Reason: "too much", ExpectedVersion: v64(invoice, "version")}); err == nil {
 		t.Fatal("over-credit accepted")
 	}
 
-	expense, err := svc.CreateExpense(ctx, scope, financeops.ExpenseInput{BranchID: branch, Category: "fuel", CostCentre: "OPS", AmountMinor: 2500, Currency: "NGN", ReceiptMediaID: "media-receipt", Description: "Fuel"})
+	expense, err := svc.CreateExpense(ctx, scope, financeopsmodels.ExpenseInput{BranchID: branch, Category: "fuel", CostCentre: "OPS", AmountMinor: 2500, Currency: "NGN", ReceiptMediaID: "media-receipt", Description: "Fuel"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +234,7 @@ func TestSection22FinancePayrollAndAuthorityBoundaries(t *testing.T) {
 	if reversals != 1 {
 		t.Fatalf("expense reversals=%d", reversals)
 	}
-	budget, err := svc.CreateBudget(ctx, scope, financeops.BudgetInput{CostCentre: "OPS", Category: "FUEL", Currency: "NGN", PeriodStart: time.Now().UTC().AddDate(0, 0, -1), PeriodEnd: time.Now().UTC().AddDate(0, 1, 0), ApprovedAmountMinor: 100000})
+	budget, err := svc.CreateBudget(ctx, scope, financeopsmodels.BudgetInput{CostCentre: "OPS", Category: "FUEL", Currency: "NGN", PeriodStart: time.Now().UTC().AddDate(0, 0, -1), PeriodEnd: time.Now().UTC().AddDate(0, 1, 0), ApprovedAmountMinor: 100000})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +242,7 @@ func TestSection22FinancePayrollAndAuthorityBoundaries(t *testing.T) {
 		t.Fatal(err)
 	}
 	amount := int64(5000)
-	claim, err := svc.CreateClaim(ctx, scope, financeops.ClaimInput{ClaimType: "cargo", Currency: "NGN", AmountReferenceMinor: &amount, EvidenceMediaIDs: []string{"media-claim"}, ExternalClaimReference: "insurer-1", SettlementReference: "settlement-external"})
+	claim, err := svc.CreateClaim(ctx, scope, financeopsmodels.ClaimInput{ClaimType: "cargo", Currency: "NGN", AmountReferenceMinor: &amount, EvidenceMediaIDs: []string{"media-claim"}, ExternalClaimReference: "insurer-1", SettlementReference: "settlement-external"})
 	if err != nil || claim["external_claim_reference"] != "insurer-1" {
 		t.Fatalf("claim=%+v err=%v", claim, err)
 	}
@@ -257,7 +259,7 @@ func TestSection22FinancePayrollAndAuthorityBoundaries(t *testing.T) {
 	if _, err = pool.Exec(ctx, `INSERT INTO fleet_partner_private_assignments(id,organization_id,branch_id,work_origin,route_stop_id,provider_membership_id,provider_id,execution_service,status,response_deadline,created_by,updated_at)VALUES($1,$2,$3,'ROUTE_STOP',$4,$5,$6,'DISPATCH','COMPLETED',now()+interval '1 hour',$7,now())`, assignment, scope.OrganizationID, branch, "stop-"+assignment, membership, provider, scope.ActorID); err != nil {
 		t.Fatal(err)
 	}
-	rule, err := svc.CreateCompensationRule(ctx, scope, financeops.CompensationRuleInput{Name: "Per job", RuleType: "PER_JOB", Currency: "NGN", CalculationConfiguration: json.RawMessage(`{"amountMinor":700}`), EffectiveFrom: time.Now().UTC().AddDate(0, 0, -7)})
+	rule, err := svc.CreateCompensationRule(ctx, scope, financeopsmodels.CompensationRuleInput{Name: "Per job", RuleType: "PER_JOB", Currency: "NGN", CalculationConfiguration: json.RawMessage(`{"amountMinor":700}`), EffectiveFrom: time.Now().UTC().AddDate(0, 0, -7)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,7 +267,7 @@ func TestSection22FinancePayrollAndAuthorityBoundaries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	period, err := svc.CreatePayrollPeriod(ctx, scope, financeops.PayrollPeriodInput{BranchID: branch, Currency: "NGN", PeriodStart: time.Now().UTC().AddDate(0, 0, -1), PeriodEnd: time.Now().UTC().AddDate(0, 0, 1)})
+	period, err := svc.CreatePayrollPeriod(ctx, scope, financeopsmodels.PayrollPeriodInput{BranchID: branch, Currency: "NGN", PeriodStart: time.Now().UTC().AddDate(0, 0, -1), PeriodEnd: time.Now().UTC().AddDate(0, 0, 1)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,11 +299,11 @@ func TestSection22FinancePayrollAndAuthorityBoundaries(t *testing.T) {
 	if err != nil || period["status"] != "REVERSED" {
 		t.Fatalf("payroll reversal=%+v err=%v", period, err)
 	}
-	settlement, err := svc.CreateSettlement(ctx, scope, financeops.SettlementInput{SupplierReference: "supplier", ProviderOrCarrierReference: provider, Currency: "NGN", PeriodStart: time.Now().AddDate(0, 0, -2), PeriodEnd: time.Now(), JobReferences: []string{assignment}, AmountMinor: 700})
+	settlement, err := svc.CreateSettlement(ctx, scope, financeopsmodels.SettlementInput{SupplierReference: "supplier", ProviderOrCarrierReference: provider, Currency: "NGN", PeriodStart: time.Now().AddDate(0, 0, -2), PeriodEnd: time.Now(), JobReferences: []string{assignment}, AmountMinor: 700})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = svc.CreateSettlement(ctx, scope, financeops.SettlementInput{SupplierReference: "supplier2", ProviderOrCarrierReference: provider, Currency: "NGN", PeriodStart: time.Now().AddDate(0, 0, -2), PeriodEnd: time.Now(), JobReferences: []string{assignment}, AmountMinor: 700}); err == nil {
+	if _, err = svc.CreateSettlement(ctx, scope, financeopsmodels.SettlementInput{SupplierReference: "supplier2", ProviderOrCarrierReference: provider, Currency: "NGN", PeriodStart: time.Now().AddDate(0, 0, -2), PeriodEnd: time.Now(), JobReferences: []string{assignment}, AmountMinor: 700}); err == nil {
 		t.Fatalf("duplicate settled job accepted after %+v", settlement)
 	}
 	var ledgers int

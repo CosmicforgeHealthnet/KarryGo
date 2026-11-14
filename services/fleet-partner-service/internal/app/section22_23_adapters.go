@@ -4,7 +4,7 @@ import (
 	"context"
 	communicationsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/models"
 	engagementmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/models"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
+	financeopsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
 	"encoding/json"
 	"fmt"
@@ -17,14 +17,14 @@ type walletPostingAdapter struct{ client *platformclients.Client }
 
 func (a walletPostingAdapter) Configured() bool { return a.client != nil && a.client.Configured() }
 
-func (a walletPostingAdapter) Submit(ctx context.Context, meta platformclients.CallMeta, request financeops.PostingRequest) (financeops.PostingOutcome, error) {
+func (a walletPostingAdapter) Submit(ctx context.Context, meta platformclients.CallMeta, request financeopsmodels.PostingRequest) (financeopsmodels.PostingOutcome, error) {
 	if !a.Configured() {
-		return financeops.PostingOutcome{}, platformclients.ErrNotConfigured
+		return financeopsmodels.PostingOutcome{}, platformclients.ErrNotConfigured
 	}
 	var fields map[string]any
 	if len(request.Payload) != 0 {
 		if err := json.Unmarshal(request.Payload, &fields); err != nil {
-			return financeops.PostingOutcome{}, err
+			return financeopsmodels.PostingOutcome{}, err
 		}
 	} else {
 		fields = map[string]any{}
@@ -39,7 +39,7 @@ func (a walletPostingAdapter) Submit(ctx context.Context, meta platformclients.C
 	// a single balanced journal, so it has its own contract and its own
 	// read-back. It carries Fleet's resolved figures verbatim -- Wallet
 	// verifies them against the held payment and posts, or refuses.
-	if request.OperationType == financeops.OperationManagedWorkSettlement {
+	if request.OperationType == financeopsmodels.OperationManagedWorkSettlement {
 		var response struct {
 			Success bool `json:"success"`
 			Data    struct {
@@ -50,7 +50,7 @@ func (a walletPostingAdapter) Submit(ctx context.Context, meta platformclients.C
 		}
 		err := a.client.Do(ctx, meta, http.MethodPost,
 			"/api/v1/payment-wallet/internal/finance/v1/managed-settlements", fields, &response)
-		return financeops.PostingOutcome{
+		return financeopsmodels.PostingOutcome{
 			Reference: response.Data.ID, Status: response.Data.Status,
 			SourceVersion: response.Data.InstructionVersion,
 		}, err
@@ -65,7 +65,7 @@ func (a walletPostingAdapter) Submit(ctx context.Context, meta platformclients.C
 	case "REVERSAL_REQUEST":
 		path = "/reversals"
 	default:
-		return financeops.PostingOutcome{}, fmt.Errorf("wallet posting: unsupported operation %s", request.OperationType)
+		return financeopsmodels.PostingOutcome{}, fmt.Errorf("wallet posting: unsupported operation %s", request.OperationType)
 	}
 	var response struct {
 		Success bool `json:"success"`
@@ -76,7 +76,7 @@ func (a walletPostingAdapter) Submit(ctx context.Context, meta platformclients.C
 		} `json:"data"`
 	}
 	err := a.client.Do(ctx, meta, http.MethodPost, "/api/v1/payment-wallet/internal/finance"+path, fields, &response)
-	return financeops.PostingOutcome{Reference: response.Data.ID, Status: response.Data.Status, SourceVersion: response.Data.Version}, err
+	return financeopsmodels.PostingOutcome{Reference: response.Data.ID, Status: response.Data.Status, SourceVersion: response.Data.Version}, err
 }
 
 // accountingPostingAdapter is deliberately an export/operation contract, not
@@ -87,9 +87,9 @@ type accountingPostingAdapter struct{ client *platformclients.Client }
 
 func (a accountingPostingAdapter) Configured() bool { return a.client != nil && a.client.Configured() }
 
-func (a accountingPostingAdapter) Submit(ctx context.Context, meta platformclients.CallMeta, request financeops.PostingRequest) (financeops.PostingOutcome, error) {
+func (a accountingPostingAdapter) Submit(ctx context.Context, meta platformclients.CallMeta, request financeopsmodels.PostingRequest) (financeopsmodels.PostingOutcome, error) {
 	if !a.Configured() {
-		return financeops.PostingOutcome{}, platformclients.ErrNotConfigured
+		return financeopsmodels.PostingOutcome{}, platformclients.ErrNotConfigured
 	}
 	body := map[string]any{
 		"payloadVersion":  1,
@@ -105,7 +105,7 @@ func (a accountingPostingAdapter) Submit(ctx context.Context, meta platformclien
 	if len(request.Payload) != 0 {
 		var evidence any
 		if err := json.Unmarshal(request.Payload, &evidence); err != nil {
-			return financeops.PostingOutcome{}, err
+			return financeopsmodels.PostingOutcome{}, err
 		}
 		body["sourceEvidence"] = evidence
 	}
@@ -118,12 +118,12 @@ func (a accountingPostingAdapter) Submit(ctx context.Context, meta platformclien
 		} `json:"data"`
 	}
 	err := a.client.Do(ctx, meta, http.MethodPost, "/api/v1/accounting/internal/postings", body, &response)
-	return financeops.PostingOutcome{Reference: response.Data.ID, Status: response.Data.Status, SourceVersion: response.Data.Version}, err
+	return financeopsmodels.PostingOutcome{Reference: response.Data.ID, Status: response.Data.Status, SourceVersion: response.Data.Version}, err
 }
 
-func (a accountingPostingAdapter) ReadByKey(ctx context.Context, meta platformclients.CallMeta, request financeops.PostingRequest) (financeops.PostingOutcome, error) {
+func (a accountingPostingAdapter) ReadByKey(ctx context.Context, meta platformclients.CallMeta, request financeopsmodels.PostingRequest) (financeopsmodels.PostingOutcome, error) {
 	if !a.Configured() {
-		return financeops.PostingOutcome{}, platformclients.ErrNotConfigured
+		return financeopsmodels.PostingOutcome{}, platformclients.ErrNotConfigured
 	}
 	path := "/api/v1/accounting/internal/postings/by-idempotency?organizationId=" + url.QueryEscape(request.OrganizationID) +
 		"&operationType=" + url.QueryEscape(request.OperationType) +
@@ -137,7 +137,7 @@ func (a accountingPostingAdapter) ReadByKey(ctx context.Context, meta platformcl
 		} `json:"data"`
 	}
 	err := a.client.Do(ctx, meta, http.MethodGet, path, nil, &response)
-	return financeops.PostingOutcome{Reference: response.Data.ID, Status: response.Data.Status, SourceVersion: response.Data.Version}, err
+	return financeopsmodels.PostingOutcome{Reference: response.Data.ID, Status: response.Data.Status, SourceVersion: response.Data.Version}, err
 }
 
 type financialPostingAdapter struct {
@@ -147,7 +147,7 @@ type financialPostingAdapter struct {
 
 func (a financialPostingAdapter) Configured(operationType string) bool {
 	switch operationType {
-	case "PROVIDER_ALLOCATION", "PAYROLL_REVERSAL", financeops.OperationManagedWorkSettlement:
+	case "PROVIDER_ALLOCATION", "PAYROLL_REVERSAL", financeopsmodels.OperationManagedWorkSettlement:
 		return a.wallet.Configured()
 	case "EXPENSE_POST", "EXPENSE_REVERSAL", "SETTLEMENT_REQUEST", "SETTLEMENT_REVERSAL":
 		return a.accounting.Configured()
@@ -162,35 +162,35 @@ func (a financialPostingAdapter) Configured(operationType string) bool {
 // money instruction to the wrong authority.
 func walletOperation(operationType string) bool {
 	switch operationType {
-	case "PROVIDER_ALLOCATION", "PAYROLL_REVERSAL", financeops.OperationManagedWorkSettlement:
+	case "PROVIDER_ALLOCATION", "PAYROLL_REVERSAL", financeopsmodels.OperationManagedWorkSettlement:
 		return true
 	default:
 		return false
 	}
 }
 
-func (a financialPostingAdapter) Submit(ctx context.Context, meta platformclients.CallMeta, request financeops.PostingRequest) (financeops.PostingOutcome, error) {
+func (a financialPostingAdapter) Submit(ctx context.Context, meta platformclients.CallMeta, request financeopsmodels.PostingRequest) (financeopsmodels.PostingOutcome, error) {
 	if walletOperation(request.OperationType) {
 		return a.wallet.Submit(ctx, meta, request)
 	}
 	return a.accounting.Submit(ctx, meta, request)
 }
 
-func (a financialPostingAdapter) ReadByKey(ctx context.Context, meta platformclients.CallMeta, request financeops.PostingRequest) (financeops.PostingOutcome, error) {
+func (a financialPostingAdapter) ReadByKey(ctx context.Context, meta platformclients.CallMeta, request financeopsmodels.PostingRequest) (financeopsmodels.PostingOutcome, error) {
 	if walletOperation(request.OperationType) {
 		return a.wallet.ReadByKey(ctx, meta, request)
 	}
 	return a.accounting.ReadByKey(ctx, meta, request)
 }
 
-func (a walletPostingAdapter) ReadByKey(ctx context.Context, meta platformclients.CallMeta, request financeops.PostingRequest) (financeops.PostingOutcome, error) {
+func (a walletPostingAdapter) ReadByKey(ctx context.Context, meta platformclients.CallMeta, request financeopsmodels.PostingRequest) (financeopsmodels.PostingOutcome, error) {
 	if !a.Configured() {
-		return financeops.PostingOutcome{}, platformclients.ErrNotConfigured
+		return financeopsmodels.PostingOutcome{}, platformclients.ErrNotConfigured
 	}
 	// A managed settlement is read back by the key it was posted under. This
 	// is what turns an ambiguous timeout into a definite answer instead of a
 	// guess (WAL-017, Invariant 8).
-	if request.OperationType == financeops.OperationManagedWorkSettlement {
+	if request.OperationType == financeopsmodels.OperationManagedWorkSettlement {
 		var response struct {
 			Success bool `json:"success"`
 			Data    struct {
@@ -202,7 +202,7 @@ func (a walletPostingAdapter) ReadByKey(ctx context.Context, meta platformclient
 		err := a.client.Do(ctx, meta, http.MethodGet,
 			"/api/v1/payment-wallet/internal/finance/v1/managed-settlements/by-key/"+
 				url.PathEscape(request.IdempotencyKey), nil, &response)
-		return financeops.PostingOutcome{
+		return financeopsmodels.PostingOutcome{
 			Reference: response.Data.ID, Status: response.Data.Status,
 			SourceVersion: response.Data.InstructionVersion,
 		}, err
@@ -223,7 +223,7 @@ func (a walletPostingAdapter) ReadByKey(ctx context.Context, meta platformclient
 		} `json:"data"`
 	}
 	err := a.client.Do(ctx, meta, http.MethodGet, path, nil, &response)
-	return financeops.PostingOutcome{Reference: response.Data.ID, Status: response.Data.Status, SourceVersion: response.Data.Version}, err
+	return financeopsmodels.PostingOutcome{Reference: response.Data.ID, Status: response.Data.Status, SourceVersion: response.Data.Version}, err
 }
 
 type notificationDeliveryAdapter struct{ client *platformclients.Client }

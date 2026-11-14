@@ -49,7 +49,10 @@ import (
 	exportshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/http"
 	exportsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/usecases"
 	financefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/finance"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops"
+	financeopshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/http"
+	financeopsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/models"
+	financeopsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/repositories"
+	financeopsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/usecases"
 	fleetpartnerfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner"
 	integrationsfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations"
 	legalholdhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/http"
@@ -177,7 +180,7 @@ type Components struct {
 	Proof             *prooffeature.Service
 	Specialized       *specializedfeature.Service
 	Warehouse         *warehousefeature.Service
-	FinanceOperations *financeops.Service
+	FinanceOperations *financeopsusecases.Service
 	Engagement        *engagementusecases.Service
 	Communications    *communicationsusecases.Service
 	Marketplace       *mktusecases.Service
@@ -455,7 +458,7 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 	notificationHTTP := platformclients.New(platformclients.Options{ServiceName: "notification-service", BaseURL: notificationCfg.BaseURL, Secret: notificationCfg.Secret, Timeout: cfg.HTTPClientTimeout, Metrics: metrics, Environment: cfg.AppEnv, MaxRetries: cfg.ExternalClientMaxRetries, RetryBackoffBase: cfg.ExternalClientRetryBackoffBase, RetryBackoffMax: cfg.ExternalClientRetryBackoffMax, Breaker: circuitbreaker.Config{FailureThreshold: cfg.CircuitBreakerFailureThreshold, ObservationWindow: cfg.CircuitBreakerObservationWindow, OpenDuration: cfg.CircuitBreakerOpenDuration, HalfOpenProbes: cfg.CircuitBreakerHalfOpenProbes, SuccessThreshold: cfg.CircuitBreakerSuccessThreshold}})
 	supportHTTP := platformclients.New(platformclients.Options{ServiceName: "support-dispute-service", BaseURL: supportCfg.BaseURL, Secret: supportCfg.Secret, Timeout: cfg.HTTPClientTimeout, Metrics: metrics, Environment: cfg.AppEnv, MaxRetries: cfg.ExternalClientMaxRetries, RetryBackoffBase: cfg.ExternalClientRetryBackoffBase, RetryBackoffMax: cfg.ExternalClientRetryBackoffMax, Breaker: circuitbreaker.Config{FailureThreshold: cfg.CircuitBreakerFailureThreshold, ObservationWindow: cfg.CircuitBreakerObservationWindow, OpenDuration: cfg.CircuitBreakerOpenDuration, HalfOpenProbes: cfg.CircuitBreakerHalfOpenProbes, SuccessThreshold: cfg.CircuitBreakerSuccessThreshold}})
 	financePosting := financialPostingAdapter{wallet: walletPostingAdapter{client: walletHTTP}, accounting: accountingPostingAdapter{client: accountingHTTP}}
-	financeOperations := financeops.NewService(financeops.Options{Pool: pool, Events: publisher, Media: contracts.Media, Wallet: financePosting, Flags: financeops.Flags{Invoices: cfg.InvoicesEnabled, Receivables: cfg.ReceivablesEnabled, Expenses: cfg.ExpensesEnabled, Budgets: cfg.BudgetsEnabled, Compensation: cfg.CompensationEnabled, Payroll: cfg.PayrollEnabled, Settlements: cfg.SubcontractorSettlementsEnabled, Claims: cfg.ClaimsEnabled, Posting: cfg.FinancePostingEnabled, Workers: cfg.Section22WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
+	financeOperations := financeopsusecases.NewService(financeopsusecases.Options{Store: financeopsrepos.NewRepository(pool), Events: publisher, Media: contracts.Media, Wallet: financePosting, Flags: financeopsmodels.Flags{Invoices: cfg.InvoicesEnabled, Receivables: cfg.ReceivablesEnabled, Expenses: cfg.ExpensesEnabled, Budgets: cfg.BudgetsEnabled, Compensation: cfg.CompensationEnabled, Payroll: cfg.PayrollEnabled, Settlements: cfg.SubcontractorSettlementsEnabled, Claims: cfg.ClaimsEnabled, Posting: cfg.FinancePostingEnabled, Workers: cfg.Section22WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
 	communicationsService, engagementService := newSection23Services(cfg, pool, publisher, contracts.Media, supportCaseAdapter{client: supportHTTP}, notificationDeliveryAdapter{client: notificationHTTP})
 	authorizer := accesscontrol.NewAuthorizer(roles, entryCache, cfg.AuthorizationCacheTTL)
 	searchService := BuildSearchService(cfg, pool, authorizer, metrics)
@@ -685,7 +688,7 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 	proofHandler := prooffeature.NewHandler(c.Proof, c.Authorizer, c.Idempotency)
 	specializedHandler := specializedfeature.NewHandler(c.Specialized, c.Authorizer, c.Idempotency)
 	warehouseHandler := warehousefeature.NewHandler(c.Warehouse, c.Authorizer, c.Idempotency)
-	financeOperationsHandler := financeops.NewHandler(c.FinanceOperations, c.Authorizer, c.Idempotency)
+	financeOperationsHandler := financeopshttp.NewHandler(c.FinanceOperations, c.Authorizer, c.Idempotency)
 	engagementHandler := engagementhttp.NewHandler(c.Engagement, c.Authorizer, c.Idempotency)
 	communicationsHandler := communicationshttp.NewHandler(c.Communications, c.Authorizer, c.Idempotency)
 	searchHandler := searchhttp.NewHandler(c.Search, c.Authorizer)
@@ -993,7 +996,7 @@ func (c *Components) InternalSection16Routes() RouteRegistrar {
 // InternalSection22To23Routes mounts payment, support-event and SLA ingestion
 // only on the HMAC-authenticated service surface.
 func (c *Components) InternalSection22To23Routes() RouteRegistrar {
-	financeHandler := financeops.NewInternalHandler(c.FinanceOperations)
+	financeHandler := financeopshttp.NewInternalHandler(c.FinanceOperations)
 	engagementHandler := engagementhttp.NewInternalHandler(c.Engagement)
 	return func(group *gin.RouterGroup) {
 		financeHandler.RegisterInternalRoutes(group)
