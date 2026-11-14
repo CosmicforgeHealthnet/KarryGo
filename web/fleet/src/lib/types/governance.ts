@@ -132,3 +132,69 @@ export interface OperatingLocation {
   createdAt: string;
   updatedAt: string;
 }
+
+// ── Approval requests (approvals/http RequestView) ───────────────────────
+
+export const APPROVAL_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'EXPIRED', 'CANCELLED', 'INVALIDATED', 'EXECUTED'] as const;
+
+export interface ApprovalRequest {
+  id: string;
+  resourceType: string;
+  resourceId: string;
+  action: string;
+  status: string;
+  branchId?: string;
+  requesterId: string;
+  requestFingerprint: string;
+  payloadVersion: number;
+  expectedSubjectVersion: number;
+  minimumApprovals: number;
+  selfApprovalAllowed: boolean;
+  separationOfDuties: boolean;
+  policyId: string;
+  policyVersion: number;
+  currentStep: number;
+  amountMinor?: number;
+  amountCurrency?: string;
+  eligibilityDecisionId?: string;
+  expiresAt: string;
+  executedAt?: string;
+  executionReference?: string;
+  invalidationReason?: string;
+  version: number;
+  createdAt: string;
+}
+
+export interface ApprovalStep {
+  stepNumber: number;
+  requiredQuorum: number;
+  eligibleRoleIds: string[];
+  status: string;
+  completedAt?: string | null;
+}
+
+export interface ApprovalRequestDetail extends ApprovalRequest {
+  steps: ApprovalStep[];
+}
+
+export interface ApprovalDecision {
+  id: string;
+  approverId: string;
+  decision: string;
+  reason?: string | null;
+  requestVersion: number;
+  approvedFingerprint: string;
+  approvalStepId?: string | null;
+  delegationId?: string | null;
+  onBehalfOf?: string | null;
+  decidedAt: string;
+}
+
+export interface ApprovalHistoryEntry {
+  id: string;
+  fromStatus?: string | null;
+  toStatus: string;
+  actorType: string;
+  reasonCode?: string | null;
+  occurredAt: string;
+}

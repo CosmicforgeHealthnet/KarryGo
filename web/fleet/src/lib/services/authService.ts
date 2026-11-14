@@ -49,3 +49,26 @@ export const authService = {
     return { loggedOut: true };
   },
 };
+
+// One signed-in session of the current person (GET /sessions). Refresh-token
+// material is never part of it.
+export interface AuthSession {
+  sessionId: string;
+  status: string;
+  organizationId?: string;
+  deviceLabel?: string;
+  lastSeenAt?: string | null;
+  createdAt: string;
+  current: boolean;
+}
+
+export const sessionService = {
+  async list(): Promise<AuthSession[]> {
+    const res = await apiClient.get<Envelope<AuthSession[] | null>>('/sessions');
+    return res.data.data ?? [];
+  },
+  // A high-risk action: apiClient runs the step-up challenge when asked.
+  async revoke(sessionId: string): Promise<void> {
+    await apiClient.delete(`/sessions/${encodeURIComponent(sessionId)}`);
+  },
+};

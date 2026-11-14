@@ -1,66 +1,59 @@
 ﻿"use client";
 
-import { useState } from "react";
-
-type Session = {
-  id: string;
-  device: string;
-  location: string;
-  createdAt: string;
-  lastActive: string;
-  isCurrent: boolean;
-};
-
-// MOCK: replace with the real session list once fleet-partner-service
-// auth endpoints are wired in.
-const MOCK_SESSIONS: Session[] = [
-  {
-    id: "sess_1",
-    device: "Chrome on Windows",
-    location: "Abuja, Nigeria",
-    createdAt: "Aug 10, 2026",
-    lastActive: "Active now",
-    isCurrent: true,
-  },
-  {
-    id: "sess_2",
-    device: "KarryGo Mobile — Android",
-    location: "Lagos, Nigeria",
-    createdAt: "Aug 6, 2026",
-    lastActive: "2 hours ago",
-    isCurrent: false,
-  },
-  {
-    id: "sess_3",
-    device: "Safari on macOS",
-    location: "Port Harcourt, Nigeria",
-    createdAt: "Jul 29, 2026",
-    lastActive: "5 days ago",
-    isCurrent: false,
-  },
-];
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ApiErrorNotice } from "@/components/features/ApiErrorNotice";
+import { formatWhen, humanize } from "@/components/features/OpsUi";
+import { describeApiError, type ApiErrorInfo } from "@/lib/api/errors";
+import { sessionService, type AuthSession } from "@/lib/services/authService";
+import { useAuthStore } from "@/lib/stores/authStore";
 
 export default function SessionsPage() {
-  const [sessions, setSessions] = useState<Session[]>(MOCK_SESSIONS);
+  const router = useRouter();
+  const logout = useAuthStore((s) => s.logout);
+  const [sessions, setSessions] = useState<AuthSession[]>([]);
+  const [loading, setLoading] = useState(true);
   const [revoking, setRevoking] = useState<string | null>(null);
+  const [error, setError] = useState<ApiErrorInfo | null>(null);
 
-  async function handleRevoke(session: Session) {
+  const load = useCallback(async () => {
+    try {
+      setSessions(await sessionService.list());
+      setError(null);
+    } catch (e) {
+      setError(describeApiError(e, "Your sessions could not be loaded."));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    Promise.resolve().then(load);
+  }, [load]);
+
+  async function handleRevoke(session: AuthSession) {
     if (revoking) return;
+    setRevoking(session.sessionId);
+    setError(null);
 
-    if (session.isCurrent) {
-      // Revoking the current session is high-risk: send through
-      // reverification first rather than acting immediately.
-      window.location.href = `/reverify?action=${encodeURIComponent(
-        "Revoke your current session",
-      )}&returnTo=${encodeURIComponent("/settings/sessions")}`;
+    if (session.current) {
+      // Signing this device out ends the session on the server and here.
+      try {
+        await logout();
+      } finally {
+        router.replace("/sign-in");
+      }
       return;
     }
 
-    setRevoking(session.id);
-    // MOCK: simulates the revoke call until the real endpoint is wired in.
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    setSessions((prev) => prev.filter((s) => s.id !== session.id));
-    setRevoking(null);
+    try {
+      await sessionService.revoke(session.sessionId);
+      setSessions((prev) => prev.filter((s) => s.sessionId !== session.sessionId));
+    } catch (e) {
+      setError(describeApiError(e, "The session could not be revoked."));
+    } finally {
+      setRevoking(null);
+    }
   }
 
   return (
@@ -72,38 +65,40 @@ export default function SessionsPage() {
         Devices currently signed in to your account.
       </p>
 
+      <ApiErrorNotice error={error} className="mt-6" />
+
       <div className="mt-8 divide-y divide-line rounded-xl border border-line bg-white">
         {sessions.map((session) => (
           <div
-            key={session.id}
+            key={session.sessionId}
             className="flex items-center justify-between gap-4 px-5 py-4"
           >
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="truncate text-[14px] font-semibold text-ink-950">
-                  {session.device}
+                  {session.deviceLabel || "Unnamed device"}
                 </span>
-                {session.isCurrent && (
+                {session.current && (
                   <span className="flex-shrink-0 rounded-full bg-green-bg px-2 py-0.5 text-[10.5px] font-semibold text-green">
                     This device
                   </span>
                 )}
               </div>
               <div className="mt-1 text-[12.5px] text-ink-500">
-                {session.location} · Signed in {session.createdAt} ·{" "}
-                {session.lastActive}
+                {humanize(session.status)} · Signed in {formatWhen(session.createdAt)} ·{" "}
+                {session.lastSeenAt ? `Last active ${formatWhen(session.lastSeenAt)}` : "No activity recorded"}
               </div>
             </div>
 
             <button
               type="button"
               onClick={() => handleRevoke(session)}
-              disabled={revoking === session.id}
+              disabled={revoking === session.sessionId}
               className="flex-shrink-0 text-[13px] font-medium text-red transition hover:text-red/80 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {revoking === session.id
+              {revoking === session.sessionId
                 ? "Revoking…"
-                : session.isCurrent
+                : session.current
                   ? "Sign out"
                   : "Revoke"}
             </button>
@@ -112,7 +107,7 @@ export default function SessionsPage() {
 
         {sessions.length === 0 && (
           <div className="px-5 py-10 text-center text-[13px] text-ink-500">
-            No active sessions.
+            {loading ? "Loading sessions…" : "No active sessions."}
           </div>
         )}
       </div>

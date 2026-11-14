@@ -2,6 +2,8 @@ import apiClient from '@/lib/api/client';
 import { commandHeaders, enc, query } from '@/lib/api/headers';
 import type {
   ComplianceCheck,
+  ComplianceRequirement,
+  ComplianceStatus,
   CorrectiveActionSpec,
   Incident,
   Investigation,
@@ -119,5 +121,18 @@ export const complianceService = {
   },
   async listRestrictions(params: { subjectType?: string; subjectReference?: string; state?: string } = {}): Promise<Restriction[]> {
     return (await apiClient.get<{ data: Restriction[] }>(`/compliance/restrictions${query(params)}`)).data.data ?? [];
+  },
+};
+
+// Per-subject compliance status (spec 19.3) and the requirements it refers to.
+export const complianceStatusService = {
+  async forProvider(membershipId: string): Promise<ComplianceStatus[]> {
+    return (await apiClient.get<{ data: ComplianceStatus[] }>(`/providers/${enc(membershipId)}/compliance`)).data.data ?? [];
+  },
+  async forAsset(assetId: string): Promise<ComplianceStatus[]> {
+    return (await apiClient.get<{ data: ComplianceStatus[] }>(`/assets/${enc(assetId)}/compliance`)).data.data ?? [];
+  },
+  async requirements(): Promise<ComplianceRequirement[]> {
+    return (await apiClient.get<{ data: ComplianceRequirement[] }>('/compliance/requirements')).data.data ?? [];
   },
 };

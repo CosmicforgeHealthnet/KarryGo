@@ -6,6 +6,10 @@ import type {
   ApprovalPolicy,
   ApprovalPolicyInput,
   ApprovalPolicyVersion,
+  ApprovalDecision,
+  ApprovalHistoryEntry,
+  ApprovalRequest,
+  ApprovalRequestDetail,
   CostCentre,
   OperatingLocation,
   Team,
@@ -83,5 +87,38 @@ export const structureUnitService = {
   },
   async archive(kind: UnitKind, id: string, expectedVersion: number): Promise<void> {
     await apiClient.post(`/${kind}/${enc(id)}/archive`, {}, commandHeaders({ expectedVersion }));
+  },
+};
+
+// Approval requests. Approve and reject need a fresh step-up grant
+// (approvals.decide); apiClient runs the challenge. A decision carries a
+// client decision id (stable across retries of one attempt) and the
+// fingerprint the approver saw, so a changed request is refused.
+export const approvalRequestService = {
+  async list(params: { status?: string; resourceType?: string; action?: string; limit?: number } = {}): Promise<ApprovalRequest[]> {
+    const res = await apiClient.get<{ data: { approvals: ApprovalRequest[] | null } }>(`/approvals/requests${query(params)}`);
+    return res.data.data?.approvals ?? [];
+  },
+  async get(approvalId: string): Promise<ApprovalRequestDetail> {
+    return (await apiClient.get<{ data: ApprovalRequestDetail }>(`/approvals/requests/${enc(approvalId)}`)).data.data;
+  },
+  async decisions(approvalId: string): Promise<ApprovalDecision[]> {
+    const res = await apiClient.get<{ data: { decisions: ApprovalDecision[] | null } }>(`/approvals/requests/${enc(approvalId)}/decisions`);
+    return res.data.data?.decisions ?? [];
+  },
+  async history(approvalId: string): Promise<ApprovalHistoryEntry[]> {
+    const res = await apiClient.get<{ data: { history: ApprovalHistoryEntry[] | null } }>(`/approvals/requests/${enc(approvalId)}/history`);
+    return res.data.data?.history ?? [];
+  },
+  async decide(
+    approvalId: string,
+    decision: 'approve' | 'reject',
+    input: { reason: string; clientDecisionId: string; expectedFingerprint: string },
+  ): Promise<ApprovalRequest> {
+    const res = await apiClient.post<{ data: ApprovalRequest }>(`/approvals/requests/${enc(approvalId)}/${decision}`, input);
+    return res.data.data;
+  },
+  async cancel(approvalId: string, reason: string): Promise<ApprovalRequest> {
+    return (await apiClient.post<{ data: ApprovalRequest }>(`/approvals/requests/${enc(approvalId)}/cancel`, { reason })).data.data;
   },
 };

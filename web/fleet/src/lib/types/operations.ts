@@ -174,11 +174,62 @@ export interface OrderHistoryEntry {
   occurredAt: string;
 }
 
+export const SERVICE_CATEGORIES = [
+  'PACKAGE_DELIVERY', 'COURIER_LAST_MILE', 'SAME_DAY_DELIVERY', 'SCHEDULED_DELIVERY', 'TAXI', 'PASSENGER_TRANSPORT',
+  'HAULING', 'TRUCKING', 'HEAVY_HAUL', 'FREIGHT_FORWARDING', 'MOVING_RELOCATION', 'COLD_CHAIN', 'MEDICAL_LOGISTICS',
+  'AGRICULTURE_FOOD', 'TOWING_RECOVERY', 'WAREHOUSING', 'FULFILMENT', 'PRIVATE_LOGISTICS', 'OTHER',
+] as const;
+export const SERVICE_STATUSES = ['DRAFT', 'ACTIVE', 'INACTIVE', 'ARCHIVED'] as const;
+
+// GET /service-catalog and /service-catalog/:serviceId (CatalogItemView).
 export interface ServiceCatalogItem {
   id: string;
+  organizationId?: string;
+  branchId?: string;
   code?: string;
   name: string;
+  category?: string;
+  description?: string;
+  capabilityReference?: string;
+  requiredFieldsSchema?: Record<string, unknown>;
+  supportedVehicleClasses?: string[];
+  supportedPackageTypes?: string[];
+  pricingPolicyReference?: string;
+  approvalPolicyReference?: string;
+  proofPolicyReference?: string;
   status: string;
+  version?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  archivedAt?: string;
+}
+
+export interface ServiceCatalogInput {
+  branchId?: string;
+  name: string;
+  code: string;
+  category: string;
+  description?: string;
+  capabilityReference?: string;
+  requiredFieldsSchema?: Record<string, unknown>;
+  supportedVehicleClasses?: string[];
+  supportedPackageTypes?: string[];
+  pricingPolicyReference?: string;
+  approvalPolicyReference?: string;
+  proofPolicyReference?: string;
+}
+
+// PATCH replaces every editable field, so callers send the full set.
+export interface ServiceCatalogPatch {
+  name: string;
+  description: string;
+  capabilityReference: string;
+  requiredFieldsSchema: Record<string, unknown>;
+  supportedVehicleClasses: string[];
+  supportedPackageTypes: string[];
+  pricingPolicyReference: string;
+  approvalPolicyReference: string;
+  proofPolicyReference: string;
 }
 
 export interface Shipment {
@@ -413,4 +464,188 @@ export interface CorporateTripDetail {
     retryEligible: boolean;
   };
   assignment?: { assignmentId: string; status: string; startedAt?: string; completedAt?: string };
+}
+
+// ── Manifests (serialized with Go field names) ───────────────────────────
+
+export const MANIFEST_ITEM_TYPES = ['SHIPMENT', 'PACKAGE', 'ORDER_STOP'] as const;
+export const MANIFEST_STATUSES = ['DRAFT', 'OPEN', 'CLOSED', 'DISPATCHED', 'COMPLETED', 'CANCELLED'] as const;
+
+export interface Manifest {
+  ID: string;
+  OrganizationID: string;
+  BranchID: string;
+  ManifestReference: string;
+  RouteReference: string;
+  FutureRoutePlanID: string;
+  VehicleReference: string;
+  ProviderMembershipID: string;
+  SealNumber: string;
+  Status: string;
+  Version: number;
+  CreatedBy: string;
+  UpdatedBy: string;
+  CreatedAt: string;
+  UpdatedAt: string;
+  ClosedAt: string | null;
+  DispatchedAt: string | null;
+  CompletedAt: string | null;
+  CancelledAt: string | null;
+}
+
+export interface ManifestItem {
+  ID: string;
+  ManifestID: string;
+  ItemType: string;
+  ItemID: string;
+  ShipmentID: string;
+  AddedBy: string;
+  CreatedAt: string;
+}
+
+export interface ManifestDetail {
+  manifest: Manifest;
+  items: ManifestItem[] | null;
+}
+
+export interface ManifestInput {
+  branchId: string;
+  routeReference?: string;
+  vehicleReference?: string;
+  providerMembershipId?: string;
+  sealNumber?: string;
+}
+
+export interface ManifestPatch {
+  routeReference: string;
+  vehicleReference: string;
+  providerMembershipId: string;
+  sealNumber: string;
+}
+
+// ── Recurring order templates (serialized with Go field names) ───────────
+
+export const RECURRENCE_TYPES = ['DAILY', 'WEEKLY', 'MONTHLY', 'CUSTOM_RRULE'] as const;
+export const RECURRING_STATUSES = ['DRAFT', 'ACTIVE', 'INACTIVE', 'COMPLETED', 'CANCELLED'] as const;
+
+export interface RecurringTemplateData {
+  customerReference: string;
+  serviceFields: Record<string, unknown> | null;
+  priority: string;
+  specialInstructions: string;
+  durationMinutes: number;
+}
+
+export interface RecurringOrderTemplate {
+  ID: string;
+  OrganizationID: string;
+  BranchID: string;
+  CustomerID: string;
+  ServiceCatalogItemID: string;
+  ContractID: string;
+  Data: RecurringTemplateData;
+  RecurrenceType: string;
+  NormalizedRRule: string;
+  Timezone: string;
+  StartDate: string;
+  EndDate: string | null;
+  NextRunAt: string;
+  MissedRunPolicy: string;
+  GeneratedOrderInitialState: string;
+  Status: string;
+  Version: number;
+  Attempts: number;
+  LastErrorCode: string;
+  CreatedAt: string;
+  UpdatedAt: string;
+  ActivatedAt: string | null;
+  DeactivatedAt: string | null;
+}
+
+export interface RecurringOrderInput {
+  branchId: string;
+  customerId: string;
+  serviceCatalogItemId: string;
+  recurrenceType: string;
+  rrule?: string;
+  timezone: string;
+  startDate?: string;
+  endDate?: string;
+  templateData: {
+    customerReference?: string;
+    priority?: string;
+    specialInstructions?: string;
+    durationMinutes?: number;
+  };
+}
+
+// ── Order imports, legacy engine (serialized with Go field names) ────────
+
+export interface OrderImport {
+  ID: string;
+  OrganizationID: string;
+  BranchID: string;
+  MediaFileID: string;
+  FileName: string;
+  FileFormat: string;
+  ContentType: string;
+  Status: string;
+  SizeBytes: number;
+  TotalRows: number;
+  ValidRows: number;
+  InvalidRows: number;
+  ImportedRows: number;
+  FailedRows: number;
+  ErrorReportMediaID: string;
+  Version: number;
+  CreatedBy: string;
+  CreatedAt: string;
+  UpdatedAt: string;
+  CompletedAt: string | null;
+  CancelledAt: string | null;
+  Attempts: number;
+}
+
+export interface OrderImportRow {
+  ID: string;
+  ImportID: string;
+  RowNumber: number;
+  RowReference: string;
+  Status: string;
+  GeneratedOrderID: string;
+  SafeErrorCode: string;
+  SafeErrorMessage: string;
+  Data: { CustomerID: string; CustomerReference: string; ServiceCatalogItemID: string; Priority: string } | null;
+  CreatedAt: string;
+}
+
+export interface OrderImportDetail {
+  import: OrderImport;
+  rows: OrderImportRow[] | null;
+}
+
+// ── Private assignments (serialized with Go field names) ─────────────────
+
+export interface PrivateAssignment {
+  ID: string;
+  BranchID: string;
+  WorkOrigin: string;
+  PrivateOrderID: string;
+  ShipmentID: string;
+  RouteStopID: string;
+  ProviderMembershipID: string;
+  ProviderID: string;
+  VehicleOrTruckReference: string;
+  ExecutionService: string;
+  Status: string;
+  ResponseDeadline: string;
+  AcceptedAt: string | null;
+  DeclinedAt: string | null;
+  ExpiredAt: string | null;
+  CancelledAt: string | null;
+  DeclineReason: string;
+  ReplacementAssignmentID: string;
+  Version: number;
+  CreatedAt: string;
+  UpdatedAt: string;
 }

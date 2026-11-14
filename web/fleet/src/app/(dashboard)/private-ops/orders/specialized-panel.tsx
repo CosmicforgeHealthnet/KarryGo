@@ -65,7 +65,7 @@ export function SpecializedDataPanel({ orderId }: { orderId: string }) {
     Promise.resolve().then(load);
     specializedService
       .listCapabilities()
-      .then((caps) => setCapabilities((caps ?? []).filter((c) => c.status === "ENABLED")))
+      .then((caps) => setCapabilities(caps.filter((c) => c.Status === "ENABLED")))
       .catch(() => setCapabilities([]));
   }, [load]);
 
@@ -133,7 +133,7 @@ export function SpecializedDataPanel({ orderId }: { orderId: string }) {
             <Field label="Capability" required>
               <select required value={capability} onChange={(e) => chooseCapability(e.target.value)} className={INPUT}>
                 <option value="">Choose a capability</option>
-                {capabilities.map((c) => <option key={c.code} value={c.code}>{c.name || c.code}</option>)}
+                {capabilities.map((c) => <option key={c.CapabilityCode} value={c.CapabilityCode}>{humanize(c.CapabilityCode)}</option>)}
               </select>
             </Field>
             {schema && (

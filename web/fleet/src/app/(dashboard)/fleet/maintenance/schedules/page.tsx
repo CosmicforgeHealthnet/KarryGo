@@ -19,142 +19,114 @@ import {
   Wrench,
 } from "lucide-react";
 
-type Schedule = {
-  id: string;
-  assetId: string;
-  assetName: string;
-  type: "Preventive" | "Corrective" | "Inspection";
-  trigger: string;
-  nextDue: string;
-  status: "Due" | "Overdue" | "Scheduled" | "Completed";
-  branch: string;
-  priority: "High" | "Medium" | "Low";
-};
+import { ApiErrorNotice } from "@/components/features/ApiErrorNotice";
+import { describeApiError, type ApiErrorInfo } from "@/lib/api/errors";
+import { maintenanceService } from "@/lib/services/maintenanceService";
+import { structureService } from "@/lib/services/structureService";
+import type { AssetReference, MaintenanceScheduleRecord } from "@/lib/types/maintenance";
+import type { Branch } from "@/lib/types/structure";
+import { formatDate, formatNumber, triggerTypeLabel } from "@/lib/utils/maintenanceLabels";
 
-const SCHEDULES: Schedule[] = [
-  {
-    id: "SCH-001",
-    assetId: "BR-204",
-    assetName: "Honda ACE 110",
-    type: "Preventive",
-    trigger: "Every 5,000 km",
-    nextDue: "Overdue 280 km",
-    status: "Overdue",
-    branch: "Ikeja",
-    priority: "High",
-  },
-  {
-    id: "SCH-002",
-    assetId: "VN-041",
-    assetName: "Mercedes Sprinter",
-    type: "Preventive",
-    trigger: "Every 10,000 km",
-    nextDue: "In 9 days",
-    status: "Scheduled",
-    branch: "Lekki",
-    priority: "Medium",
-  },
-  {
-    id: "SCH-003",
-    assetId: "TR-112",
-    assetName: "Scania R500",
-    type: "Inspection",
-    trigger: "Every 30 days",
-    nextDue: "In 430 km",
-    status: "Scheduled",
-    branch: "Apapa",
-    priority: "High",
-  },
-  {
-    id: "SCH-004",
-    assetId: "BR-188",
-    assetName: "Yamaha FZ",
-    type: "Preventive",
-    trigger: "Every 5,000 km",
-    nextDue: "In 21 days",
-    status: "Scheduled",
-    branch: "Yaba",
-    priority: "Low",
-  },
-  {
-    id: "SCH-005",
-    assetId: "VN-029",
-    assetName: "Ford Transit",
-    type: "Corrective",
-    trigger: "Brake pad replacement",
-    nextDue: "Overdue 120 km",
-    status: "Overdue",
-    branch: "Ikeja",
-    priority: "High",
-  },
-  {
-    id: "SCH-006",
-    assetId: "BR-171",
-    assetName: "Honda CB150X",
-    type: "Preventive",
-    trigger: "Every 5,000 km",
-    nextDue: "In 15 days",
-    status: "Scheduled",
-    branch: "Lekki",
-    priority: "Medium",
-  },
-];
+// Display state derived from the stored status and next due date. The
+// backend stores ACTIVE, PAUSED, COMPLETED or CANCELLED; an active schedule
+// whose next due date has passed (or falls within 7 days) is shown as
+// Overdue (or Due).
+type DisplayStatus = "Due" | "Overdue" | "Scheduled" | "Paused" | "Completed" | "Cancelled";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function displayStatus(s: MaintenanceScheduleRecord, today: number): DisplayStatus {
+  if (s.Status === "PAUSED") return "Paused";
+  if (s.Status === "COMPLETED") return "Completed";
+  if (s.Status === "CANCELLED") return "Cancelled";
+  if (s.NextDueDate && today > 0) {
+    const due = new Date(s.NextDueDate).getTime();
+    if (due < today) return "Overdue";
+    if (due - today <= 7 * DAY_MS) return "Due";
+  }
+  return "Scheduled";
+}
+
+function nextDueLabel(s: MaintenanceScheduleRecord): string {
+  const parts: string[] = [];
+  if (s.NextDueDate) parts.push(formatDate(s.NextDueDate));
+  if (s.NextDueOdometer != null) parts.push(`${formatNumber(s.NextDueOdometer)} km`);
+  if (s.NextDueHours != null) parts.push(`${formatNumber(s.NextDueHours)} h`);
+  return parts.length ? parts.join(" · ") : "—";
+}
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
   Due: { bg: "bg-amber-bg", text: "text-amber", icon: <Clock className="h-3.5 w-3.5" /> },
   Overdue: { bg: "bg-red-bg", text: "text-red", icon: <AlertCircle className="h-3.5 w-3.5" /> },
   Scheduled: { bg: "bg-primary-bg", text: "text-primary", icon: <Calendar className="h-3.5 w-3.5" /> },
+  Paused: { bg: "bg-surface-2", text: "text-ink-500", icon: <Clock className="h-3.5 w-3.5" /> },
   Completed: { bg: "bg-green-bg", text: "text-green", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
+  Cancelled: { bg: "bg-surface-2", text: "text-ink-500", icon: <X className="h-3.5 w-3.5" /> },
 };
 
 const PRIORITY_STYLES: Record<string, string> = {
-  High: "text-red bg-red-bg",
-  Medium: "text-amber bg-amber-bg",
-  Low: "text-primary bg-primary-bg",
+  Critical: "text-red bg-red-bg",
+  Standard: "text-primary bg-primary-bg",
 };
 
-const BRANCHES = ["All branches", "Ikeja", "Lekki", "Yaba", "Apapa"];
-const STATUS_FILTERS = ["All", "Due", "Overdue", "Scheduled", "Completed"];
+const ALL_BRANCHES = "";
+const STATUS_FILTERS = ["All", "Due", "Overdue", "Scheduled", "Paused", "Completed", "Cancelled"];
 
 export default function MaintenanceSchedulesPage() {
   const [search, setSearch] = useState("");
-  const [selectedBranch, setSelectedBranch] = useState("All branches");
+  const [selectedBranch, setSelectedBranch] = useState(ALL_BRANCHES);
   const [selectedStatus, setSelectedStatus] = useState("All");
   const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<Schedule[]>([]);
+  const [data, setData] = useState<MaintenanceScheduleRecord[]>([]);
+  const [assets, setAssets] = useState<AssetReference[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [today, setToday] = useState(0);
+  const [error, setError] = useState<ApiErrorInfo | null>(null);
 
   useEffect(() => {
-    const loadData = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      setData(SCHEDULES);
-      setLoading(false);
-    };
-    loadData();
+    maintenanceService
+      .listScheduleRecords()
+      .then((rows) => {
+        setData(rows);
+        const now = new Date();
+        setToday(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime());
+        setError(null);
+      })
+      .catch((e) => setError(describeApiError(e, "Maintenance schedules could not be loaded.")))
+      .finally(() => setLoading(false));
+    // Labels only: the schedules still show if these lookups fail.
+    maintenanceService.listAssetReferences().then(setAssets).catch(() => setAssets([]));
+    structureService.listBranches().then(setBranches).catch(() => setBranches([]));
   }, []);
 
-  const filteredData = data.filter((item) => {
-    const matchesSearch =
-      search.trim() === "" ||
-      item.id.toLowerCase().includes(search.toLowerCase()) ||
-      item.assetId.toLowerCase().includes(search.toLowerCase()) ||
-      item.assetName.toLowerCase().includes(search.toLowerCase());
+  const assetOf = (id: string) => assets.find((a) => a.ID === id);
+  const branchName = (id?: string) => (id ? branches.find((b) => b.id === id)?.name ?? id : "All branches");
 
-    const matchesBranch = selectedBranch === "All branches" || item.branch === selectedBranch;
-    const matchesStatus = selectedStatus === "All" || item.status === selectedStatus;
+  const filteredData = data.filter((item) => {
+    const asset = assetOf(item.AssetID);
+    const q = search.trim().toLowerCase();
+    const matchesSearch =
+      q === "" ||
+      item.ID.toLowerCase().includes(q) ||
+      item.AssetID.toLowerCase().includes(q) ||
+      (asset ? `${asset.AssetCode} ${asset.Manufacturer} ${asset.Model}`.toLowerCase().includes(q) : false);
+
+    const matchesBranch = selectedBranch === ALL_BRANCHES || asset?.BranchID === selectedBranch;
+    const matchesStatus = selectedStatus === "All" || displayStatus(item, today) === selectedStatus;
 
     return matchesSearch && matchesBranch && matchesStatus;
   });
 
-  const overdueCount = data.filter((d) => d.status === "Overdue").length;
-  const dueCount = data.filter((d) => d.status === "Due").length;
-  const scheduledCount = data.filter((d) => d.status === "Scheduled").length;
+  const overdueCount = data.filter((d) => displayStatus(d, today) === "Overdue").length;
+  const dueCount = data.filter((d) => displayStatus(d, today) === "Due").length;
+  const scheduledCount = data.filter((d) => displayStatus(d, today) === "Scheduled").length;
 
-  const hasActiveFilters = selectedBranch !== "All branches" || selectedStatus !== "All" || search !== "";
+  const hasActiveFilters = selectedBranch !== ALL_BRANCHES || selectedStatus !== "All" || search !== "";
 
   const clearFilters = () => {
     setSearch("");
-    setSelectedBranch("All branches");
+    setSelectedBranch(ALL_BRANCHES);
     setSelectedStatus("All");
   };
 
@@ -177,11 +149,16 @@ export default function MaintenanceSchedulesPage() {
           <h1>Maintenance Schedules</h1>
           <p className="mt-1.5">Scheduled maintenance and inspection triggers for fleet assets.</p>
         </div>
-        <button className="flex h-10 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover">
+        <Link
+          href="/fleet/maintenance/schedules/create"
+          className="flex h-10 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
+        >
           <Plus className="h-3.5 w-3.5" />
           Create Schedule
-        </button>
+        </Link>
       </div>
+
+      <ApiErrorNotice error={error} />
 
       {/* ── Stats ── */}
       <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3">
@@ -228,7 +205,7 @@ export default function MaintenanceSchedulesPage() {
 
         <div className="flex h-10 items-center gap-1.5 rounded-lg border border-line bg-white px-3 text-sm font-medium text-ink-700 whitespace-nowrap">
           <MapPin className="h-3.5 w-3.5 text-ink-400" />
-          {selectedBranch}
+          {branchName(selectedBranch)}
           <span className="text-ink-300">·</span>
           <span className="text-ink-400">Status:</span>
           {selectedStatus}
@@ -246,7 +223,7 @@ export default function MaintenanceSchedulesPage() {
           Filters
           {hasActiveFilters && (
             <span className="rounded-full bg-primary px-1.5 py-0.5 text-[9px] text-white">
-              {(selectedBranch !== "All branches" ? 1 : 0) + (selectedStatus !== "All" ? 1 : 0)}
+              {(selectedBranch !== ALL_BRANCHES ? 1 : 0) + (selectedStatus !== "All" ? 1 : 0)}
             </span>
           )}
         </button>
@@ -268,6 +245,24 @@ export default function MaintenanceSchedulesPage() {
       {showFilters && (
         <div className="rounded-lg border border-line bg-white p-4">
           <div className="flex flex-wrap items-center gap-6">
+            <div>
+              <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">Branch</span>
+              <div className="flex flex-wrap gap-1.5">
+                {[ALL_BRANCHES, ...branches.map((b) => b.id)].map((branch) => (
+                  <button
+                    key={branch}
+                    onClick={() => setSelectedBranch(branch)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors whitespace-nowrap ${
+                      selectedBranch === branch
+                        ? "bg-primary text-white"
+                        : "bg-surface-2 text-ink-600 hover:bg-surface-3"
+                    }`}
+                  >
+                    {branchName(branch)}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div>
               <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.06em] text-ink-500">Status</span>
               <div className="flex flex-wrap gap-1.5">
@@ -302,23 +297,27 @@ export default function MaintenanceSchedulesPage() {
           <div className="rounded-full bg-surface-2 p-4">
             <Calendar className="h-8 w-8 text-ink-400" />
           </div>
-          <h3 className="mt-3 text-sm font-semibold text-ink-950">No schedules found</h3>
+          <h3 className="mt-3 text-sm font-semibold text-ink-950">{data.length === 0 ? "No schedules yet" : "No schedules found"}</h3>
           <p className="mt-1 max-w-sm text-center text-sm text-ink-500">
-            No maintenance schedules match your current filters.
+            {data.length === 0 ? "Create a schedule to plan maintenance for an asset." : "No maintenance schedules match your current filters."}
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filteredData.map((item) => {
-            const statusStyle = STATUS_STYLES[item.status] || STATUS_STYLES.Scheduled;
-            const priorityStyle = PRIORITY_STYLES[item.priority] || PRIORITY_STYLES.Medium;
-            const isOverdue = item.status === "Overdue";
-            const isDue = item.status === "Due";
+            const status = displayStatus(item, today);
+            const priority = item.Critical ? "Critical" : "Standard";
+            const statusStyle = STATUS_STYLES[status] || STATUS_STYLES.Scheduled;
+            const priorityStyle = PRIORITY_STYLES[priority];
+            const isOverdue = status === "Overdue";
+            const isDue = status === "Due";
+            const asset = assetOf(item.AssetID);
 
             return (
-              <div
-                key={item.id}
-                className={`group rounded-lg border p-4 transition-colors cursor-pointer ${
+              <Link
+                href={`/fleet/maintenance/schedules/${item.ID}`}
+                key={item.ID}
+                className={`group block rounded-lg border p-4 transition-colors cursor-pointer ${
                   isOverdue
                     ? "border-red/30 bg-red-bg/10 hover:border-red/50 hover:bg-red-bg/20"
                     : isDue
@@ -341,10 +340,10 @@ export default function MaintenanceSchedulesPage() {
                     </div>
                     <div>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-semibold text-ink-950">{item.id}</span>
-                        <span className="font-mono text-[10px] text-ink-400">{item.assetId}</span>
+                        <span className="text-sm font-semibold text-ink-950">{asset?.AssetCode || item.AssetID}</span>
+                        <span className="font-mono text-[10px] text-ink-400">{item.ID}</span>
                       </div>
-                      <div className="text-xs text-ink-500">{item.assetName}</div>
+                      <div className="text-xs text-ink-500">{asset ? [asset.Manufacturer, asset.Model].filter(Boolean).join(" ") || "—" : "—"}</div>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-0.5">
@@ -352,10 +351,10 @@ export default function MaintenanceSchedulesPage() {
                       className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusStyle.bg} ${statusStyle.text}`}
                     >
                       {statusStyle.icon}
-                      {item.status}
+                      {status}
                     </span>
                     <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${priorityStyle}`}>
-                      {item.priority}
+                      {priority}
                     </span>
                   </div>
                 </div>
@@ -363,25 +362,28 @@ export default function MaintenanceSchedulesPage() {
                 <div className="mt-3 grid grid-cols-2 gap-1.5">
                   <div className="flex items-center gap-1.5 text-xs text-ink-500">
                     <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
-                    <span>{item.branch}</span>
+                    <span>{asset ? branchName(asset.BranchID) : "—"}</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-ink-500">
                     <Clock className="h-3.5 w-3.5 flex-shrink-0" />
-                    <span>{item.trigger}</span>
+                    <span>
+                      {triggerTypeLabel(item.TriggerType)}
+                      {item.IntervalValue != null ? ` · every ${formatNumber(item.IntervalValue)}` : ""}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-ink-500 col-span-2">
                     <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
-                    <span>Next due: {item.nextDue}</span>
+                    <span>Next due: {nextDueLabel(item)}</span>
                   </div>
                 </div>
 
                 <div className="mt-3 flex items-center justify-between border-t border-line pt-2.5">
-                  <div className="text-[10px] text-ink-400 truncate max-w-[180px]">{item.type}</div>
+                  <div className="text-[10px] text-ink-400 truncate max-w-[180px]">{triggerTypeLabel(item.TriggerType)}</div>
                   <div className="flex items-center gap-1 text-xs font-medium text-ink-400 transition-colors group-hover:text-primary">
                     View <ArrowRight className="h-3.5 w-3.5" />
                   </div>
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>
