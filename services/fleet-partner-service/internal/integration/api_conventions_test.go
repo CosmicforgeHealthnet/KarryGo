@@ -20,7 +20,9 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/app"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
 	assetsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/models"
-	dispatchfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch"
+	dispatchmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch/models"
+	dispatchrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch/repositories"
+	dispatchusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch/usecases"
 	providermodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/models"
 	providerrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/repositories"
 	staffmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/models"
@@ -293,8 +295,8 @@ func TestOffsetListsServeValidPagesAfterValidation(t *testing.T) {
 		ListProfiles(ctx, scope, workforceusecases.Page{Offset: -1}); err != nil {
 		t.Fatalf("workforce service with offset -1: %v", err)
 	}
-	if _, err := dispatchfeature.NewService(dispatchfeature.Options{Pool: h.pool, Flags: dispatchfeature.Flags{DispatchPlanning: true, RoutePlanning: true, Geofences: true, OperationalAlerts: true}}).
-		ListAlerts(ctx, scope, dispatchfeature.PageFilter{Offset: -1}); err != nil {
+	if _, _, err := dispatchusecases.NewService(dispatchusecases.Options{Pool: h.pool, Repository: dispatchrepos.NewRepository(h.pool), Flags: dispatchmodels.Flags{DispatchPlanning: true, RoutePlanning: true, Geofences: true, OperationalAlerts: true}}).
+		ListAlerts(ctx, scope, dispatchmodels.PageFilter{Offset: -1}); err != nil {
 		t.Fatalf("dispatch service with offset -1: %v", err)
 	}
 	for _, target := range []string{"/fleet-partner/v1/assets?offset=-1", "/fleet-partner/v1/assets?limit=abc",

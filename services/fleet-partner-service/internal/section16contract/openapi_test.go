@@ -8,8 +8,40 @@ import (
 	"strings"
 	"testing"
 
-	dispatch "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch"
+	dispatchhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch/http"
+	routeshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/routes/http"
+	trackinghttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/tracking/http"
 )
+
+// route is the shared shape of the dispatch, routes and tracking manifests.
+type route struct {
+	Method, Path, OperationID, Permission, FeatureFlag, AuthClass string
+	IdempotencyRequired, ExpectedVersionRequired                  bool
+}
+
+// tenantRoutes is the Section 16 corporate surface across the three
+// features it is split into.
+func tenantRoutes() []route {
+	out := []route{}
+	for _, r := range dispatchhttp.TenantRoutes() {
+		out = append(out, route(r))
+	}
+	for _, r := range routeshttp.TenantRoutes() {
+		out = append(out, route(r))
+	}
+	for _, r := range trackinghttp.TenantRoutes() {
+		out = append(out, route(r))
+	}
+	return out
+}
+
+func internalRoutes() []route {
+	out := []route{}
+	for _, r := range trackinghttp.InternalRoutes() {
+		out = append(out, route(r))
+	}
+	return out
+}
 
 func spec(t *testing.T) map[string]any {
 	t.Helper()
@@ -45,7 +77,7 @@ func TestSection16OpenAPIRouteParity(t *testing.T) {
 			ops[strings.ToUpper(method)+" "+path] = value.(map[string]any)
 		}
 	}
-	routes := append(dispatch.TenantRoutes(), dispatch.InternalRoutes()...)
+	routes := append(tenantRoutes(), internalRoutes()...)
 	if len(ops) != len(routes) {
 		t.Fatalf("spec operations=%d mounted operations=%d", len(ops), len(routes))
 	}
@@ -95,6 +127,35 @@ func TestSection16OpenAPIScopeAndSchemas(t *testing.T) {
 	for _, required := range []string{"gapped", "hardblocks", "overridereason", "sourceversion", "resolutionreason", "passenger route publication is disabled"} {
 		if !strings.Contains(lower, required) {
 			t.Errorf("missing contract behavior %s", required)
+		}
+	}
+}
+
+func TestSection16RouteCatalogue(t *testing.T) {
+	routes := tenantRoutes()
+	if len(routes) != 44 {
+		t.Fatalf("tenant route count=%d", len(routes))
+	}
+	seen := map[string]bool{}
+	for _, r := range routes {
+		k := r.Method + " " + r.Path
+		if seen[k] {
+			t.Fatalf("duplicate route %s", k)
+		}
+		seen[k] = true
+		if r.Permission == "" || r.FeatureFlag == "" || r.AuthClass != "corporate" {
+			t.Fatalf("incomplete route metadata %+v", r)
+		}
+	}
+	for _, required := range []string{"GET /dispatch/board", "GET /dispatch/unassigned", "GET /dispatch/candidates", "POST /routes/:routeId/publish", "GET /control-tower", "GET /tracking/:canonicalTripReference", "POST /alerts/:alertId/resolve"} {
+		if !seen[required] {
+			t.Errorf("missing %s", required)
+		}
+	}
+	for key := range seen {
+		lower := strings.ToLower(key)
+		if strings.Contains(lower, "/partner") || strings.Contains(lower, "/taxi") {
+			t.Errorf("deferred route present: %s", key)
 		}
 	}
 }

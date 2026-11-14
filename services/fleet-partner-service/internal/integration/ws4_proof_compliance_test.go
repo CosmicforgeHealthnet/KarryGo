@@ -2,13 +2,15 @@ package integration_test
 
 import (
 	"context"
+	compliancerepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/repositories"
 	"encoding/json"
 	"sync"
 	"testing"
 	"time"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance"
+	compliancemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/models"
+	complianceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/usecases"
 	proofmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/models"
 	proofrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/repositories"
 	proofusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/usecases"
@@ -184,9 +186,9 @@ func TestWS4RestrictionPropagationReconcilesUntilConfirmed(t *testing.T) {
 	publisher := events.NewDomainPublisher(events.NewOutboxRepository(pool))
 	dispatch := &recordingAuthority{configured: true, failFirst: 1}
 	// Hauling is not configured in this deployment at first.
-	first := compliance.NewService(compliance.Options{Pool: pool, Events: publisher, Dispatch: dispatch, Hauling: nil, Flags: compliance.Flags{Compliance: true, Restrictions: true}})
+	first := complianceusecases.NewService(complianceusecases.Options{Pool: pool, Repository: compliancerepos.NewRepository(pool), Events: publisher, Dispatch: dispatch, Hauling: nil, Flags: compliancemodels.Flags{Compliance: true, Restrictions: true}})
 
-	r, err := first.ApplyRestriction(ctx, scope, compliance.RestrictInput{SubjectType: "PROVIDER", SubjectReference: "membership-ws4", ReasonCode: "safety_block", SourceType: "INCIDENT", SourceReference: "inc-ws4", Severity: "CRITICAL"})
+	r, err := first.ApplyRestriction(ctx, scope, compliancemodels.RestrictInput{SubjectType: "PROVIDER", SubjectReference: "membership-ws4", ReasonCode: "safety_block", SourceType: "INCIDENT", SourceReference: "inc-ws4", Severity: "CRITICAL"})
 	if err != nil {
 		t.Fatalf("a durable restriction must not fail because propagation did: %v", err)
 	}
@@ -219,14 +221,14 @@ func TestWS4RestrictionPropagationReconcilesUntilConfirmed(t *testing.T) {
 		}
 	}
 	var jobsQueued int
-	if err = pool.QueryRow(ctx, `SELECT count(*) FROM fleet_partner_jobs WHERE organization_id=$1 AND job_type=$2`, org, compliance.JobRestrictionReconcile).Scan(&jobsQueued); err != nil || jobsQueued != 2 {
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM fleet_partner_jobs WHERE organization_id=$1 AND job_type=$2`, org, compliancemodels.JobRestrictionReconcile).Scan(&jobsQueued); err != nil || jobsQueued != 2 {
 		t.Fatalf("reconcile jobs = %d %v", jobsQueued, err)
 	}
 
 	// Configuration is restored; the durable reconciliation job (run by the
 	// real worker) confirms the restriction at every authority.
 	hauling := &recordingAuthority{configured: true}
-	second := compliance.NewService(compliance.Options{Pool: pool, Events: publisher, Dispatch: dispatch, Hauling: hauling, Flags: compliance.Flags{Compliance: true, Restrictions: true}})
+	second := complianceusecases.NewService(complianceusecases.Options{Pool: pool, Repository: compliancerepos.NewRepository(pool), Events: publisher, Dispatch: dispatch, Hauling: hauling, Flags: compliancemodels.Flags{Compliance: true, Restrictions: true}})
 	worker := &jobs.Worker{Queue: jobs.NewQueue(pool), Metrics: observability.NewMetrics(), Owner: "ws4-test-worker", PollInterval: 20 * time.Millisecond, LeaseDuration: time.Minute, HeartbeatInterval: time.Second}
 	second.RegisterWorkers(worker)
 	runCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -284,13 +286,13 @@ func TestWS4ComplianceCheckRunsEveryRequirementStrictestGoverns(t *testing.T) {
 	asset := ws4Asset(t, pool, org, branch)
 	publisher := events.NewDomainPublisher(events.NewOutboxRepository(pool))
 	authority := &recordingAuthority{configured: true}
-	c := compliance.NewService(compliance.Options{Pool: pool, Events: publisher, Dispatch: authority, Hauling: authority, Flags: compliance.Flags{Compliance: true, Restrictions: true}})
-	activate := func(code, doc string, blocks bool) compliance.Requirement {
-		req, err := c.CreateRequirement(ctx, scope, compliance.Requirement{Code: code, Name: code, SubjectType: "ASSET", RequirementType: "DOCUMENT", RequiredDocumentType: doc, Severity: "HIGH", BlocksOperation: blocks, EffectiveFrom: time.Now().Add(-time.Hour)})
+	c := complianceusecases.NewService(complianceusecases.Options{Pool: pool, Repository: compliancerepos.NewRepository(pool), Events: publisher, Dispatch: authority, Hauling: authority, Flags: compliancemodels.Flags{Compliance: true, Restrictions: true}})
+	activate := func(code, doc string, blocks bool) compliancemodels.Requirement {
+		req, err := c.CreateRequirement(ctx, scope, compliancemodels.Requirement{Code: code, Name: code, SubjectType: "ASSET", RequirementType: "DOCUMENT", RequiredDocumentType: doc, Severity: "HIGH", BlocksOperation: blocks, EffectiveFrom: time.Now().Add(-time.Hour)})
 		if err != nil {
 			t.Fatal(err)
 		}
-		req, err = c.UpdateRequirement(ctx, scope, req.ID, req.Version, compliance.Requirement{}, "ACTIVATE")
+		req, err = c.UpdateRequirement(ctx, scope, req.ID, req.Version, compliancemodels.Requirement{}, "ACTIVATE")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -298,29 +300,29 @@ func TestWS4ComplianceCheckRunsEveryRequirementStrictestGoverns(t *testing.T) {
 	}
 	warning := activate("ASSET_REGISTRATION", "REGISTRATION", false)
 	blocking := activate("ASSET_INSURANCE", "INSURANCE", true)
-	if _, err := c.CreateRequirement(ctx, scope, compliance.Requirement{Code: "DRAFT_ONLY", Name: "draft", SubjectType: "ASSET", RequirementType: "DOCUMENT", RequiredDocumentType: "X", Severity: "HIGH", EffectiveFrom: time.Now().Add(-time.Hour)}); err != nil {
+	if _, err := c.CreateRequirement(ctx, scope, compliancemodels.Requirement{Code: "DRAFT_ONLY", Name: "draft", SubjectType: "ASSET", RequirementType: "DOCUMENT", RequiredDocumentType: "X", Severity: "HIGH", EffectiveFrom: time.Now().Add(-time.Hour)}); err != nil {
 		t.Fatal(err)
 	}
 
-	check, err := c.RunCheck(ctx, scope, compliance.CheckInput{SubjectType: "asset", SubjectReference: asset, SourceType: "manual", SourceVersion: 1})
+	check, err := c.RunCheck(ctx, scope, compliancemodels.CheckInput{SubjectType: "asset", SubjectReference: asset, SourceType: "manual", SourceVersion: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if check.RequirementCount != 2 || check.OverallState != compliance.StateRestricted || check.GoverningRequirementID != blocking.ID || len(check.RestrictionReferences) != 1 {
+	if check.RequirementCount != 2 || check.OverallState != compliancemodels.StateRestricted || check.GoverningRequirementID != blocking.ID || len(check.RestrictionReferences) != 1 {
 		t.Fatalf("check = %+v", check)
 	}
 	states := map[string]string{}
 	for _, r := range check.Results {
 		states[r.RequirementID] = r.State
 	}
-	if states[warning.ID] != compliance.StateNonCompliant || states[blocking.ID] != compliance.StateRestricted {
+	if states[warning.ID] != compliancemodels.StateNonCompliant || states[blocking.ID] != compliancemodels.StateRestricted {
 		t.Fatalf("results = %+v", check.Results)
 	}
 	if authority.applyCount() != 2 {
 		t.Fatalf("restriction propagation calls = %d", authority.applyCount())
 	}
 	got, err := c.GetCheck(ctx, scope, check.ID)
-	if err != nil || got.OverallState != compliance.StateRestricted || len(got.Results) != 2 {
+	if err != nil || got.OverallState != compliancemodels.StateRestricted || len(got.Results) != 2 {
 		t.Fatalf("get check = %+v %v", got, err)
 	}
 	list, err := c.ListChecks(ctx, scope, "ASSET", asset)
@@ -331,27 +333,27 @@ func TestWS4ComplianceCheckRunsEveryRequirementStrictestGoverns(t *testing.T) {
 		t.Fatal("compliance check was mutable")
 	}
 	// An older evidence version cannot overwrite a newer evaluation.
-	if _, err = c.RunCheck(ctx, scope, compliance.CheckInput{SubjectType: "ASSET", SubjectReference: asset, SourceType: "MANUAL", SourceVersion: 0}); appStatus(err) != 409 {
+	if _, err = c.RunCheck(ctx, scope, compliancemodels.CheckInput{SubjectType: "ASSET", SubjectReference: asset, SourceType: "MANUAL", SourceVersion: 0}); appStatus(err) != 409 {
 		t.Fatalf("stale evidence version = %v", err)
 	}
 	// Validation and tenant isolation.
-	if _, err = c.RunCheck(ctx, scope, compliance.CheckInput{SubjectType: "PLANET", SubjectReference: asset, SourceType: "MANUAL"}); appStatus(err) != 400 {
+	if _, err = c.RunCheck(ctx, scope, compliancemodels.CheckInput{SubjectType: "PLANET", SubjectReference: asset, SourceType: "MANUAL"}); appStatus(err) != 400 {
 		t.Fatalf("invalid subject type = %v", err)
 	}
 	otherScope, otherBranch := section1921Scope(t, pool)
 	foreignAsset := ws4Asset(t, pool, otherScope.OrganizationID, otherBranch)
-	if _, err = c.RunCheck(ctx, scope, compliance.CheckInput{SubjectType: "ASSET", SubjectReference: foreignAsset, SourceType: "MANUAL", SourceVersion: 1}); appStatus(err) != 404 {
+	if _, err = c.RunCheck(ctx, scope, compliancemodels.CheckInput{SubjectType: "ASSET", SubjectReference: foreignAsset, SourceType: "MANUAL", SourceVersion: 1}); appStatus(err) != 404 {
 		t.Fatalf("cross-tenant subject = %v", err)
 	}
 	if _, err = c.GetCheck(ctx, otherScope, check.ID); appStatus(err) != 404 {
 		t.Fatalf("cross-tenant check = %v", err)
 	}
-	if _, err = c.RunCheck(ctx, scope, compliance.CheckInput{SubjectType: "ORGANIZATION", SubjectReference: otherScope.OrganizationID, SourceType: "MANUAL", SourceVersion: 1}); appStatus(err) != 404 {
+	if _, err = c.RunCheck(ctx, scope, compliancemodels.CheckInput{SubjectType: "ORGANIZATION", SubjectReference: otherScope.OrganizationID, SourceType: "MANUAL", SourceVersion: 1}); appStatus(err) != 404 {
 		t.Fatalf("another organization as subject = %v", err)
 	}
 	// A subject with no applicable requirement is NOT_APPLICABLE, still recorded.
-	none, err := c.RunCheck(ctx, scope, compliance.CheckInput{SubjectType: "ORGANIZATION", SubjectReference: org, SourceType: "MANUAL", SourceVersion: 1})
-	if err != nil || none.OverallState != compliance.StateNotApplicable || none.RequirementCount != 0 {
+	none, err := c.RunCheck(ctx, scope, compliancemodels.CheckInput{SubjectType: "ORGANIZATION", SubjectReference: org, SourceType: "MANUAL", SourceVersion: 1})
+	if err != nil || none.OverallState != compliancemodels.StateNotApplicable || none.RequirementCount != 0 {
 		t.Fatalf("no requirements = %+v %v", none, err)
 	}
 	if ws4CountOutbox(t, pool, org, "compliance_check.completed.v1") != 2 || ws4CountAudit(t, pool, org, "compliance_check.completed") != 2 {

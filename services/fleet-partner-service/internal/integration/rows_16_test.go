@@ -9,9 +9,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	app "cosmicforge/logistics/services/fleet-partner-service/internal/app"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
-	dispatch "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch"
+	dispatchmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch/models"
+	routemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/routes/models"
+	trackingmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/tracking/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
@@ -26,20 +29,20 @@ import (
 // returns one eligible provider unless the source id starts with "none-".
 type rows16Facts struct{}
 
-func (rows16Facts) Facts(_ context.Context, _, _, _, sourceID string) ([]dispatch.CandidateFact, error) {
+func (rows16Facts) Facts(_ context.Context, _, _, _, sourceID string) ([]dispatchmodels.CandidateFact, error) {
 	if strings.HasPrefix(sourceID, "none-") {
 		return nil, nil
 	}
-	return []dispatch.CandidateFact{{ProviderID: "provider-r16", ProviderMembershipID: "membership-r16", VehicleReference: "vehicle-r16",
+	return []dispatchmodels.CandidateFact{{ProviderID: "provider-r16", ProviderMembershipID: "membership-r16", VehicleReference: "vehicle-r16",
 		ExecutionService: "DISPATCH", MembershipActive: true, ProviderActive: true, CapabilityMatch: true, Available: true,
 		VehicleEligible: true, CapacityOK: true, BranchAllowed: true, CargoAllowed: true, SafetyAllowed: true,
-		ReservationFree: true, ActiveWorkFree: true, TrackingFreshness: dispatch.Fresh,
+		ReservationFree: true, ActiveWorkFree: true, TrackingFreshness: trackingmodels.Fresh,
 		SourceVersions: map[string]int64{"provider": 3, "vehicle": 2}}}, nil
 }
 
 type rows16 struct {
 	rowsOrgs
-	svc     *dispatch.Service
+	svc     *app.Section16
 	router  http.Handler
 	branchA string
 	branchX string
@@ -51,9 +54,9 @@ func newRows16(t *testing.T) *rows16 {
 	t.Helper()
 	orgs := newRowsOrgs(t, "Rows 16", "")
 	now := time.Now().UTC().Truncate(time.Second)
-	svc := dispatch.NewService(dispatch.Options{Pool: orgs.pool, Candidates: rows16Facts{},
+	svc := app.NewSection16(app.Section16Options{Pool: orgs.pool, Candidates: rows16Facts{},
 		Events: events.NewDomainPublisher(events.NewOutboxRepository(orgs.pool)),
-		Flags: dispatch.Flags{DispatchPlanning: true, RoutePlanning: true, RoutePublication: true, ControlTower: true,
+		Flags: dispatchmodels.Flags{DispatchPlanning: true, RoutePlanning: true, RoutePublication: true, ControlTower: true,
 			TrackingProjections: true, Geofences: true, OperationalAlerts: true, Workers: true, TrackingSourceConfigured: true},
 		Now: func() time.Time { return now }})
 	f := &rows16{rowsOrgs: orgs, svc: svc, now: now}
@@ -62,7 +65,7 @@ func newRows16(t *testing.T) *rows16 {
 	f.branchX = seedBranch(t, orgs.pool, orgs.A.Org, "Rows16 Other")
 	f.branchB = seedBranch(t, orgs.pool, orgs.B.Org, "Rows16 B")
 	f.router = rowsRouter(t, orgs.pool, func(g *gin.RouterGroup, a *accesscontrol.Authorizer, s *idempotency.Store) {
-		dispatch.NewHandler(svc, a, s).RegisterTenantRoutes(g)
+		svc.RegisterTenantRoutes(g, a, s)
 	})
 	return f
 }
@@ -132,7 +135,7 @@ func TestRow16_3_ExplainableCandidates(t *testing.T) {
 		t.Fatalf("candidates: %v", items)
 	}
 	c := items[0]
-	if c["sourceType"] != "ORDER" || c["sourceId"] != "ord-16" || c["providerId"] != "provider-r16" || c["branchId"] != f.branchA || c["dataFreshness"] != dispatch.Fresh {
+	if c["sourceType"] != "ORDER" || c["sourceId"] != "ord-16" || c["providerId"] != "provider-r16" || c["branchId"] != f.branchA || c["dataFreshness"] != trackingmodels.Fresh {
 		t.Fatalf("candidate: %v", c)
 	}
 	// Explainable: the score is broken down and the inputs are versioned.
@@ -203,7 +206,7 @@ func TestRow16_4b_DispatchPlanListPatchCancel(t *testing.T) {
 	rowsExpect(t, rowsDo(t, f.router, f.A, "POST", path+"/cancel", map[string]any{}, nil), 400, "cancel without version")
 	rowsExpect(t, rowsDo(t, f.router, f.B, "POST", path+"/cancel", map[string]any{"expectedVersion": 2}, nil), 404, "cross-tenant cancel")
 	cancelled := rowsExpect(t, rowsDo(t, f.router, f.A, "POST", path+"/cancel", map[string]any{"expectedVersion": 2}, nil), 200, "cancel").Object(t)
-	if cancelled["status"] != dispatch.PlanCancelled {
+	if cancelled["status"] != dispatchmodels.PlanCancelled {
 		t.Fatalf("cancelled plan: %v", cancelled)
 	}
 	// A cancelled plan is no longer editable or approvable.
@@ -231,7 +234,7 @@ func TestRow16_5b_RouteCreateListGetStopEditCancel(t *testing.T) {
 	rowsExpect(t, f.route(t, f.NoPermission, f.branchA, "", "DISPATCH"), 403, "no permission")
 	route := rowsExpect(t, f.route(t, f.A, f.branchA, plan["id"].(string), "dispatch"), 201, "create").Object(t)
 	routeID := route["id"].(string)
-	if route["status"] != dispatch.RouteDraft || route["executionService"] != "DISPATCH" || route["dispatchPlanId"] != plan["id"] {
+	if route["status"] != routemodels.RouteDraft || route["executionService"] != "DISPATCH" || route["dispatchPlanId"] != plan["id"] {
 		t.Fatalf("route: %v", route)
 	}
 	hauling := rowsExpect(t, f.route(t, f.A, f.branchX, "", "HAULING"), 201, "hauling route").Object(t)
@@ -280,7 +283,7 @@ func TestRow16_5b_RouteCreateListGetStopEditCancel(t *testing.T) {
 	rowsExpect(t, rowsDo(t, f.router, f.B, "POST", path+"/cancel", map[string]any{"expectedVersion": 1}, nil), 404, "cross-tenant cancel")
 	current := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", path, nil, nil), 200, "reread").Object(t)
 	cancelled := rowsExpect(t, rowsDo(t, f.router, f.A, "POST", path+"/cancel", map[string]any{"expectedVersion": current["version"]}, nil), 200, "cancel").Object(t)
-	if cancelled["status"] != dispatch.RouteCancelled {
+	if cancelled["status"] != routemodels.RouteCancelled {
 		t.Fatalf("cancelled route: %v", cancelled)
 	}
 	// A cancelled route's stops are frozen and it cannot be approved.
@@ -302,7 +305,7 @@ func TestRow16_10b_TrackingList(t *testing.T) {
 	lat, lon := 6.45, 3.39
 	ingest := func(org, trip, route, provider string, at time.Time) {
 		t.Helper()
-		if _, d, err := f.svc.IngestTracking(ctx, dispatch.TrackingEvent{EventID: ids.New("evt"), OrganizationID: org, SourceService: "driver-dispatch-delivery-service",
+		if _, d, err := f.svc.Tracking.IngestTracking(ctx, trackingmodels.TrackingEvent{EventID: ids.New("evt"), OrganizationID: org, SourceService: "driver-dispatch-delivery-service",
 			CanonicalTripReference: trip, RoutePlanID: route, ProviderID: provider, VehicleOrTruckReference: "veh-" + provider, OperationalStatus: "IN_PROGRESS",
 			Latitude: &lat, Longitude: &lon, SourceTimestamp: at, SourceVersion: 1}); err != nil || d != "APPLIED" {
 			t.Fatalf("ingest %s: %s %v", trip, d, err)
@@ -319,10 +322,10 @@ func TestRow16_10b_TrackingList(t *testing.T) {
 	}
 	for _, p := range list {
 		// Freshness is recomputed on read: an old position is never "live".
-		if p["canonicalTripReference"] == "trip-x" && p["freshnessStatus"] == dispatch.Fresh {
+		if p["canonicalTripReference"] == "trip-x" && p["freshnessStatus"] == trackingmodels.Fresh {
 			t.Fatalf("30-minute-old position reported fresh: %v", p)
 		}
-		if p["canonicalTripReference"] == "trip-a" && p["freshnessStatus"] != dispatch.Fresh {
+		if p["canonicalTripReference"] == "trip-a" && p["freshnessStatus"] != trackingmodels.Fresh {
 			t.Fatalf("current position not fresh: %v", p)
 		}
 	}
@@ -419,8 +422,8 @@ func TestRow16_13_GetAlertAndJobReplay(t *testing.T) {
 		}
 		return id
 	}
-	job := deadLetter(f.A.Org, dispatch.JobGeofenceEvaluate)
-	foreignJob := deadLetter(f.B.Org, dispatch.JobGeofenceEvaluate)
+	job := deadLetter(f.A.Org, dispatchmodels.JobGeofenceEvaluate)
+	foreignJob := deadLetter(f.B.Org, dispatchmodels.JobGeofenceEvaluate)
 	otherFeatureJob := deadLetter(f.A.Org, "section19.restriction_reconcile")
 	replay := func(id string) string { return "/fleet-partner/v1/alerts/jobs/" + id + "/replay" }
 

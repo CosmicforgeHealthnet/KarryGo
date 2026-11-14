@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	specializedrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/repositories"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -11,7 +12,9 @@ import (
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized"
+	specializedhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/http"
+	specializedmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/models"
+	specializedusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/usecases"
 	staffrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
@@ -20,10 +23,10 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
 
-func ws4SpecializedRouter(t *testing.T, pool *pgxpool.Pool, flags specialized.Flags) (http.Handler, *specialized.Service) {
+func ws4SpecializedRouter(t *testing.T, pool *pgxpool.Pool, flags specializedmodels.Flags) (http.Handler, *specializedusecases.Service) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
-	service := specialized.NewService(specialized.Options{Pool: pool, Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)), Flags: flags})
+	service := specializedusecases.NewService(specializedusecases.Options{Pool: pool, Repository: specializedrepos.NewRepository(pool), Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)), Flags: flags})
 	engine := gin.New()
 	engine.Use(respond.ErrorHandler())
 	engine.Use(func(c *gin.Context) {
@@ -34,7 +37,7 @@ func ws4SpecializedRouter(t *testing.T, pool *pgxpool.Pool, flags specialized.Fl
 		c.Set(middleware.TenantRoleVersionKey, int64(1))
 		c.Next()
 	})
-	specialized.NewHandler(service, accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(pool), nil, 0), idempotency.NewStore(pool, 0)).RegisterTenantRoutes(engine.Group("/fleet-partner/v1"))
+	specializedhttp.NewHandler(service, accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(pool), nil, 0), idempotency.NewStore(pool, 0)).RegisterTenantRoutes(engine.Group("/fleet-partner/v1"))
 	return engine, service
 }
 
@@ -66,7 +69,7 @@ func TestWS4SpecializedDisabledModulesExposeNoRoutes(t *testing.T) {
 	body := map[string]any{"reason": "rollout", "configuration": map[string]any{}}
 	idem := func(k string) map[string]string { return map[string]string{"Idempotency-Key": k} }
 
-	off, _ := ws4SpecializedRouter(t, pool, specialized.Flags{Enabled: false, Modules: map[string]bool{specialized.Courier: true}})
+	off, _ := ws4SpecializedRouter(t, pool, specializedmodels.Flags{Enabled: false, Modules: map[string]bool{specializedmodels.Courier: true}})
 	for _, call := range []struct{ method, path string }{
 		{"GET", "/fleet-partner/v1/specialized/capabilities"},
 		{"POST", "/fleet-partner/v1/specialized/capabilities/COURIER_LAST_MILE/enable"},
@@ -84,7 +87,7 @@ func TestWS4SpecializedDisabledModulesExposeNoRoutes(t *testing.T) {
 		}
 	}
 
-	on, _ := ws4SpecializedRouter(t, pool, specialized.Flags{Enabled: true, Modules: map[string]bool{specialized.Courier: true, specialized.Medical: false, specialized.Taxi: false}})
+	on, _ := ws4SpecializedRouter(t, pool, specializedmodels.Flags{Enabled: true, Modules: map[string]bool{specializedmodels.Courier: true, specializedmodels.Medical: false, specializedmodels.Taxi: false}})
 	for _, path := range []string{
 		"/fleet-partner/v1/specialized/MEDICAL_SENSITIVE/records",
 		"/fleet-partner/v1/specialized/TAXI_PASSENGER/records",
@@ -135,10 +138,10 @@ func TestWS4OrderSpecializedDataAndPassengerRecords(t *testing.T) {
 	org := scope.OrganizationID
 	owner := seedApprovalMember(t, pool, org, "rol_system_owner", "owner")
 	order := ws4Order(t, pool, org, branch)
-	flags := specialized.Flags{Enabled: true, Modules: map[string]bool{specialized.Taxi: true, specialized.Towing: true, specialized.Medical: true, specialized.Hauling: true}}
+	flags := specializedmodels.Flags{Enabled: true, Modules: map[string]bool{specializedmodels.Taxi: true, specializedmodels.Towing: true, specializedmodels.Medical: true, specializedmodels.Hauling: true}}
 	router, service := ws4SpecializedRouter(t, pool, flags)
 	scope.OrganizationUserID, scope.ActorID = owner, owner
-	for _, code := range []string{specialized.Taxi, specialized.Towing, specialized.Medical} {
+	for _, code := range []string{specializedmodels.Taxi, specializedmodels.Towing, specializedmodels.Medical} {
 		if _, err := service.SetCapability(ctx, scope, code, "ENABLED", "pilot", 0, nil); err != nil {
 			t.Fatal(err)
 		}
@@ -205,7 +208,7 @@ func TestWS4OrderSpecializedDataAndPassengerRecords(t *testing.T) {
 	if code != http.StatusCreated || legacyRecord["schemaId"] != "TAXI_PASSENGER.v1" {
 		t.Fatalf("legacy manifest = %d %v", code, legacyRecord)
 	}
-	updated, err := service.UpdateRecord(ctx, scope, specialized.Taxi, legacyRecord["id"].(string), 1, specialized.Record{Payload: json.RawMessage(`{"passengers":["opaque-1","opaque-2"],"seatCapacity":2,"legacyNote":"y"}`)}, "")
+	updated, err := service.UpdateRecord(ctx, scope, specializedmodels.Taxi, legacyRecord["id"].(string), 1, specializedmodels.Record{Payload: json.RawMessage(`{"passengers":["opaque-1","opaque-2"],"seatCapacity":2,"legacyNote":"y"}`)}, "")
 	if err != nil || updated.SchemaVersion != 1 {
 		t.Fatalf("legacy update = %+v %v", updated, err)
 	}
@@ -235,7 +238,7 @@ func TestWS4OrderSpecializedDataAndPassengerRecords(t *testing.T) {
 		t.Fatalf("order data = %d %v", len(records), err)
 	}
 	// Record lists redact restricted payloads.
-	list, err := service.ListRecords(ctx, scope, specialized.Taxi)
+	list, err := service.ListRecords(ctx, scope, specializedmodels.Taxi)
 	if err != nil || len(list) == 0 || string(list[0].Payload) != `{"redacted":true}` {
 		t.Fatalf("restricted list payload = %v %v", list, err)
 	}
@@ -260,8 +263,8 @@ func TestWS4OrderSpecializedDataAndPassengerRecords(t *testing.T) {
 	// Disabling a capability hides its order data at once.
 	capabilities, _ := service.ListCapabilities(ctx, scope)
 	for _, c := range capabilities {
-		if c.CapabilityCode == specialized.Taxi {
-			if _, err = service.SetCapability(ctx, scope, specialized.Taxi, "DISABLED", "pilot ended", c.Version, nil); err != nil {
+		if c.CapabilityCode == specializedmodels.Taxi {
+			if _, err = service.SetCapability(ctx, scope, specializedmodels.Taxi, "DISABLED", "pilot ended", c.Version, nil); err != nil {
 				t.Fatal(err)
 			}
 		}

@@ -2,13 +2,15 @@ package integration_test
 
 import (
 	"context"
+	compliancerepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/repositories"
 	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance"
+	compliancemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/models"
+	complianceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
 )
 
@@ -52,9 +54,9 @@ func (a *taxiRestrictionAuthority) ReadClear(_ context.Context, _ platformclient
 	return platformclients.RestrictionOutcome{RestrictionID: key, State: "CLEARED", SourceVersion: 2}, nil
 }
 
-func propagationByAuthority(t *testing.T, view compliance.RestrictionView) map[string]compliance.Propagation {
+func propagationByAuthority(t *testing.T, view compliancemodels.RestrictionView) map[string]compliancemodels.Propagation {
 	t.Helper()
-	out := map[string]compliance.Propagation{}
+	out := map[string]compliancemodels.Propagation{}
 	for _, p := range view.Propagation {
 		out[p.Authority+":"+p.Action] = p
 	}
@@ -74,10 +76,10 @@ func TestRestrictionPropagatesToTaxiReadsBackAndClears(t *testing.T) {
 	dispatch := &recordingAuthority{configured: true}
 	hauling := &recordingAuthority{configured: true}
 	taxi := &taxiRestrictionAuthority{configured: true, ambiguous: true}
-	svc := compliance.NewService(compliance.Options{Pool: pool, Events: publisher, Dispatch: dispatch, Hauling: hauling, Taxi: taxi,
-		Flags: compliance.Flags{Compliance: true, Restrictions: true}})
+	svc := complianceusecases.NewService(complianceusecases.Options{Pool: pool, Repository: compliancerepos.NewRepository(pool), Events: publisher, Dispatch: dispatch, Hauling: hauling, Taxi: taxi,
+		Flags: compliancemodels.Flags{Compliance: true, Restrictions: true}})
 
-	r, err := svc.ApplyRestriction(ctx, scope, compliance.RestrictInput{SubjectType: "PROVIDER", SubjectReference: "driver-taxi-1",
+	r, err := svc.ApplyRestriction(ctx, scope, compliancemodels.RestrictInput{SubjectType: "PROVIDER", SubjectReference: "driver-taxi-1",
 		ReasonCode: "safety_block", SourceType: "INCIDENT", SourceReference: "inc-taxi-1", Severity: "CRITICAL"})
 	if err != nil {
 		t.Fatal(err)
@@ -137,9 +139,9 @@ func TestTaxiRestrictionTargetFollowsDeploymentWiring(t *testing.T) {
 	publisher := events.NewDomainPublisher(events.NewOutboxRepository(pool))
 	authority := &recordingAuthority{configured: true}
 
-	unwired := compliance.NewService(compliance.Options{Pool: pool, Events: publisher, Dispatch: authority, Hauling: authority,
-		Flags: compliance.Flags{Compliance: true, Restrictions: true}})
-	r, err := unwired.ApplyRestriction(ctx, scope, compliance.RestrictInput{SubjectType: "ASSET", SubjectReference: "vehicle-unwired",
+	unwired := complianceusecases.NewService(complianceusecases.Options{Pool: pool, Repository: compliancerepos.NewRepository(pool), Events: publisher, Dispatch: authority, Hauling: authority,
+		Flags: compliancemodels.Flags{Compliance: true, Restrictions: true}})
+	r, err := unwired.ApplyRestriction(ctx, scope, compliancemodels.RestrictInput{SubjectType: "ASSET", SubjectReference: "vehicle-unwired",
 		ReasonCode: "INSPECTION_FAILED", SourceType: "INSPECTION", SourceReference: "insp-1", Severity: "HIGH"})
 	if err != nil {
 		t.Fatal(err)
@@ -149,9 +151,9 @@ func TestTaxiRestrictionTargetFollowsDeploymentWiring(t *testing.T) {
 		t.Fatalf("unwired taxi propagation = %+v %v", view, err)
 	}
 
-	unconfigured := compliance.NewService(compliance.Options{Pool: pool, Events: publisher, Dispatch: authority, Hauling: authority,
-		Taxi: &taxiRestrictionAuthority{configured: false}, Flags: compliance.Flags{Compliance: true, Restrictions: true}})
-	r, err = unconfigured.ApplyRestriction(ctx, scope, compliance.RestrictInput{SubjectType: "ASSET", SubjectReference: "vehicle-unconfigured",
+	unconfigured := complianceusecases.NewService(complianceusecases.Options{Pool: pool, Repository: compliancerepos.NewRepository(pool), Events: publisher, Dispatch: authority, Hauling: authority,
+		Taxi: &taxiRestrictionAuthority{configured: false}, Flags: compliancemodels.Flags{Compliance: true, Restrictions: true}})
+	r, err = unconfigured.ApplyRestriction(ctx, scope, compliancemodels.RestrictInput{SubjectType: "ASSET", SubjectReference: "vehicle-unconfigured",
 		ReasonCode: "INSPECTION_FAILED", SourceType: "INSPECTION", SourceReference: "insp-2", Severity: "HIGH"})
 	if err != nil {
 		t.Fatalf("an unconfigured authority must not fail a durable restriction: %v", err)

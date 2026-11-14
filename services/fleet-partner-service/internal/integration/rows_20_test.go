@@ -3,6 +3,7 @@ package integration_test
 import (
 	"context"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/app"
+	specializedrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/repositories"
 	"net/http"
 	"strings"
 	"testing"
@@ -13,7 +14,9 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
 	assetsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/models"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized"
+	specializedhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/http"
+	specializedmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/models"
+	specializedusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 )
@@ -25,29 +28,29 @@ import (
 
 type rows20 struct {
 	rowsOrgs
-	svc     *specialized.Service
+	svc     *specializedusecases.Service
 	router  http.Handler
 	branchA string
 	branchX string
 }
 
 var rows20AllModules = map[string]bool{
-	specialized.Courier: true, specialized.Hauling: true, specialized.Heavy: true, specialized.Freight: true,
-	specialized.ColdChain: true, specialized.Medical: true, specialized.Agricultural: true,
-	specialized.Moving: true, specialized.Towing: true,
+	specializedmodels.Courier: true, specializedmodels.Hauling: true, specializedmodels.Heavy: true, specializedmodels.Freight: true,
+	specializedmodels.ColdChain: true, specializedmodels.Medical: true, specializedmodels.Agricultural: true,
+	specializedmodels.Moving: true, specializedmodels.Towing: true,
 }
 
 func newRows20(t *testing.T, modules map[string]bool) *rows20 {
 	t.Helper()
 	orgs := newRowsOrgs(t, "Rows 20", "")
-	svc := specialized.NewService(specialized.Options{Pool: orgs.pool, Events: events.NewDomainPublisher(events.NewOutboxRepository(orgs.pool)),
-		Flags: specialized.Flags{Enabled: true, Modules: modules}})
+	svc := specializedusecases.NewService(specializedusecases.Options{Pool: orgs.pool, Repository: specializedrepos.NewRepository(orgs.pool), Events: events.NewDomainPublisher(events.NewOutboxRepository(orgs.pool)),
+		Flags: specializedmodels.Flags{Enabled: true, Modules: modules}})
 	f := &rows20{rowsOrgs: orgs, svc: svc}
 	f.NoPermission = rowsActor{Org: orgs.A.Org, Member: seedApprovalMember(t, orgs.pool, orgs.A.Org, "", "no-role")}
 	f.branchA = seedBranch(t, orgs.pool, orgs.A.Org, "Rows20 Main")
 	f.branchX = seedBranch(t, orgs.pool, orgs.A.Org, "Rows20 Other")
 	f.router = rowsRouter(t, orgs.pool, func(g *gin.RouterGroup, a *accesscontrol.Authorizer, s *idempotency.Store) {
-		specialized.NewHandler(svc, a, s).RegisterTenantRoutes(g)
+		specializedhttp.NewHandler(svc, a, s).RegisterTenantRoutes(g)
 	})
 	return f
 }
@@ -75,30 +78,30 @@ func (f *rows20) recordPath(code, id string) string {
 
 // TestRow20_1b_CapabilityList covers FLEET-20.1b: GET /specialized/capabilities.
 func TestRow20_1b_CapabilityList(t *testing.T) {
-	f := newRows20(t, map[string]bool{specialized.Courier: true, specialized.ColdChain: true, specialized.Moving: true})
-	f.enable(t, f.A, specialized.ColdChain)
-	courier := f.enable(t, f.A, specialized.Courier)
-	f.enable(t, f.B, specialized.Moving)
+	f := newRows20(t, map[string]bool{specializedmodels.Courier: true, specializedmodels.ColdChain: true, specializedmodels.Moving: true})
+	f.enable(t, f.A, specializedmodels.ColdChain)
+	courier := f.enable(t, f.A, specializedmodels.Courier)
+	f.enable(t, f.B, specializedmodels.Moving)
 	rowsExpect(t, rowsDo(t, f.router, f.A, "POST", "/fleet-partner/v1/specialized/capabilities/COURIER_LAST_MILE/disable",
 		map[string]any{"expectedVersion": courier["version"], "reason": "paused"}, nil), 200, "disable courier")
 
 	items := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", "/fleet-partner/v1/specialized/capabilities", nil, nil), 200, "list").Items(t)
-	if len(items) != 2 || items[0]["capabilityCode"] != specialized.ColdChain || items[1]["capabilityCode"] != specialized.Courier {
+	if len(items) != 2 || items[0]["capabilityCode"] != specializedmodels.ColdChain || items[1]["capabilityCode"] != specializedmodels.Courier {
 		t.Fatalf("capabilities ordered by code: %v", items)
 	}
 	if items[0]["status"] != "ENABLED" || items[1]["status"] != "DISABLED" || items[1]["disabledAt"] == nil {
 		t.Fatalf("capability states: %v", items)
 	}
-	if b := rowsExpect(t, rowsDo(t, f.router, f.B, "GET", "/fleet-partner/v1/specialized/capabilities", nil, nil), 200, "other org").Items(t); len(b) != 1 || b[0]["capabilityCode"] != specialized.Moving {
+	if b := rowsExpect(t, rowsDo(t, f.router, f.B, "GET", "/fleet-partner/v1/specialized/capabilities", nil, nil), 200, "other org").Items(t); len(b) != 1 || b[0]["capabilityCode"] != specializedmodels.Moving {
 		t.Fatalf("other organization's capabilities: %v", b)
 	}
 	rowsExpect(t, rowsDo(t, f.router, f.NoPermission, "GET", "/fleet-partner/v1/specialized/capabilities", nil, nil), 403, "no permission")
 
 	// A module switched off for the deployment drops out of the list even
 	// though the organization row still says ENABLED.
-	narrowed := specialized.NewService(specialized.Options{Pool: f.pool, Flags: specialized.Flags{Enabled: true, Modules: map[string]bool{specialized.Courier: true}}})
+	narrowed := specializedusecases.NewService(specializedusecases.Options{Pool: f.pool, Repository: specializedrepos.NewRepository(f.pool), Flags: specializedmodels.Flags{Enabled: true, Modules: map[string]bool{specializedmodels.Courier: true}}})
 	list, err := narrowed.ListCapabilities(context.Background(), f.tenantA())
-	if err != nil || len(list) != 1 || list[0].CapabilityCode != specialized.Courier {
+	if err != nil || len(list) != 1 || list[0].CapabilityCode != specializedmodels.Courier {
 		t.Fatalf("deployment-disabled module listed: %+v %v", list, err)
 	}
 }
@@ -106,13 +109,13 @@ func TestRow20_1b_CapabilityList(t *testing.T) {
 // TestRow20_2_CourierRecordGetPatch covers the untested part of FLEET-20.2:
 // GET/PATCH /specialized/COURIER_LAST_MILE/records/:id and the list.
 func TestRow20_2_CourierRecordGetPatch(t *testing.T) {
-	f := newRows20(t, map[string]bool{specialized.Courier: true})
-	f.enable(t, f.A, specialized.Courier)
-	f.enable(t, f.B, specialized.Courier)
-	created := rowsExpect(t, f.create(t, f.A, specialized.Courier, map[string]any{"BranchID": f.branchA, "RecordType": "DELIVERY_ATTEMPT",
+	f := newRows20(t, map[string]bool{specializedmodels.Courier: true})
+	f.enable(t, f.A, specializedmodels.Courier)
+	f.enable(t, f.B, specializedmodels.Courier)
+	created := rowsExpect(t, f.create(t, f.A, specializedmodels.Courier, map[string]any{"BranchID": f.branchA, "RecordType": "DELIVERY_ATTEMPT",
 		"Payload": map[string]any{"packageId": "pkg-1", "attemptNumber": 1, "outcome": "FAILED", "failureReasonCode": "CUSTOMER_ABSENT"}}), 201, "create").Object(t)
 	id := created["id"].(string)
-	path := f.recordPath(specialized.Courier, id)
+	path := f.recordPath(specializedmodels.Courier, id)
 	got := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", path, nil, nil), 200, "get").Object(t)
 	payload, _ := got["payload"].(map[string]any)
 	if got["recordType"] != "DELIVERY_ATTEMPT" || got["status"] != "DRAFT" || payload["failureReasonCode"] != "CUSTOMER_ABSENT" || got["schemaId"] != "COURIER_LAST_MILE.v2" {
@@ -171,15 +174,15 @@ func TestRow20_4_To_20_11_SpecializedModulesPersistAndIsolate(t *testing.T) {
 		check                 string
 		restricted            bool
 	}{
-		{"20.4", specialized.Hauling, "HAULAGE_PROFILE", map[string]any{"loadType": "FTL", "haulingAuthorityReference": "HA-1", "palletCount": 24}, map[string]any{"loadType": "BULK", "haulingAuthorityReference": "HA-1"}, "haulingAuthorityReference", false},
-		{"20.4", specialized.Hauling, "DETENTION", map[string]any{"startedAt": "2026-11-01T08:00:00Z", "detentionType": "DEMURRAGE"}, map[string]any{"detentionType": "DEMURRAGE"}, "detentionType", false},
-		{"20.5", specialized.Heavy, "HEAVY_PROFILE", map[string]any{"dimensions": map[string]any{"length": 18.5, "width": 3.2, "height": 4.1, "unit": "M"}, "weight": 62000, "axleRequirements": "7-axle", "trailerRequirements": "lowbed", "permitReference": "PRM-9", "routeSurveyReference": "RS-3"}, map[string]any{"dimensions": map[string]any{"length": -1, "width": 3, "height": 4}, "weight": 1, "axleRequirements": "a", "trailerRequirements": "t", "permitReference": "p", "routeSurveyReference": "r"}, "permitReference", false},
-		{"20.6", specialized.Freight, "COUNTRY_LEG", map[string]any{"originCountry": "NG", "destinationCountry": "GH", "mode": "ROAD", "sequence": 1}, map[string]any{"originCountry": "Nigeria", "destinationCountry": "GH"}, "destinationCountry", false},
-		{"20.7", specialized.ColdChain, "TEMPERATURE_REQUIREMENT", map[string]any{"minimumTemperature": 2, "maximumTemperature": 8, "unit": "C"}, map[string]any{"minimumTemperature": 9, "maximumTemperature": 2, "unit": "C"}, "unit", false},
-		{"20.8", specialized.Medical, "MEDICAL_HANDLING", map[string]any{"requiredQualificationIds": []string{qualification}, "handlingInstructions": "Keep upright"}, map[string]any{"requiredQualificationIds": []string{"qlf_unknown"}, "handlingInstructions": "x"}, "handlingInstructions", true},
-		{"20.9", specialized.Agricultural, "AGRICULTURAL_PROFILE", map[string]any{"batchReference": "B-1", "lotReference": "L-1", "perishability": "HIGH"}, map[string]any{"batchReference": "B-1", "lotReference": "L-1", "perishability": "EXTREME"}, "lotReference", false},
-		{"20.10", specialized.Moving, "MOVING_INVENTORY", map[string]any{"items": []map[string]any{{"itemReference": "sofa-1", "room": "lounge", "quantity": 1}}}, map[string]any{"items": []map[string]any{}}, "items", false},
-		{"20.11", specialized.Towing, "TOWING_RECOVERY", map[string]any{"breakdownReference": "brk-1", "disabledVehicleReference": "veh-1", "incidentLocation": "Third Mainland Bridge", "towingAssetReference": towTruck.ID, "destination": "Ikeja depot"}, map[string]any{"breakdownReference": "brk-1", "disabledVehicleReference": "veh-1", "incidentLocation": "x", "towingAssetReference": foreignTow.ID, "destination": "y"}, "destination", false},
+		{"20.4", specializedmodels.Hauling, "HAULAGE_PROFILE", map[string]any{"loadType": "FTL", "haulingAuthorityReference": "HA-1", "palletCount": 24}, map[string]any{"loadType": "BULK", "haulingAuthorityReference": "HA-1"}, "haulingAuthorityReference", false},
+		{"20.4", specializedmodels.Hauling, "DETENTION", map[string]any{"startedAt": "2026-11-01T08:00:00Z", "detentionType": "DEMURRAGE"}, map[string]any{"detentionType": "DEMURRAGE"}, "detentionType", false},
+		{"20.5", specializedmodels.Heavy, "HEAVY_PROFILE", map[string]any{"dimensions": map[string]any{"length": 18.5, "width": 3.2, "height": 4.1, "unit": "M"}, "weight": 62000, "axleRequirements": "7-axle", "trailerRequirements": "lowbed", "permitReference": "PRM-9", "routeSurveyReference": "RS-3"}, map[string]any{"dimensions": map[string]any{"length": -1, "width": 3, "height": 4}, "weight": 1, "axleRequirements": "a", "trailerRequirements": "t", "permitReference": "p", "routeSurveyReference": "r"}, "permitReference", false},
+		{"20.6", specializedmodels.Freight, "COUNTRY_LEG", map[string]any{"originCountry": "NG", "destinationCountry": "GH", "mode": "ROAD", "sequence": 1}, map[string]any{"originCountry": "Nigeria", "destinationCountry": "GH"}, "destinationCountry", false},
+		{"20.7", specializedmodels.ColdChain, "TEMPERATURE_REQUIREMENT", map[string]any{"minimumTemperature": 2, "maximumTemperature": 8, "unit": "C"}, map[string]any{"minimumTemperature": 9, "maximumTemperature": 2, "unit": "C"}, "unit", false},
+		{"20.8", specializedmodels.Medical, "MEDICAL_HANDLING", map[string]any{"requiredQualificationIds": []string{qualification}, "handlingInstructions": "Keep upright"}, map[string]any{"requiredQualificationIds": []string{"qlf_unknown"}, "handlingInstructions": "x"}, "handlingInstructions", true},
+		{"20.9", specializedmodels.Agricultural, "AGRICULTURAL_PROFILE", map[string]any{"batchReference": "B-1", "lotReference": "L-1", "perishability": "HIGH"}, map[string]any{"batchReference": "B-1", "lotReference": "L-1", "perishability": "EXTREME"}, "lotReference", false},
+		{"20.10", specializedmodels.Moving, "MOVING_INVENTORY", map[string]any{"items": []map[string]any{{"itemReference": "sofa-1", "room": "lounge", "quantity": 1}}}, map[string]any{"items": []map[string]any{}}, "items", false},
+		{"20.11", specializedmodels.Towing, "TOWING_RECOVERY", map[string]any{"breakdownReference": "brk-1", "disabledVehicleReference": "veh-1", "incidentLocation": "Third Mainland Bridge", "towingAssetReference": towTruck.ID, "destination": "Ikeja depot"}, map[string]any{"breakdownReference": "brk-1", "disabledVehicleReference": "veh-1", "incidentLocation": "x", "towingAssetReference": foreignTow.ID, "destination": "y"}, "destination", false},
 	}
 	enabled := map[string]bool{}
 	for _, tc := range cases {
@@ -241,23 +244,23 @@ func TestRow20_4_To_20_11_SpecializedModulesPersistAndIsolate(t *testing.T) {
 	// deployment has it on.
 	orgC := createOrganization(t, f.pool, "Rows 20 C", "RC-"+ids.New("rows"))
 	ownerC := rowsActor{Org: orgC.ID, Member: seedApprovalMember(t, f.pool, orgC.ID, "rol_system_owner", "owner-c")}
-	rowsExpect(t, f.create(t, ownerC, specialized.Hauling, map[string]any{"RecordType": "BACKHAUL", "Payload": map[string]any{"originReference": "a", "destinationReference": "b"}}), 404, "capability not enabled")
+	rowsExpect(t, f.create(t, ownerC, specializedmodels.Hauling, map[string]any{"RecordType": "BACKHAUL", "Payload": map[string]any{"originReference": "a", "destinationReference": "b"}}), 404, "capability not enabled")
 }
 
 // TestRow20_7_ColdChainTemperatureEvents covers the temperature-event part of
 // FLEET-20.7: POST /specialized/COLD_CHAIN/records/:id/temperature-events.
 func TestRow20_7_ColdChainTemperatureEvents(t *testing.T) {
-	f := newRows20(t, map[string]bool{specialized.ColdChain: true})
-	f.enable(t, f.A, specialized.ColdChain)
-	f.enable(t, f.B, specialized.ColdChain)
+	f := newRows20(t, map[string]bool{specializedmodels.ColdChain: true})
+	f.enable(t, f.A, specializedmodels.ColdChain)
+	f.enable(t, f.B, specializedmodels.ColdChain)
 	mk := func(recordType string, payload map[string]any) string {
-		created := rowsExpect(t, f.create(t, f.A, specialized.ColdChain, map[string]any{"BranchID": f.branchA, "RecordType": recordType, "Payload": payload}), 201, "create "+recordType).Object(t)
+		created := rowsExpect(t, f.create(t, f.A, specializedmodels.ColdChain, map[string]any{"BranchID": f.branchA, "RecordType": recordType, "Payload": payload}), 201, "create "+recordType).Object(t)
 		return created["id"].(string)
 	}
 	vaccines := mk("TEMPERATURE_REQUIREMENT", map[string]any{"minimumTemperature": 2, "maximumTemperature": 8, "unit": "C"})
 	produce := mk("TEMPERATURE_REQUIREMENT", map[string]any{"minimumTemperature": 0, "maximumTemperature": 4, "unit": "C"})
 	sensorRecord := mk("SENSOR_REFERENCE", map[string]any{"sensorReference": "sensor-9"})
-	events := func(id string) string { return f.recordPath(specialized.ColdChain, id) + "/temperature-events" }
+	events := func(id string) string { return f.recordPath(specializedmodels.ColdChain, id) + "/temperature-events" }
 	at := time.Now().UTC().Add(-time.Minute).Format(time.RFC3339)
 
 	rowsExpect(t, rowsDo(t, f.router, f.A, "POST", events(vaccines), map[string]any{"SensorReference": "s-1", "Temperature": 5, "Unit": "C", "SourceVersion": 1}, nil), 400, "missing source time")
@@ -288,7 +291,7 @@ func TestRow20_7_ColdChainTemperatureEvents(t *testing.T) {
 	if excursion["excursion"] != true {
 		t.Fatalf("excursion event: %v", excursion)
 	}
-	quarantined := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", f.recordPath(specialized.ColdChain, vaccines), nil, nil), 200, "reread").Object(t)
+	quarantined := rowsExpect(t, rowsDo(t, f.router, f.A, "GET", f.recordPath(specializedmodels.ColdChain, vaccines), nil, nil), 200, "reread").Object(t)
 	if quarantined["status"] != "QUARANTINED" {
 		t.Fatalf("excursion must quarantine the record: %v", quarantined)
 	}
@@ -300,11 +303,11 @@ func TestRow20_7_ColdChainTemperatureEvents(t *testing.T) {
 	}
 	version := quarantined["version"]
 	// Quarantined goods cannot be completed without an authorized release.
-	rowsExpect(t, rowsDo(t, f.router, f.A, "POST", f.recordPath(specialized.ColdChain, vaccines)+"/commands/complete", map[string]any{"expectedVersion": version}, nil), 409, "complete while quarantined")
-	rowsExpect(t, rowsDo(t, f.router, f.A, "POST", f.recordPath(specialized.ColdChain, vaccines)+"/commands/release", map[string]any{"expectedVersion": version}, nil), 400, "release without evidence")
-	withEvidence := rowsExpect(t, rowsDo(t, f.router, f.A, "PATCH", f.recordPath(specialized.ColdChain, vaccines), map[string]any{"Version": version,
+	rowsExpect(t, rowsDo(t, f.router, f.A, "POST", f.recordPath(specializedmodels.ColdChain, vaccines)+"/commands/complete", map[string]any{"expectedVersion": version}, nil), 409, "complete while quarantined")
+	rowsExpect(t, rowsDo(t, f.router, f.A, "POST", f.recordPath(specializedmodels.ColdChain, vaccines)+"/commands/release", map[string]any{"expectedVersion": version}, nil), 400, "release without evidence")
+	withEvidence := rowsExpect(t, rowsDo(t, f.router, f.A, "PATCH", f.recordPath(specializedmodels.ColdChain, vaccines), map[string]any{"Version": version,
 		"Payload": map[string]any{"minimumTemperature": 2, "maximumTemperature": 8, "unit": "C", "releaseEvidenceReference": "lab-report-4", "authorizedBy": f.A.Member}}, nil), 200, "attach release evidence").Object(t)
-	released := rowsExpect(t, rowsDo(t, f.router, f.A, "POST", f.recordPath(specialized.ColdChain, vaccines)+"/commands/release", map[string]any{"expectedVersion": withEvidence["version"]}, nil), 200, "release").Object(t)
+	released := rowsExpect(t, rowsDo(t, f.router, f.A, "POST", f.recordPath(specializedmodels.ColdChain, vaccines)+"/commands/release", map[string]any{"expectedVersion": withEvidence["version"]}, nil), 200, "release").Object(t)
 	if released["status"] != "RELEASED" || rowsOutboxCount(t, f.pool, vaccines, "specialized_record.released.v1") != 1 {
 		t.Fatalf("release: %v", released)
 	}
@@ -313,13 +316,13 @@ func TestRow20_7_ColdChainTemperatureEvents(t *testing.T) {
 // TestRow20_12_RecordMilestonesAndCommands covers FLEET-20.12:
 // POST .../records/:id/milestones and .../records/:id/commands/:command.
 func TestRow20_12_RecordMilestonesAndCommands(t *testing.T) {
-	f := newRows20(t, map[string]bool{specialized.Courier: true, specialized.Moving: true})
-	f.enable(t, f.A, specialized.Courier)
-	f.enable(t, f.B, specialized.Courier)
-	created := rowsExpect(t, f.create(t, f.A, specialized.Courier, map[string]any{"BranchID": f.branchA, "RecordType": "DELIVERY_WAVE",
+	f := newRows20(t, map[string]bool{specializedmodels.Courier: true, specializedmodels.Moving: true})
+	f.enable(t, f.A, specializedmodels.Courier)
+	f.enable(t, f.B, specializedmodels.Courier)
+	created := rowsExpect(t, f.create(t, f.A, specializedmodels.Courier, map[string]any{"BranchID": f.branchA, "RecordType": "DELIVERY_WAVE",
 		"Payload": map[string]any{"waveReference": "WAVE-1"}}), 201, "create").Object(t)
 	id := created["id"].(string)
-	path := f.recordPath(specialized.Courier, id)
+	path := f.recordPath(specializedmodels.Courier, id)
 
 	milestones := path + "/milestones"
 	rowsExpect(t, rowsDo(t, f.router, f.A, "POST", milestones, map[string]any{"Status": "DONE"}, nil), 400, "milestone without type")

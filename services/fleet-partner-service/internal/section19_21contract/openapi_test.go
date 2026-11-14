@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance"
+	compliancehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/http"
 	proofhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/http"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized"
+	specializedhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/http"
 	warehousehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/http"
 )
 
@@ -87,7 +87,7 @@ func check(t *testing.T, name string, routes []route) {
 
 func TestSection19BidirectionalRouteParity(t *testing.T) {
 	var rs []route
-	for _, r := range compliance.TenantRoutes() {
+	for _, r := range compliancehttp.TenantRoutes() {
 		rs = append(rs, route{r.Method, r.Path, r.OperationID, r.Permission, r.FeatureFlag, r.AuthClass, r.IdempotencyRequired, r.ExpectedVersionRequired})
 	}
 	for _, r := range safety.OperationsTenantRoutes() {
@@ -100,7 +100,7 @@ func TestSection19BidirectionalRouteParity(t *testing.T) {
 }
 func TestSection20BidirectionalRouteParity(t *testing.T) {
 	var rs []route
-	for _, r := range specialized.TenantRoutes() {
+	for _, r := range specializedhttp.TenantRoutes() {
 		rs = append(rs, route{r.Method, r.Path, r.OperationID, r.Permission, r.FeatureFlag, r.AuthClass, r.IdempotencyRequired, r.ExpectedVersionRequired})
 	}
 	check(t, "section20-specialized-logistics.openapi.json", rs)

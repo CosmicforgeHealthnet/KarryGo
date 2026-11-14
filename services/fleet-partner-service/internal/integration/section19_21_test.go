@@ -2,6 +2,8 @@ package integration_test
 
 import (
 	"context"
+	compliancerepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/repositories"
+	specializedrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/repositories"
 	"encoding/json"
 	"errors"
 	"sync"
@@ -11,12 +13,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance"
+	compliancemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/models"
+	complianceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/usecases"
 	proofmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/models"
 	proofrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/repositories"
 	proofusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/proof/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized"
+	specializedmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/models"
+	specializedusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/usecases"
 	warehousemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/models"
 	warehouserepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/repositories"
 	warehouseusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/usecases"
@@ -88,12 +92,12 @@ func TestSection19AmbiguousRestrictionUsesReadBackWithoutResubmission(t *testing
 	pool := testPool(t)
 	scope, _ := section1921Scope(t, pool)
 	authority := &ambiguousRestrictionAuthority{}
-	svc := compliance.NewService(compliance.Options{
-		Pool: pool, Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)),
+	svc := complianceusecases.NewService(complianceusecases.Options{
+		Pool: pool, Repository: compliancerepos.NewRepository(pool), Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)),
 		Dispatch: authority, Hauling: authority,
-		Flags: compliance.Flags{Compliance: true, Restrictions: true},
+		Flags: compliancemodels.Flags{Compliance: true, Restrictions: true},
 	})
-	restriction, err := svc.ApplyRestriction(context.Background(), scope, compliance.RestrictInput{
+	restriction, err := svc.ApplyRestriction(context.Background(), scope, compliancemodels.RestrictInput{
 		SubjectType: "PROVIDER", SubjectReference: "membership-ambiguous", ReasonCode: "SAFETY_BLOCK",
 		SourceType: "INCIDENT", SourceReference: "incident-ambiguous", Severity: "CRITICAL",
 	})
@@ -125,20 +129,20 @@ func TestSection19ComplianceRestrictionSafetyAndProof(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	publisher := events.NewDomainPublisher(events.NewOutboxRepository(pool))
 	authority := restrictionAuthority{}
-	c := compliance.NewService(compliance.Options{Pool: pool, Events: publisher, Dispatch: authority, Hauling: authority, Flags: compliance.Flags{Compliance: true, Restrictions: true}, Now: func() time.Time { return now }})
-	req, err := c.CreateRequirement(ctx, scope, compliance.Requirement{Code: "ORG_ACTIVE", Name: "Organization active", SubjectType: "ORGANIZATION", RequirementType: "PLATFORM_STATUS", Severity: "CRITICAL", BlocksOperation: true, EffectiveFrom: now.Add(-time.Hour)})
+	c := complianceusecases.NewService(complianceusecases.Options{Pool: pool, Repository: compliancerepos.NewRepository(pool), Events: publisher, Dispatch: authority, Hauling: authority, Flags: compliancemodels.Flags{Compliance: true, Restrictions: true}, Now: func() time.Time { return now }})
+	req, err := c.CreateRequirement(ctx, scope, compliancemodels.Requirement{Code: "ORG_ACTIVE", Name: "Organization active", SubjectType: "ORGANIZATION", RequirementType: "PLATFORM_STATUS", Severity: "CRITICAL", BlocksOperation: true, EffectiveFrom: now.Add(-time.Hour)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	req, err = c.UpdateRequirement(ctx, scope, req.ID, req.Version, compliance.Requirement{}, "ACTIVATE")
+	req, err = c.UpdateRequirement(ctx, scope, req.ID, req.Version, compliancemodels.Requirement{}, "ACTIVATE")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err = pool.Exec(ctx, `UPDATE fleet_partner_organizations SET status='SUSPENDED' WHERE id=$1`, scope.OrganizationID); err != nil {
 		t.Fatal(err)
 	}
-	status, err := c.Evaluate(ctx, scope, compliance.EvaluateInput{SubjectType: "ORGANIZATION", SubjectReference: scope.OrganizationID, RequirementID: req.ID, SourceType: "PLATFORM", SourceReference: "org-state", SourceVersion: 1})
-	if err != nil || status.State != compliance.StateRestricted {
+	status, err := c.Evaluate(ctx, scope, compliancemodels.EvaluateInput{SubjectType: "ORGANIZATION", SubjectReference: scope.OrganizationID, RequirementID: req.ID, SourceType: "PLATFORM", SourceReference: "org-state", SourceVersion: 1})
+	if err != nil || status.State != compliancemodels.StateRestricted {
 		t.Fatalf("status=%+v err=%v", status, err)
 	}
 	gate, err := c.CheckSubject(ctx, scope.OrganizationID, "ORGANIZATION", scope.OrganizationID)
@@ -187,23 +191,23 @@ func TestSection20CapabilityIsolationValidationAndIdempotency(t *testing.T) {
 	org := createOrganization(t, pool, "Section 20", "S20-"+ids.New("reg"))
 	actor := ids.New("usr")
 	scope := tenant.Context{OrganizationID: org.ID, OrganizationUserID: actor, ActorType: tenant.ActorTypeOrganizationUser, ActorID: actor, CorrelationID: "s20"}
-	s := specialized.NewService(specialized.Options{Pool: pool, Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)), Flags: specialized.Flags{Enabled: true, Modules: map[string]bool{specialized.Courier: true, specialized.Taxi: false}}})
-	capability, err := s.SetCapability(context.Background(), scope, specialized.Courier, "ENABLED", "approved rollout", 0, json.RawMessage(`{}`))
+	s := specializedusecases.NewService(specializedusecases.Options{Pool: pool, Repository: specializedrepos.NewRepository(pool), Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)), Flags: specializedmodels.Flags{Enabled: true, Modules: map[string]bool{specializedmodels.Courier: true, specializedmodels.Taxi: false}}})
+	capability, err := s.SetCapability(context.Background(), scope, specializedmodels.Courier, "ENABLED", "approved rollout", 0, json.RawMessage(`{}`))
 	if err != nil || capability.Status != "ENABLED" {
 		t.Fatalf("capability=%+v err=%v", capability, err)
 	}
-	record, err := s.CreateRecord(context.Background(), scope, specialized.Record{CapabilityCode: specialized.Courier, RecordType: "SHIPPING_LABEL", SubjectType: "PACKAGE", SubjectReference: "pkg-1", Payload: json.RawMessage(`{"labelReference":"lbl-1","barcodeReference":"bc-1"}`), IdempotencyKey: "courier-once"})
+	record, err := s.CreateRecord(context.Background(), scope, specializedmodels.Record{CapabilityCode: specializedmodels.Courier, RecordType: "SHIPPING_LABEL", SubjectType: "PACKAGE", SubjectReference: "pkg-1", Payload: json.RawMessage(`{"labelReference":"lbl-1","barcodeReference":"bc-1"}`), IdempotencyKey: "courier-once"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	replay, err := s.CreateRecord(context.Background(), scope, specialized.Record{CapabilityCode: specialized.Courier, RecordType: "SHIPPING_LABEL", SubjectType: "PACKAGE", SubjectReference: "pkg-1", Payload: json.RawMessage(`{"labelReference":"lbl-1","barcodeReference":"bc-1"}`), IdempotencyKey: "courier-once"})
+	replay, err := s.CreateRecord(context.Background(), scope, specializedmodels.Record{CapabilityCode: specializedmodels.Courier, RecordType: "SHIPPING_LABEL", SubjectType: "PACKAGE", SubjectReference: "pkg-1", Payload: json.RawMessage(`{"labelReference":"lbl-1","barcodeReference":"bc-1"}`), IdempotencyKey: "courier-once"})
 	if err != nil || replay.ID != record.ID {
 		t.Fatalf("replay=%+v err=%v", replay, err)
 	}
-	if _, err = s.CreateRecord(context.Background(), scope, specialized.Record{CapabilityCode: specialized.Courier, RecordType: "SHIPPING_LABEL", SubjectType: "PACKAGE", SubjectReference: "pkg-2", Payload: json.RawMessage(`{"labelReference":"lbl-2","barcodeReference":"bc-2","amount":100}`), IdempotencyKey: "finance-reject"}); err == nil {
+	if _, err = s.CreateRecord(context.Background(), scope, specializedmodels.Record{CapabilityCode: specializedmodels.Courier, RecordType: "SHIPPING_LABEL", SubjectType: "PACKAGE", SubjectReference: "pkg-2", Payload: json.RawMessage(`{"labelReference":"lbl-2","barcodeReference":"bc-2","amount":100}`), IdempotencyKey: "finance-reject"}); err == nil {
 		t.Fatal("financial field accepted")
 	}
-	if _, err = s.SetCapability(context.Background(), scope, specialized.Taxi, "ENABLED", "must stay closed", 0, json.RawMessage(`{}`)); err == nil {
+	if _, err = s.SetCapability(context.Background(), scope, specializedmodels.Taxi, "ENABLED", "must stay closed", 0, json.RawMessage(`{}`)); err == nil {
 		t.Fatal("taxi capability enabled")
 	}
 }

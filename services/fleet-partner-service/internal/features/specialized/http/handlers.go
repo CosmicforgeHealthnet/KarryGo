@@ -1,0 +1,236 @@
+// Package http serves the Section 20 specialized-logistics routes. Handlers
+// parse the request and call the use cases through the Service port.
+package http
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/models"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/respond"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
+	"cosmicforge/logistics/shared/go/apperrors"
+)
+
+// Service is the use-case surface the specialized handlers call.
+type Service interface {
+	ModuleAvailable(code string) bool
+	FeatureAvailable() bool
+	ListCapabilities(ctx context.Context, t tenant.Context) ([]models.Capability, error)
+	SetCapability(ctx context.Context, t tenant.Context, code, status, reason string, expected int64, configuration json.RawMessage) (models.Capability, error)
+	ListRecords(ctx context.Context, t tenant.Context, code string) ([]models.Record, error)
+	CreateRecord(ctx context.Context, t tenant.Context, v models.Record) (models.Record, error)
+	GetRecord(ctx context.Context, t tenant.Context, code, id string) (models.Record, error)
+	UpdateRecord(ctx context.Context, t tenant.Context, code, id string, expected int64, v models.Record, command string) (models.Record, error)
+	AddMilestone(ctx context.Context, t tenant.Context, code, id string, v models.Milestone) (models.Milestone, error)
+	GetSchema(ctx context.Context, t tenant.Context, code string) (models.CapabilitySchema, error)
+	ListOrderData(ctx context.Context, t tenant.Context, orderID string) ([]models.Record, error)
+	CreateOrderData(ctx context.Context, t tenant.Context, orderID string, in models.OrderDataInput) (models.Record, error)
+	AddTemperature(ctx context.Context, t tenant.Context, id string, v models.TemperatureEvent) (models.TemperatureEvent, error)
+}
+
+type Route struct {
+	Method, Path, OperationID, Permission, FeatureFlag, AuthClass string
+	IdempotencyRequired, ExpectedVersionRequired                  bool
+}
+
+func TenantRoutes() []Route {
+	return []Route{{"GET", "/specialized/capabilities", "listSpecializedCapabilities", "specialized.read", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", false, false}, {"POST", "/specialized/capabilities/:capabilityCode/enable", "enableSpecializedCapability", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", true, true}, {"POST", "/specialized/capabilities/:capabilityCode/disable", "disableSpecializedCapability", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", true, true}, {"GET", "/specialized/:capabilityCode/records", "listSpecializedRecords", "specialized.read", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", false, false}, {"POST", "/specialized/:capabilityCode/records", "createSpecializedRecord", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", true, false}, {"GET", "/specialized/:capabilityCode/records/:recordId", "getSpecializedRecord", "specialized.read", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", false, false}, {"PATCH", "/specialized/:capabilityCode/records/:recordId", "updateSpecializedRecord", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", false, true}, {"POST", "/specialized/:capabilityCode/records/:recordId/commands/:command", "commandSpecializedRecord", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", true, true}, {"POST", "/specialized/:capabilityCode/records/:recordId/milestones", "addSpecializedMilestone", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", true, false}, {"POST", "/specialized/COLD_CHAIN/records/:recordId/temperature-events", "addTemperatureEvent", "specialized.manage", "COLD_CHAIN_ENABLED", "corporate", true, false},
+		// Spec 50.3: capability schemas and order-level specialized data.
+		{"GET", "/capability-schemas/:capabilityCode", "getCapabilitySchema", "specialized.read", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", false, false},
+		{"GET", "/orders/:orderId/specialized-data", "listOrderSpecializedData", "specialized.read", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", false, false},
+		{"POST", "/orders/:orderId/specialized-data", "createOrderSpecializedData", "specialized.manage", "SPECIALIZED_LOGISTICS_ENABLED", "corporate", true, false}}
+}
+func (r Route) FullPath() string { return "/fleet-partner/v1" + r.Path }
+
+type Handler struct {
+	s    Service
+	a    *accesscontrol.Authorizer
+	idem *idempotency.Store
+}
+
+func NewHandler(s Service, a *accesscontrol.Authorizer, i *idempotency.Store) *Handler {
+	return &Handler{s: s, a: a, idem: i}
+}
+func (h *Handler) TenantRoutes() []Route { return TenantRoutes() }
+func (h *Handler) RegisterTenantRoutes(g *gin.RouterGroup) {
+	for _, r := range TenantRoutes() {
+		r := r
+		g.Handle(r.Method, r.Path, func(c *gin.Context) { h.handle(c, r) })
+	}
+}
+func (h *Handler) gate(c *gin.Context, p string) (tenant.Context, bool) {
+	t, ok := middleware.TenantFromGin(c)
+	if !ok || h.a == nil {
+		respond.Error(c, apperrors.Forbidden("Organization scope is required.", nil))
+		return t, false
+	}
+	rv := int64(1)
+	if x, ok := c.Get(middleware.TenantRoleVersionKey); ok {
+		rv, _ = x.(int64)
+	}
+	// Narrowed to the branches where the permission is granted; a
+	// caller-chosen ?branchId never widens it.
+	scoped, e := h.a.RequireScoped(c, t, rv, p)
+	if e != nil {
+		respond.Error(c, e)
+		return t, false
+	}
+	middleware.SetTenant(c, scoped)
+	return scoped, true
+}
+func specVer(c *gin.Context, v int64) int64 {
+	if v > 0 {
+		return v
+	}
+	n, _ := strconv.ParseInt(strings.Trim(strings.TrimSpace(c.GetHeader("If-Match")), `"`), 10, 64)
+	return n
+}
+
+type capabilityBody struct {
+	ExpectedVersion int64  `json:"expectedVersion"`
+	Reason          string `json:"reason"`
+	Configuration   any    `json:"configuration"`
+}
+type commandBody struct {
+	ExpectedVersion int64  `json:"expectedVersion"`
+	Reason          string `json:"reason"`
+}
+
+// available answers whether the route's module is switched on. A disabled
+// module exposes no route (spec 20.1): the answer is a 404 that is the same
+// for every caller, given before any permission check.
+func (h *Handler) available(c *gin.Context, r Route) bool {
+	if h.s == nil {
+		return false
+	}
+	code := c.Param("capabilityCode")
+	if strings.Contains(r.Path, "/COLD_CHAIN/") {
+		code = models.ColdChain
+	}
+	if code != "" {
+		return h.s.ModuleAvailable(code)
+	}
+	return h.s.FeatureAvailable()
+}
+
+type orderDataBody struct {
+	CapabilityCode string          `json:"capabilityCode"`
+	RecordType     string          `json:"recordType"`
+	SchemaVersion  int             `json:"schemaVersion"`
+	Payload        json.RawMessage `json:"payload"`
+}
+
+func (h *Handler) handle(c *gin.Context, r Route) {
+	if !h.available(c, r) {
+		respond.Error(c, apperrors.NotFound("Resource not found.", nil))
+		return
+	}
+	t, ok := h.gate(c, r.Permission)
+	if !ok {
+		return
+	}
+	if r.IdempotencyRequired {
+		idempotency.ExecuteHTTP(c, h.idem, t.OrganizationID, r.Method+" "+r.Path, func() { h.execute(c, t, r) })
+		return
+	}
+	h.execute(c, t, r)
+}
+
+func (h *Handler) execute(c *gin.Context, t tenant.Context, r Route) {
+	code := strings.ToUpper(c.Param("capabilityCode"))
+	var v any
+	var e error
+	switch r.OperationID {
+	case "listSpecializedCapabilities":
+		v, e = h.s.ListCapabilities(c, t)
+	case "enableSpecializedCapability", "disableSpecializedCapability":
+		var b capabilityBody
+		if c.ShouldBindJSON(&b) != nil {
+			e = apperrors.BadRequest("Request body must be valid JSON.", nil)
+			break
+		}
+		raw, _ := jsonMarshal(b.Configuration)
+		status := "ENABLED"
+		if r.OperationID == "disableSpecializedCapability" {
+			status = "DISABLED"
+		}
+		v, e = h.s.SetCapability(c, t, code, status, b.Reason, specVer(c, b.ExpectedVersion), raw)
+	case "listSpecializedRecords":
+		v, e = h.s.ListRecords(c, t, code)
+	case "createSpecializedRecord":
+		var b models.Record
+		if c.ShouldBindJSON(&b) != nil {
+			e = apperrors.BadRequest("Request body must be valid JSON.", nil)
+			break
+		}
+		b.CapabilityCode = code
+		b.IdempotencyKey = c.GetHeader("Idempotency-Key")
+		v, e = h.s.CreateRecord(c, t, b)
+	case "getSpecializedRecord":
+		v, e = h.s.GetRecord(c, t, code, c.Param("recordId"))
+	case "updateSpecializedRecord":
+		var b models.Record
+		if c.ShouldBindJSON(&b) != nil {
+			e = apperrors.BadRequest("Request body must be valid JSON.", nil)
+			break
+		}
+		v, e = h.s.UpdateRecord(c, t, code, c.Param("recordId"), specVer(c, b.Version), b, "")
+	case "commandSpecializedRecord":
+		var b commandBody
+		if c.ShouldBindJSON(&b) != nil {
+			e = apperrors.BadRequest("Request body must be valid JSON.", nil)
+			break
+		}
+		v, e = h.s.UpdateRecord(c, t, code, c.Param("recordId"), specVer(c, b.ExpectedVersion), models.Record{}, strings.ToUpper(c.Param("command")))
+	case "addSpecializedMilestone":
+		var b models.Milestone
+		if c.ShouldBindJSON(&b) != nil {
+			e = apperrors.BadRequest("Request body must be valid JSON.", nil)
+			break
+		}
+		b.CorrelationID = c.GetHeader("Idempotency-Key")
+		v, e = h.s.AddMilestone(c, t, code, c.Param("recordId"), b)
+	case "getCapabilitySchema":
+		v, e = h.s.GetSchema(c, t, code)
+	case "listOrderSpecializedData":
+		v, e = h.s.ListOrderData(c, t, c.Param("orderId"))
+	case "createOrderSpecializedData":
+		var b orderDataBody
+		if c.ShouldBindJSON(&b) != nil {
+			e = apperrors.BadRequest("Request body must be valid JSON.", nil)
+			break
+		}
+		v, e = h.s.CreateOrderData(c, t, c.Param("orderId"), models.OrderDataInput{CapabilityCode: b.CapabilityCode, RecordType: b.RecordType, SchemaVersion: b.SchemaVersion, Payload: b.Payload, IdempotencyKey: c.GetHeader("Idempotency-Key")})
+	case "addTemperatureEvent":
+		var b models.TemperatureEvent
+		if c.ShouldBindJSON(&b) != nil {
+			e = apperrors.BadRequest("Request body must be valid JSON.", nil)
+			break
+		}
+		v, e = h.s.AddTemperature(c, t, c.Param("recordId"), b)
+	}
+	if e != nil {
+		respond.Error(c, e)
+		return
+	}
+	status := http.StatusOK
+	if strings.HasPrefix(r.OperationID, "create") || strings.HasPrefix(r.OperationID, "add") {
+		status = http.StatusCreated
+	}
+	respond.JSON(c, status, v)
+}
+func jsonMarshal(v any) ([]byte, error) {
+	if v == nil {
+		return []byte(`{}`), nil
+	}
+	return json.Marshal(v)
+}

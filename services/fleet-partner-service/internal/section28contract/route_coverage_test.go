@@ -30,9 +30,9 @@ import (
 	backgroundopshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/backgroundops/http"
 	bulkimportshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/bulkimports/http"
 	communicationshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/http"
-	compliancefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance"
+	compliancehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/http"
 	crmhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/crm/http"
-	dispatchfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch"
+	dispatchhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/dispatch/http"
 	documenthttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/documents/http"
 	engagementhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/http"
 	exportshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/http"
@@ -50,13 +50,15 @@ import (
 	recurringhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/recurringorders/http"
 	retentionexecutionhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/retentionexecution/http"
 	retentionpolicyhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/retentionpolicy/http"
+	routeshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/routes/http"
 	safetyfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
 	searchhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/search/http"
 	securitysettingshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/securitysettings/http"
 	cataloghttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/servicecatalog/http"
 	shipmentshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/shipments/http"
-	specializedfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized"
+	specializedhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/http"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/synchronization"
+	trackinghttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/tracking/http"
 	warehousehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse/http"
 	workforcehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/http"
 
@@ -233,16 +235,24 @@ func enumerateManifestBackedRoutes(t *testing.T) []liveRoute {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}
 
-	complianceH := compliancefeature.NewHandler(nil, nil, nil)
+	complianceH := compliancehttp.NewHandler(nil, nil, nil)
 	for _, r := range complianceH.TenantRoutes() {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}
 
-	dispatchH := dispatchfeature.NewHandler(nil, nil, nil)
+	dispatchH := dispatchhttp.NewHandler(nil, nil, nil)
 	for _, r := range dispatchH.TenantRoutes() {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}
-	for _, r := range dispatchH.InternalRoutes() {
+	routesH := routeshttp.NewHandler(nil, nil, nil)
+	for _, r := range routesH.TenantRoutes() {
+		add(tenantPrefix, r.Path, r.Method, r.Permission)
+	}
+	trackingH := trackinghttp.NewHandler(nil, nil)
+	for _, r := range trackingH.TenantRoutes() {
+		add(tenantPrefix, r.Path, r.Method, r.Permission)
+	}
+	for _, r := range trackingH.InternalRoutes() {
 		add(internalPrefix, r.Path, r.Method, r.Permission)
 	}
 
@@ -257,7 +267,7 @@ func enumerateManifestBackedRoutes(t *testing.T) []liveRoute {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}
 
-	specializedH := specializedfeature.NewHandler(nil, nil, nil)
+	specializedH := specializedhttp.NewHandler(nil, nil, nil)
 	for _, r := range specializedH.TenantRoutes() {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}

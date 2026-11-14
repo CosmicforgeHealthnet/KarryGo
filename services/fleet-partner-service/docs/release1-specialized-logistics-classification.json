@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "release": "corporate-logistics-backend-release-1",
   "evidence": [
-    "internal/features/specialized/service.go",
-    "internal/features/specialized/validation.go",
-    "internal/features/specialized/validation_test.go",
+    "internal/features/specialized/usecases/service.go",
+    "internal/features/specialized/models/validation.go",
+    "internal/features/specialized/models/validation_test.go",
     "docs/section31-test-coverage.json"
   ],
   "capabilities": [
