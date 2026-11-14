@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	specializedrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/repositories"
 	"errors"
 	"strings"
 	"time"
@@ -92,7 +93,9 @@ import (
 	shipmentshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/shipments/http"
 	shipmentsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/shipments/repositories"
 	shipmentsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/shipments/usecases"
-	specializedfeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized"
+	specializedhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/http"
+	specializedmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/models"
+	specializedusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/usecases"
 	staffrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/repositories"
 	staffusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/synchronization"
@@ -175,7 +178,7 @@ type Components struct {
 	Compliance        *complianceusecases.Service
 	SafetyOperations  *safetyfeature.OperationsService
 	Proof             *prooffeature.Service
-	Specialized       *specializedfeature.Service
+	Specialized       *specializedusecases.Service
 	Warehouse         *warehousefeature.Service
 	FinanceOperations *financeops.Service
 	Engagement        *engagement.Service
@@ -446,7 +449,7 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 
 	safetyOperations := safetyfeature.NewOperationsService(safetyfeature.OperationsOptions{Pool: pool, Events: publisher, Media: contracts.Media, Flags: safetyfeature.OperationsFlags{Reports: cfg.SafetyReportsEnabled, Incidents: cfg.IncidentsEnabled, Workers: cfg.Section19WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
 	proofService := prooffeature.NewService(prooffeature.Options{Pool: pool, Events: publisher, Media: contracts.Media, HashSecret: cfg.ProofHMACSecret, Flags: prooffeature.Flags{Policies: cfg.ProofPoliciesEnabled, Records: cfg.ProofRecordsEnabled, Workers: cfg.Section19WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
-	specializedService := specializedfeature.NewService(specializedfeature.Options{Pool: pool, Events: publisher, Media: contracts.Media, Flags: specializedfeature.Flags{Enabled: cfg.SpecializedLogisticsEnabled, Workers: cfg.Section20WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch, Modules: map[string]bool{specializedfeature.Courier: cfg.CourierLastMileEnabled, specializedfeature.Taxi: cfg.TaxiPassengerEnabled, specializedfeature.Hauling: cfg.TruckingHaulageEnabled, specializedfeature.Heavy: cfg.HeavySpecializedEnabled, specializedfeature.Freight: cfg.FreightForwardingEnabled, specializedfeature.ColdChain: cfg.ColdChainEnabled, specializedfeature.Medical: cfg.MedicalSensitiveEnabled, specializedfeature.Agricultural: cfg.AgriculturalFoodEnabled, specializedfeature.Moving: cfg.MovingRelocationEnabled, specializedfeature.Towing: cfg.TowingRecoveryEnabled}}})
+	specializedService := specializedusecases.NewService(specializedusecases.Options{Pool: pool, Repository: specializedrepos.NewRepository(pool), Events: publisher, Media: contracts.Media, Flags: specializedmodels.Flags{Enabled: cfg.SpecializedLogisticsEnabled, Workers: cfg.Section20WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch, Modules: map[string]bool{specializedmodels.Courier: cfg.CourierLastMileEnabled, specializedmodels.Taxi: cfg.TaxiPassengerEnabled, specializedmodels.Hauling: cfg.TruckingHaulageEnabled, specializedmodels.Heavy: cfg.HeavySpecializedEnabled, specializedmodels.Freight: cfg.FreightForwardingEnabled, specializedmodels.ColdChain: cfg.ColdChainEnabled, specializedmodels.Medical: cfg.MedicalSensitiveEnabled, specializedmodels.Agricultural: cfg.AgriculturalFoodEnabled, specializedmodels.Moving: cfg.MovingRelocationEnabled, specializedmodels.Towing: cfg.TowingRecoveryEnabled}}})
 	warehouseService := warehousefeature.NewService(warehousefeature.Options{Pool: pool, Events: publisher, Proof: proofService, Restrictions: restrictionGate, Flags: warehousefeature.Flags{Warehouses: cfg.WarehousesEnabled, Inventory: cfg.WarehouseInventoryEnabled, Fulfilment: cfg.FulfilmentEnabled, Dock: cfg.DockOperationsEnabled, Yard: cfg.YardOperationsEnabled, Terminal: cfg.TerminalTransfersEnabled, Returns: cfg.ReturnsEnabled, Workers: cfg.Section21WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
 	walletHTTP := platformclients.New(platformclients.Options{ServiceName: "payment-wallet-service", BaseURL: walletCfg.BaseURL, Secret: walletCfg.Secret, Timeout: cfg.HTTPClientTimeout, Metrics: metrics, Environment: cfg.AppEnv, MaxRetries: cfg.ExternalClientMaxRetries, RetryBackoffBase: cfg.ExternalClientRetryBackoffBase, RetryBackoffMax: cfg.ExternalClientRetryBackoffMax, Breaker: circuitbreaker.Config{FailureThreshold: cfg.CircuitBreakerFailureThreshold, ObservationWindow: cfg.CircuitBreakerObservationWindow, OpenDuration: cfg.CircuitBreakerOpenDuration, HalfOpenProbes: cfg.CircuitBreakerHalfOpenProbes, SuccessThreshold: cfg.CircuitBreakerSuccessThreshold}})
 	accountingCfg := cfg.Clients["accounting-service"]
@@ -681,7 +684,7 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 	complianceHandler := compliancehttp.NewHandler(c.Compliance, c.Authorizer, c.Idempotency)
 	safetyOperationsHandler := safetyfeature.NewOperationsHandler(c.SafetyOperations, c.Authorizer, c.Idempotency)
 	proofHandler := prooffeature.NewHandler(c.Proof, c.Authorizer, c.Idempotency)
-	specializedHandler := specializedfeature.NewHandler(c.Specialized, c.Authorizer, c.Idempotency)
+	specializedHandler := specializedhttp.NewHandler(c.Specialized, c.Authorizer, c.Idempotency)
 	warehouseHandler := warehousefeature.NewHandler(c.Warehouse, c.Authorizer, c.Idempotency)
 	financeOperationsHandler := financeops.NewHandler(c.FinanceOperations, c.Authorizer, c.Idempotency)
 	engagementHandler := engagement.NewHandler(c.Engagement, c.Authorizer, c.Idempotency)

@@ -1,4 +1,4 @@
-package specialized
+package models
 
 import (
 	"encoding/json"

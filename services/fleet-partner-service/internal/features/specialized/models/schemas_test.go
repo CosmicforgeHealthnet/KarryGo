@@ -1,4 +1,4 @@
-package specialized
+package models
 
 import (
 	"encoding/json"
@@ -133,11 +133,11 @@ func TestLegacySchemaVersionStaysValid(t *testing.T) {
 }
 
 func TestReferenceFieldsExtractsAssetsAndQualifications(t *testing.T) {
-	assets, quals := referenceFields(Towing, "TOWING_RECOVERY", json.RawMessage(`{"towingAssetReference":"ast_9"}`))
+	assets, quals := ReferenceFields(Towing, "TOWING_RECOVERY", json.RawMessage(`{"towingAssetReference":"ast_9"}`))
 	if len(assets) != 1 || assets[0] != "ast_9" || len(quals) != 0 {
 		t.Fatalf("towing refs = %v %v", assets, quals)
 	}
-	assets, quals = referenceFields(Medical, "MEDICAL_HANDLING", json.RawMessage(`{"requiredQualificationIds":["q1","q2"]}`))
+	assets, quals = ReferenceFields(Medical, "MEDICAL_HANDLING", json.RawMessage(`{"requiredQualificationIds":["q1","q2"]}`))
 	if len(assets) != 0 || len(quals) != 2 {
 		t.Fatalf("medical refs = %v %v", assets, quals)
 	}

@@ -1,4 +1,4 @@
-package specialized
+package models
 
 import (
 	"encoding/json"
@@ -368,9 +368,9 @@ func validateCurrent(v *Record) error {
 	return crossFieldRules(v.CapabilityCode, v.RecordType, p)
 }
 
-// referenceFields returns the values of fields whose kind needs an
+// ReferenceFields returns the values of fields whose kind needs an
 // organization-scoped existence check (assets, qualifications).
-func referenceFields(code, recordType string, payload json.RawMessage) (assets, qualifications []string) {
+func ReferenceFields(code, recordType string, payload json.RawMessage) (assets, qualifications []string) {
 	schema, ok := recordSchema(code, recordType)
 	if !ok {
 		return nil, nil

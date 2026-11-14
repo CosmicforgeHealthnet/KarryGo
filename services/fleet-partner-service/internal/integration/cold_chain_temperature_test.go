@@ -10,6 +10,7 @@ package integration_test
 
 import (
 	"context"
+	specializedrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/repositories"
 	"encoding/json"
 	"net/http"
 	"sync"
@@ -19,14 +20,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized"
+	specializedmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/models"
+	specializedusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
 
 type coldChainFixture struct {
 	pool  *pgxpool.Pool
-	s     *specialized.Service
+	s     *specializedusecases.Service
 	scope tenant.Context
 }
 
@@ -35,18 +37,18 @@ func newColdChainFixture(t *testing.T, pool *pgxpool.Pool) *coldChainFixture {
 	org := createOrganization(t, pool, "Cold Chain "+ids.New("x"), "CC-"+ids.New("reg"))
 	actor := ids.New("usr")
 	scope := tenant.Context{OrganizationID: org.ID, OrganizationUserID: actor, ActorType: tenant.ActorTypeOrganizationUser, ActorID: actor, CorrelationID: "cc"}
-	s := specialized.NewService(specialized.Options{Pool: pool, Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)),
-		Flags: specialized.Flags{Enabled: true, Modules: map[string]bool{specialized.ColdChain: true}}})
-	if _, err := s.SetCapability(context.Background(), scope, specialized.ColdChain, "ENABLED", "cold chain rollout", 0, json.RawMessage(`{}`)); err != nil {
+	s := specializedusecases.NewService(specializedusecases.Options{Pool: pool, Repository: specializedrepos.NewRepository(pool), Events: events.NewDomainPublisher(events.NewOutboxRepository(pool)),
+		Flags: specializedmodels.Flags{Enabled: true, Modules: map[string]bool{specializedmodels.ColdChain: true}}})
+	if _, err := s.SetCapability(context.Background(), scope, specializedmodels.ColdChain, "ENABLED", "cold chain rollout", 0, json.RawMessage(`{}`)); err != nil {
 		t.Fatalf("enable cold chain: %v", err)
 	}
 	return &coldChainFixture{pool: pool, s: s, scope: scope}
 }
 
-func (f *coldChainFixture) requirement(t *testing.T, payload string) specialized.Record {
+func (f *coldChainFixture) requirement(t *testing.T, payload string) specializedmodels.Record {
 	t.Helper()
-	record, err := f.s.CreateRecord(context.Background(), f.scope, specialized.Record{
-		CapabilityCode: specialized.ColdChain, RecordType: "TEMPERATURE_REQUIREMENT", SubjectType: "SHIPMENT",
+	record, err := f.s.CreateRecord(context.Background(), f.scope, specializedmodels.Record{
+		CapabilityCode: specializedmodels.ColdChain, RecordType: "TEMPERATURE_REQUIREMENT", SubjectType: "SHIPMENT",
 		SubjectReference: "shp-" + ids.New("x"), Payload: json.RawMessage(payload), IdempotencyKey: "cc-" + ids.New("k")})
 	if err != nil {
 		t.Fatalf("create requirement: %v", err)
@@ -63,8 +65,8 @@ func (f *coldChainFixture) status(t *testing.T, recordID string) string {
 	return status
 }
 
-func reading(sensor string, version int64, value float64) specialized.TemperatureEvent {
-	return specialized.TemperatureEvent{SensorReference: sensor, Temperature: value, Unit: "C",
+func reading(sensor string, version int64, value float64) specializedmodels.TemperatureEvent {
+	return specializedmodels.TemperatureEvent{SensorReference: sensor, Temperature: value, Unit: "C",
 		SourceVersion: version, SourceTime: time.Date(2026, 11, 1, 8, 0, int(version), 0, time.UTC)}
 }
 
@@ -176,7 +178,7 @@ func TestColdChainConcurrentDuplicateReadingsStoreOnce(t *testing.T) {
 	record := f.requirement(t, `{"minimumTemperature":2,"maximumTemperature":8,"unit":"C"}`)
 	sensor := "dup-" + ids.New("x")
 	var wg sync.WaitGroup
-	results := make(chan specialized.TemperatureEvent, 6)
+	results := make(chan specializedmodels.TemperatureEvent, 6)
 	for i := 0; i < 6; i++ {
 		wg.Add(1)
 		go func() {

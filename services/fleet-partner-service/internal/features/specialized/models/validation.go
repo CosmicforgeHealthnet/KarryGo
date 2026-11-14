@@ -1,4 +1,4 @@
-package specialized
+package models
 
 import (
 	"cosmicforge/logistics/shared/go/apperrors"

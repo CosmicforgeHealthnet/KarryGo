@@ -4,7 +4,7 @@ import (
 	compliancehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/compliance/http"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/proof"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/safety"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized"
+	specializedhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/specialized/http"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/warehouse"
 	"encoding/json"
 	"os"
@@ -99,7 +99,7 @@ func TestSection19BidirectionalRouteParity(t *testing.T) {
 }
 func TestSection20BidirectionalRouteParity(t *testing.T) {
 	var rs []route
-	for _, r := range specialized.TenantRoutes() {
+	for _, r := range specializedhttp.TenantRoutes() {
 		rs = append(rs, route{r.Method, r.Path, r.OperationID, r.Permission, r.FeatureFlag, r.AuthClass, r.IdempotencyRequired, r.ExpectedVersionRequired})
 	}
 	check(t, "section20-specialized-logistics.openapi.json", rs)
