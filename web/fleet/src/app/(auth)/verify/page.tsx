@@ -13,6 +13,7 @@ import { organizationService } from "@/lib/services/organizationService";
 import { classifyAuthError } from "@/lib/auth/authErrors";
 import { challengeFailure } from "@/lib/auth/challengeErrors";
 import { otpDeadline, remainingSeconds } from "@/lib/auth/challengeTiming";
+import { saveStepUpGrant } from "@/lib/auth/stepUp";
 
 const CODE_LENGTH = 6;
 // Fallbacks only: the server's own timings arrive in the URL from /auth/start.
@@ -170,6 +171,12 @@ function VerifyContent() {
       }
 
       if (data?.nextStep === "STEP_UP_GRANTED") {
+        // Keep the grant for the action that asked for it; the API client
+        // attaches it when that action is tried again (lib/auth/stepUp).
+        const actionClass = searchParams.get("actionClass");
+        if (actionClass && data.stepUp?.reference) {
+          saveStepUpGrant(window.sessionStorage, actionClass, data.stepUp.reference, data.stepUp.expiresAt);
+        }
         setState({ status: "success" });
         setLoading(false);
         setTimeout(() => {

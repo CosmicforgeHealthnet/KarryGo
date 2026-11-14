@@ -27,8 +27,11 @@ export function middleware(request: NextRequest) {
   // redirected back to /setup. Where a member belongs is decided from the
   // backend's authoritative status by lib/auth/organizationDestination in the
   // dashboard and setup layouts, and the backend enforces it independently.
+  // A signed-in person confirming a high-risk action (step-up) verifies on
+  // the same page as sign-in; that visit must not bounce them to "/".
+  const isStepUpVerification = pathname === "/verify" && request.nextUrl.searchParams.get("intent") === "step-up";
   let response: NextResponse;
-  if (hasSession && isAuthRoute) {
+  if (hasSession && isAuthRoute && !isStepUpVerification) {
     response = NextResponse.redirect(new URL("/", request.url));
   } else {
     response = NextResponse.next();

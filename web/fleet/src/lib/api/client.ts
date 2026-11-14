@@ -3,6 +3,14 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { isLifecycleRefusal } from '@/lib/auth/organizationDestination';
+import {
+  STEP_UP_HEADER,
+  dropStepUpGrant,
+  readStepUpGrant,
+  stepUpRefusal,
+  stepUpVerifyQuery,
+  type StartedStepUp,
+} from '@/lib/auth/stepUp';
 
 // Announced when the backend refuses an action because the company is not
 // yet approved (or needs corrections). The dashboard explains it to the user.
@@ -60,6 +68,33 @@ apiClient.interceptors.response.use(
         window.location.href = '/sign-in';
         return Promise.reject(error);
       }
+    }
+
+    // A high-risk action needs a fresh step-up grant (see lib/auth/stepUp).
+    // Retry once with a stored grant for the refused action class; otherwise
+    // start a challenge and send the person to the verification page, which
+    // stores the grant and returns here so the action can be tried again.
+    const refusal = stepUpRefusal(error);
+    if (refusal && typeof window !== 'undefined') {
+      const storage = window.sessionStorage;
+      const sent = originalRequest.headers?.[STEP_UP_HEADER];
+      const stored = readStepUpGrant(storage, refusal.actionClass);
+      if (stored && stored !== sent) {
+        originalRequest.headers[STEP_UP_HEADER] = stored;
+        return apiClient(originalRequest);
+      }
+      if (sent) {
+        dropStepUpGrant(storage, refusal.actionClass);
+      }
+      try {
+        const started = await apiClient.post<{ data: StartedStepUp }>('/auth/step-up/start', {
+          actionClass: refusal.actionClass,
+        });
+        window.location.assign(`/verify?${stepUpVerifyQuery(refusal.actionClass, started.data.data)}`);
+      } catch {
+        // The challenge could not start; the original refusal is shown.
+      }
+      return Promise.reject(error);
     }
 
     if (isLifecycleRefusal(error) && typeof window !== 'undefined') {
