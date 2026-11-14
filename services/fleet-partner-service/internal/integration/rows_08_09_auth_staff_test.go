@@ -9,6 +9,7 @@ package integration_test
 
 import (
 	"context"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/stepup"
 	"fmt"
 	"net/http"
 	"testing"
@@ -276,19 +277,25 @@ func TestRow9_5_SuspendAndReactivateStaff(t *testing.T) {
 	}
 
 	path := "/staff/" + member.ID
+	// Suspension and reactivation require step-up (spec 64.1); the owner
+	// confirms once and the grant covers this test's access changes.
+	ownerGrant := obtainStepUp(t, router, h, owner, stepup.ActionAccessManage)
 	// The member cannot suspend the owner: no staff.suspend permission.
 	var ownerID string
 	if err := h.pool.QueryRow(ctx, `SELECT id FROM fleet_partner_organization_users WHERE organization_id = $1 AND is_owner`, orgID).Scan(&ownerID); err != nil {
 		t.Fatal(err)
 	}
-	if code, _ := onboardCall(t, router, staff.token, "POST", "/staff/"+ownerID+"/suspend", map[string]any{}, rowsStaffVersion(t, h, ownerID)); code != http.StatusForbidden {
-		t.Fatalf("suspend without staff.suspend = %d, want 403", code)
+	// The member holds a valid step-up grant, so the refusal below is the
+	// missing permission, not the missing confirmation.
+	staffGrant := obtainStepUp(t, router, h, staff.token, stepup.ActionAccessManage)
+	if code, body := onboardCallStepUp(t, router, staff.token, staffGrant, "POST", "/staff/"+ownerID+"/suspend", map[string]any{}, rowsStaffVersion(t, h, ownerID)); code != http.StatusForbidden || body["error"].(map[string]any)["code"] == "step_up_required" {
+		t.Fatalf("suspend without staff.suspend = %d %v, want 403 permission refusal", code, body)
 	}
 	// A stale version is refused and changes nothing.
-	if code, _ := onboardCall(t, router, owner, "POST", path+"/suspend", map[string]any{}, 99); code != http.StatusConflict {
+	if code, _ := onboardCallStepUp(t, router, owner, ownerGrant, "POST", path+"/suspend", map[string]any{}, 99); code != http.StatusConflict {
 		t.Fatalf("stale suspend = %d, want 409", code)
 	}
-	code, body := onboardCall(t, router, owner, "POST", path+"/suspend", map[string]any{}, rowsStaffVersion(t, h, member.ID))
+	code, body := onboardCallStepUp(t, router, owner, ownerGrant, "POST", path+"/suspend", map[string]any{}, rowsStaffVersion(t, h, member.ID))
 	if code != http.StatusOK || body["data"].(map[string]any)["status"] != staffmodels.UserStatusSuspended {
 		t.Fatalf("suspend = %d %v", code, body)
 	}
@@ -316,19 +323,20 @@ func TestRow9_5_SuspendAndReactivateStaff(t *testing.T) {
 
 	// Suspending an already suspended member is a state conflict, not a
 	// second suspension.
-	if code, body := onboardCall(t, router, owner, "POST", path+"/suspend", map[string]any{}, rowsStaffVersion(t, h, member.ID)); code != http.StatusConflict {
+	if code, body := onboardCallStepUp(t, router, owner, ownerGrant, "POST", path+"/suspend", map[string]any{}, rowsStaffVersion(t, h, member.ID)); code != http.StatusConflict {
 		t.Fatalf("repeat suspend = %d %v, want 409", code, body)
 	}
 
 	// Another organization cannot touch this member.
 	other := onboardingLogin(t, router, h, "r95-other@example.com", "+2348012347303")
 	rowsActiveCompany(t, router, h, other, "Rows95 Other Co", "RC-R95-2")
-	if code, _ := onboardCall(t, router, other, "POST", path+"/reactivate", map[string]any{}, rowsStaffVersion(t, h, member.ID)); code != http.StatusNotFound {
+	otherGrant := obtainStepUp(t, router, h, other, stepup.ActionAccessManage)
+	if code, _ := onboardCallStepUp(t, router, other, otherGrant, "POST", path+"/reactivate", map[string]any{}, rowsStaffVersion(t, h, member.ID)); code != http.StatusNotFound {
 		t.Fatalf("cross-tenant reactivate = %d, want 404", code)
 	}
 
 	// Reactivation restores access through a new sign-in.
-	code, body = onboardCall(t, router, owner, "POST", path+"/reactivate", map[string]any{}, rowsStaffVersion(t, h, member.ID))
+	code, body = onboardCallStepUp(t, router, owner, ownerGrant, "POST", path+"/reactivate", map[string]any{}, rowsStaffVersion(t, h, member.ID))
 	if code != http.StatusOK || body["data"].(map[string]any)["status"] != staffmodels.UserStatusActive {
 		t.Fatalf("reactivate = %d %v", code, body)
 	}
@@ -340,12 +348,12 @@ func TestRow9_5_SuspendAndReactivateStaff(t *testing.T) {
 		t.Fatalf("reactivated member = %d, want 200", code)
 	}
 	// Reactivating an active member is a state conflict.
-	if code, body := onboardCall(t, router, owner, "POST", path+"/reactivate", map[string]any{}, rowsStaffVersion(t, h, member.ID)); code != http.StatusConflict {
+	if code, body := onboardCallStepUp(t, router, owner, ownerGrant, "POST", path+"/reactivate", map[string]any{}, rowsStaffVersion(t, h, member.ID)); code != http.StatusConflict {
 		t.Fatalf("reactivating an active member = %d %v, want 409", code, body)
 	}
 
 	// The last active owner cannot be suspended.
-	if code, body := onboardCall(t, router, owner, "POST", "/staff/"+ownerID+"/suspend", map[string]any{}, rowsStaffVersion(t, h, ownerID)); code != http.StatusConflict || rowsErrorCode(body) != "last_owner_required" {
+	if code, body := onboardCallStepUp(t, router, owner, ownerGrant, "POST", "/staff/"+ownerID+"/suspend", map[string]any{}, rowsStaffVersion(t, h, ownerID)); code != http.StatusConflict || rowsErrorCode(body) != "last_owner_required" {
 		t.Fatalf("suspending the last owner = %d %v", code, body)
 	}
 }

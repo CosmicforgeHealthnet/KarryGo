@@ -6,6 +6,7 @@ package integration_test
 
 import (
 	"context"
+	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/stepup"
 	"net/http"
 	"strings"
 	"testing"
@@ -47,9 +48,11 @@ func TestRow6c_UTCTimestampsAndSeparateLocalTimezone(t *testing.T) {
 	owner := onboardingLogin(t, router, h, "r6c-owner@example.com", "+2348012347401")
 	orgID := rowsActiveCompany(t, router, h, owner, "Rows6c Time Co", "RC-R6C-1")
 
+	// Role binding changes require step-up (spec 64.1).
+	ownerGrant := obtainStepUp(t, router, h, owner, stepup.ActionAccessManage)
 	call := func(method, path string, payload any, version int) map[string]any {
 		t.Helper()
-		code, body := onboardCall(t, router, owner, method, path, payload, version)
+		code, body := onboardCallStepUp(t, router, owner, ownerGrant, method, path, payload, version)
 		if code >= 300 {
 			t.Fatalf("%s %s = %d %v", method, path, code, body)
 		}
