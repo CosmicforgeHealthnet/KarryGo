@@ -15,8 +15,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"cosmicforge/logistics/services/fleet-partner-service/internal/app"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers"
+	managedmembershttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers/http"
+	managedmembersmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers/models"
+	managedmembersrepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers/repositories"
+	managedmembersusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/managedmembers/usecases"
 	staffrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/middleware"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/idempotency"
@@ -27,12 +31,12 @@ import (
 
 type memberAuthority struct{ providers map[string]string }
 
-func (a memberAuthority) ResolveProvider(_ context.Context, authority managedmembers.Authority, ref string) (managedmembers.ProviderResolution, error) {
+func (a memberAuthority) ResolveProvider(_ context.Context, authority managedmembersmodels.Authority, ref string) (managedmembersmodels.ProviderResolution, error) {
 	id, ok := a.providers[string(authority)+":"+ref]
 	if !ok {
-		return managedmembers.ProviderResolution{}, managedmembers.ErrAuthorityRefused
+		return managedmembersmodels.ProviderResolution{}, managedmembersmodels.ErrAuthorityRefused
 	}
-	return managedmembers.ProviderResolution{ProviderID: id, QualificationStatus: "QUALIFIED"}, nil
+	return managedmembersmodels.ProviderResolution{ProviderID: id, QualificationStatus: "QUALIFIED"}, nil
 }
 
 type memberFixture struct {
@@ -62,9 +66,9 @@ func newMemberFixtureOn(t *testing.T, pool *pgxpool.Pool) *memberFixture {
 func (f *memberFixture) router(t *testing.T, organizationID, memberID string) http.Handler {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
-	service := managedmembers.NewService(managedmembers.Options{
-		Repository: managedmembers.NewRepository(f.pool), Authority: f.authority,
-		Enabled: true, Pool: f.pool,
+	service := managedmembersusecases.NewService(managedmembersusecases.Options{
+		Repository: managedmembersrepositories.NewRepository(f.pool), Authority: f.authority,
+		Enabled: true, Pool: f.pool, Bind: app.ManagedMembersRepositoryBinder,
 	})
 	engine := gin.New()
 	engine.Use(respond.ErrorHandler())
@@ -76,7 +80,7 @@ func (f *memberFixture) router(t *testing.T, organizationID, memberID string) ht
 		c.Set(middleware.TenantRoleVersionKey, int64(1))
 		c.Next()
 	})
-	managedmembers.NewHandler(service, accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(f.pool), nil, 0),
+	managedmembershttp.NewHandler(service, accesscontrol.NewAuthorizer(staffrepos.NewRoleRepository(f.pool), nil, 0),
 		idempotency.NewStore(f.pool, 0)).RegisterTenantRoutes(engine.Group("/fleet-partner/v1"))
 	return engine
 }

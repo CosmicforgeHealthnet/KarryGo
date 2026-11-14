@@ -24,7 +24,8 @@ import (
 	providermodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/models"
 	providerrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/providers/repositories"
 	staffmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/staff/models"
-	workforcefeature "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce"
+	workforcerepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/repositories"
+	workforceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/workforce/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/ids"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/queryallow"
@@ -288,8 +289,8 @@ func TestOffsetListsServeValidPagesAfterValidation(t *testing.T) {
 		ListAssets(ctx, scope, assetsfeature.Page{Offset: -1, Limit: -7}); err != nil || len(rows) != 3 {
 		t.Fatalf("asset service with offset -1 = %d rows, %v", len(rows), err)
 	}
-	if _, err := workforcefeature.NewService(workforcefeature.Options{Pool: h.pool, Flags: workforcefeature.Flags{Workforce: true, Shifts: true, Leave: true, Training: true}}).
-		ListProfiles(ctx, scope, workforcefeature.Page{Offset: -1}); err != nil {
+	if _, err := workforceusecases.NewService(workforceusecases.Options{Repository: workforcerepositories.NewRepository(), Pool: h.pool, Flags: workforceusecases.Flags{Workforce: true, Shifts: true, Leave: true, Training: true}}).
+		ListProfiles(ctx, scope, workforceusecases.Page{Offset: -1}); err != nil {
 		t.Fatalf("workforce service with offset -1: %v", err)
 	}
 	if _, err := dispatchfeature.NewService(dispatchfeature.Options{Pool: h.pool, Flags: dispatchfeature.Flags{DispatchPlanning: true, RoutePlanning: true, Geofences: true, OperationalAlerts: true}}).
