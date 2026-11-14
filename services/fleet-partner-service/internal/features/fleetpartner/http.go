@@ -187,6 +187,8 @@ type completedWorkRequest struct {
 	SourceVersion      int64     `json:"sourceVersion"`
 	IdempotencyKey     string    `json:"idempotencyKey"`
 	CorrelationID      string    `json:"correlationId"`
+	// Optional: the payment reference, when it is not sourceJobId.
+	PaymentSourceReference string `json:"paymentSourceReference"`
 }
 
 func (h *Handler) recordCompletedWork(c *gin.Context) {
@@ -203,6 +205,7 @@ func (h *Handler) recordCompletedWork(c *gin.Context) {
 		ProviderID: body.ProviderID, MembershipID: body.MembershipID, OrganizationID: body.OrganizationID,
 		CompletedAt: body.CompletedAt.UTC(), Currency: body.Currency, EligibleBasisMinor: body.EligibleBasisMinor,
 		SourceVersion: body.SourceVersion, IdempotencyKey: body.IdempotencyKey, CorrelationID: body.CorrelationID,
+		PaymentSourceReference: body.PaymentSourceReference,
 	})
 	if err != nil {
 		respond.Error(c, err)

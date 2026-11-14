@@ -15,7 +15,8 @@ const settlementInstructionColumns = `instruction_id,organization_id,membership_
 	source_assignment_id,compensation_plan_id,compensation_plan_version,compensation_resolution_version,
 	gross_basis_minor,provider_share_minor,organization_share_minor,platform_share_minor,currency,
 	visibility_policy_snapshot,status,idempotency_key,request_fingerprint,version,created_at,
-	wallet_posting_operation_id,wallet_settlement_reference,delivery_attempts,last_error_code,posted_at,updated_at`
+	wallet_posting_operation_id,wallet_settlement_reference,delivery_attempts,last_error_code,posted_at,updated_at,
+	payment_source_reference`
 
 func scanSettlementInstruction(row pgx.Row) (ManagedWorkSettlementInstruction, error) {
 	var in ManagedWorkSettlementInstruction
@@ -26,7 +27,7 @@ func scanSettlementInstruction(row pgx.Row) (ManagedWorkSettlementInstruction, e
 		&in.ProviderShareMinor, &in.OrganizationShareMinor, &in.PlatformShareMinor, &in.Currency,
 		&visibility, &in.Status, &in.IdempotencyKey, &in.RequestFingerprint, &in.Version, &in.CreatedAt,
 		&in.WalletPostingOperationID, &in.WalletSettlementReference, &in.DeliveryAttempts,
-		&in.LastErrorCode, &in.PostedAt, &in.UpdatedAt)
+		&in.LastErrorCode, &in.PostedAt, &in.UpdatedAt, &in.PaymentSourceReference)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ManagedWorkSettlementInstruction{}, ErrNotFound
 	}

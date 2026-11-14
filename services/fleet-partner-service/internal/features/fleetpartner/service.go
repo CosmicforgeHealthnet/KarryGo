@@ -200,6 +200,18 @@ type CompletedWorkInput struct {
 	Currency                                       string
 	EligibleBasisMinor, SourceVersion              int64
 	IdempotencyKey, CorrelationID                  string
+
+	// PaymentSourceReference is the reference the execution service created
+	// the job's payment under, when that is not SourceJobID (Dispatch sends
+	// the booking a trip executes). It is copied unchanged into the
+	// settlement instruction.
+	//
+	// The tag matters: this struct is fingerprinted as JSON, and every other
+	// field marshals under its Go name. omitempty keeps the fingerprint of a
+	// submission without a payment reference exactly what it was before the
+	// field existed, so a redelivery of completed work recorded earlier is
+	// still recognised as a replay rather than refused as a conflict.
+	PaymentSourceReference string `json:"PaymentSourceReference,omitempty"`
 }
 
 func (s *Service) RecordCompletedWork(ctx context.Context, caller string, in CompletedWorkInput) (CompletedWorkRecord, CompensationResolution, ManagedWorkSettlementInstruction, error) {
@@ -221,6 +233,10 @@ func (s *Service) RecordCompletedWork(ctx context.Context, caller string, in Com
 	if in.IdempotencyKey == "" {
 		return CompletedWorkRecord{}, CompensationResolution{}, ManagedWorkSettlementInstruction{}, apperrors.BadRequest("idempotencyKey is required.", nil)
 	}
+	in.PaymentSourceReference = strings.TrimSpace(in.PaymentSourceReference)
+	if len(in.PaymentSourceReference) > 200 {
+		return CompletedWorkRecord{}, CompensationResolution{}, ManagedWorkSettlementInstruction{}, apperrors.BadRequest("paymentSourceReference is too long.", nil)
+	}
 	if !ValidateSourceService(in.SourceService) || in.SourceService == ServiceFleet || in.SourceService == ServiceVendor {
 		return CompletedWorkRecord{}, CompensationResolution{}, ManagedWorkSettlementInstruction{}, apperrors.BadRequest("sourceService is invalid for this ingestion contract.", nil)
 	}
@@ -240,6 +256,7 @@ func (s *Service) RecordCompletedWork(ctx context.Context, caller string, in Com
 		WorkType: "MANAGED_WORK", CompletedAt: in.CompletedAt, Currency: in.Currency,
 		EligibleBasisMinor: in.EligibleBasisMinor, SourceVersion: in.SourceVersion,
 		IdempotencyKey: in.IdempotencyKey, CorrelationID: in.CorrelationID,
+		PaymentSourceReference: in.PaymentSourceReference,
 	}
 	record.RequestFingerprint = fingerprint(in)
 	var resolved CompensationResolution
@@ -281,7 +298,8 @@ func (s *Service) RecordCompletedWork(ctx context.Context, caller string, in Com
 		instruction, _, err = s.repo.InsertSettlementInstruction(ctx, tx, ManagedWorkSettlementInstruction{
 			OrganizationID: record.OrganizationID, MembershipID: record.MembershipID, ProviderID: record.ProviderID,
 			SourceService: record.SourceService, SourceJobID: record.SourceJobID, SourceAssignmentID: record.SourceAssignmentID,
-			CompensationPlanID: resolved.CompensationPlanID, CompensationPlanVersion: resolved.CompensationPlanVersion,
+			PaymentSourceReference: record.PaymentSourceReference,
+			CompensationPlanID:     resolved.CompensationPlanID, CompensationPlanVersion: resolved.CompensationPlanVersion,
 			CompensationResolutionVersion: resolved.ResolutionVersion, GrossBasisMinor: record.EligibleBasisMinor,
 			ProviderShareMinor: resolved.ProviderShareMinor, OrganizationShareMinor: resolved.OrganizationShareMinor,
 			Currency: record.Currency, VisibilityPolicySnapshot: resolved.VisibilityPolicySnapshot,

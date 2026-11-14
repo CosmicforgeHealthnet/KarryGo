@@ -33,6 +33,11 @@ type ManagedSettlementSubmission struct {
 	SourceJobID        string
 	SourceAssignmentID string
 
+	// PaymentSourceReference is the reference the execution service created
+	// the job's payment under, when it is not SourceJobID (Dispatch: the
+	// booking). Empty otherwise.
+	PaymentSourceReference string
+
 	Currency               string
 	GrossBasisMinor        int64
 	ProviderShareMinor     int64
@@ -77,8 +82,23 @@ func (s ManagedSettlementSubmission) Validate() error {
 }
 
 // payload is the wire body the Wallet adapter sends.
+//
+// payment_source_reference is added only when there is one. The posting
+// operation fingerprints this payload, so an instruction without a payment
+// reference must produce exactly the bytes it produced before the field
+// existed: otherwise an operation recorded earlier (OUTCOME_UNKNOWN or
+// awaiting retry) would be refused as an idempotency conflict on its next
+// attempt.
 func (s ManagedSettlementSubmission) payload() (json.RawMessage, error) {
-	return json.Marshal(map[string]any{
+	body := s.wireFields()
+	if reference := strings.TrimSpace(s.PaymentSourceReference); reference != "" {
+		body["payment_source_reference"] = reference
+	}
+	return json.Marshal(body)
+}
+
+func (s ManagedSettlementSubmission) wireFields() map[string]any {
+	return map[string]any{
 		"instruction_id":                  s.InstructionID,
 		"instruction_version":             s.InstructionVersion,
 		"organization_id":                 s.OrganizationID,
@@ -97,5 +117,5 @@ func (s ManagedSettlementSubmission) payload() (json.RawMessage, error) {
 		"compensation_resolution_version": s.CompensationResolutionVersion,
 		"correlation_id":                  s.CorrelationID,
 		"idempotency_key":                 s.IdempotencyKey,
-	})
+	}
 }

@@ -74,6 +74,10 @@ type SettlementSubmission struct {
 	SourceJobID        string
 	SourceAssignmentID string
 
+	// PaymentSourceReference is the reference the execution service created
+	// the job's payment under, when it is not SourceJobID. Empty otherwise.
+	PaymentSourceReference string
+
 	Currency               string
 	GrossBasisMinor        int64
 	ProviderShareMinor     int64
@@ -110,11 +114,21 @@ func (s *Service) SetSettlementSubmitter(submitter SettlementSubmitter) { s.sett
 // walletSettlementIdentity maps Fleet's source service onto the names
 // payment-wallet keys a managed settlement on.
 //
-// source_service is the lower-case service name Wallet's managed-settlement
-// contract and the shared read client (shared/go/managedsettlement, which
-// matches case-insensitively) both use. provider_type is the namespace of the
-// provider's payable account: hauling providers are credited under
-// "truck_provider", which is where the truck provider app reads its balance.
+// source_service is the lower-case canonical service name Wallet's
+// managed-settlement contract and the shared read client
+// (shared/go/managedsettlement, which matches case-insensitively) both use.
+// It is deliberately NOT the name the execution service created its payment
+// under ("taxi-service", "dispatch-delivery-service", ...): that spelling is
+// a fact about how each service was provisioned in Wallet, and Wallet alone
+// resolves it, through the closed table in shared/go/managedsettlement. Fleet
+// keeps sending the canonical name it always has, so an instruction's wire
+// identity -- and its posting fingerprint -- never changes between retries.
+// What Fleet does carry is the payment reference the execution service
+// reported, because only that service knows it.
+//
+// provider_type is the namespace of the provider's payable account: hauling
+// providers are credited under "truck_provider", which is where the truck
+// provider app reads its balance.
 func walletSettlementIdentity(source string) (walletSource, providerType string, ok bool) {
 	switch source {
 	case ServiceTaxi:
@@ -232,8 +246,10 @@ func (s *Service) DeliverSettlementInstruction(ctx context.Context, organization
 		OrganizationID: instruction.OrganizationID, MembershipID: instruction.MembershipID,
 		ProviderID: instruction.ProviderID, ProviderType: providerType,
 		SourceService: walletSource, SourceJobID: instruction.SourceJobID,
-		SourceAssignmentID: instruction.SourceAssignmentID, Currency: instruction.Currency,
-		GrossBasisMinor: instruction.GrossBasisMinor, ProviderShareMinor: instruction.ProviderShareMinor,
+		SourceAssignmentID:     instruction.SourceAssignmentID,
+		PaymentSourceReference: instruction.PaymentSourceReference,
+		Currency:               instruction.Currency,
+		GrossBasisMinor:        instruction.GrossBasisMinor, ProviderShareMinor: instruction.ProviderShareMinor,
 		OrganizationShareMinor: instruction.OrganizationShareMinor,
 		CompensationPlanID:     instruction.CompensationPlanID, CompensationPlanVersion: instruction.CompensationPlanVersion,
 		CompensationResolutionVersion: instruction.CompensationResolutionVersion,

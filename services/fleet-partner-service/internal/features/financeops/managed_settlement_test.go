@@ -87,6 +87,40 @@ func TestSubmissionCarriesFleetsResolvedFiguresVerbatim(t *testing.T) {
 	}
 }
 
+// The posting operation fingerprints the payload, so an instruction without a
+// payment reference must produce the same bytes it did before the field
+// existed, and one with a reference must carry it.
+func TestSubmissionPaymentReferenceIsSentOnlyWhenPresent(t *testing.T) {
+	submission := validSubmission()
+	before, err := submission.payload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const preField = `{"compensation_plan_id":"plan_1","compensation_plan_version":2,` +
+		`"compensation_resolution_version":1,"correlation_id":"","currency":"NGN",` +
+		`"gross_basis_minor":9000,"idempotency_key":"settlement:job_1","instruction_id":"inst_1",` +
+		`"instruction_version":1,"membership_id":"mem_1","organization_id":"org_1",` +
+		`"organization_share_minor":7500,"provider_id":"prov_1","provider_share_minor":1500,` +
+		`"provider_type":"taxi","source_assignment_id":"","source_job_id":"job_1","source_service":"taxi"}`
+	if string(before) != preField {
+		t.Fatalf("payload without a payment reference changed:\n got %s\nwant %s", before, preField)
+	}
+
+	submission.SourceService, submission.ProviderType = "dispatch", "dispatch"
+	submission.SourceJobID, submission.PaymentSourceReference = "trip_1", "booking_1"
+	raw, err := submission.payload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["payment_source_reference"] != "booking_1" || body["source_job_id"] != "trip_1" {
+		t.Fatalf("payment reference must travel beside, not instead of, the job id: %v", body)
+	}
+}
+
 func TestManagedSettlementOperationIsItsOwnPostingType(t *testing.T) {
 	// Sharing PROVIDER_ALLOCATION's operation type would make the two
 	// indistinguishable in the posting-operation table and in read-back.
