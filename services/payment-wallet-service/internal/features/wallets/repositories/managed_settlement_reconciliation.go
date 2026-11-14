@@ -76,10 +76,16 @@ func (r *PostgresWalletRepository) FindStuckManagedJobs(
 		  AND i.status = 'held'
 		  AND i.updated_at < $1
 		  AND NOT EXISTS (
+		      -- A settlement is found by the payment it released. The exact
+		      -- identity match covers rows posted before that binding existed;
+		      -- on its own it would never match a real execution service,
+		      -- whose payment spelling ("taxi-service") is not the canonical
+		      -- settlement name ("taxi").
 		      SELECT 1 FROM managed_settlements s
-		      WHERE s.source_service = i.source_service
-		        AND s.source_job_id = i.source_reference
-		        AND s.status = 'POSTED')
+		      WHERE s.status = 'POSTED'
+		        AND (s.payment_intent_id = i.id
+		             OR (s.source_service = i.source_service
+		                 AND s.source_job_id = i.source_reference)))
 		ORDER BY i.updated_at
 		LIMIT $2`, heldBefore, limit)
 	if err != nil {
@@ -142,9 +148,10 @@ func (r *PostgresWalletRepository) ResolveManagedReconciliations(ctx context.Con
 		    resolved_at = now(), updated_at = now()
 		FROM managed_settlements s
 		WHERE rec.status = 'OPEN'
-		  AND s.source_service = rec.source_service
-		  AND s.source_job_id = rec.source_job_id
-		  AND s.status = 'POSTED'`, ReconciliationResolutionSettled)
+		  AND s.status = 'POSTED'
+		  AND (s.payment_intent_id::text = rec.payment_intent_id
+		       OR (s.source_service = rec.source_service
+		           AND s.source_job_id = rec.source_job_id))`, ReconciliationResolutionSettled)
 	if err != nil {
 		return 0, fmt.Errorf("wallet: resolve managed reconciliations: %w", err)
 	}

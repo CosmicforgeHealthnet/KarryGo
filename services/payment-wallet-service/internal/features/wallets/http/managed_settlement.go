@@ -36,6 +36,10 @@ type managedSettlementRequest struct {
 	SourceJobID        string `json:"source_job_id"`
 	SourceAssignmentID string `json:"source_assignment_id"`
 
+	// PaymentSourceReference is optional: the reference the execution service
+	// created the job's payment under, when it is not the job id.
+	PaymentSourceReference string `json:"payment_source_reference"`
+
 	Currency               string `json:"currency"`
 	GrossBasisMinor        int64  `json:"gross_basis_minor"`
 	ProviderShareMinor     int64  `json:"provider_share_minor"`
@@ -56,7 +60,8 @@ func (r managedSettlementRequest) instruction() walletmodels.ManagedSettlementIn
 		OrganizationID: r.OrganizationID, MembershipID: r.MembershipID,
 		ProviderID: r.ProviderID, ProviderType: r.ProviderType,
 		SourceService: r.SourceService, SourceJobID: r.SourceJobID,
-		SourceAssignmentID: r.SourceAssignmentID, Currency: r.Currency,
+		SourceAssignmentID: r.SourceAssignmentID, PaymentSourceReference: r.PaymentSourceReference,
+		Currency:        r.Currency,
 		GrossBasisMinor: r.GrossBasisMinor, ProviderShareMinor: r.ProviderShareMinor,
 		OrganizationShareMinor: r.OrganizationShareMinor, PlatformShareMinor: r.PlatformShareMinor,
 		CompensationPlanID: r.CompensationPlanID, CompensationPlanVersion: r.CompensationPlanVersion,

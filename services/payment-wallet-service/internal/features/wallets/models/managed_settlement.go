@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"cosmicforge/logistics/shared/go/managedsettlement"
 )
 
 // Section 12: Fleet-managed work settlement.
@@ -99,9 +101,22 @@ type ManagedSettlementInstruction struct {
 	// two services can legitimately use the same provider id.
 	ProviderType string `json:"provider_type"`
 
+	// SourceService and SourceJobID are the canonical settlement identity:
+	// the execution service (TAXI, DISPATCH or HAULING, any case) and that
+	// service's own id for the job. Execution services read settlements back
+	// under exactly this pair.
 	SourceService      string `json:"source_service"`
 	SourceJobID        string `json:"source_job_id"`
 	SourceAssignmentID string `json:"source_assignment_id,omitempty"`
+
+	// PaymentSourceReference is the source_reference the execution service
+	// created the job's payment intent under, when that differs from
+	// SourceJobID. Dispatch pays per booking but settles per trip, so its
+	// instructions carry the booking id here; Taxi and Hauling key both by
+	// the same id and leave it empty. It travels from the execution service
+	// through Fleet's completed-work record unchanged: Wallet never guesses a
+	// job-to-payment mapping.
+	PaymentSourceReference string `json:"payment_source_reference,omitempty"`
 
 	Currency string `json:"currency"`
 
@@ -136,6 +151,7 @@ func (i ManagedSettlementInstruction) Normalized() ManagedSettlementInstruction 
 	i.SourceService = strings.TrimSpace(i.SourceService)
 	i.SourceJobID = strings.TrimSpace(i.SourceJobID)
 	i.SourceAssignmentID = strings.TrimSpace(i.SourceAssignmentID)
+	i.PaymentSourceReference = strings.TrimSpace(i.PaymentSourceReference)
 	i.Currency = strings.ToUpper(strings.TrimSpace(i.Currency))
 	i.CompensationPlanID = strings.TrimSpace(i.CompensationPlanID)
 	i.CorrelationID = strings.TrimSpace(i.CorrelationID)
@@ -165,6 +181,8 @@ func (i ManagedSettlementInstruction) Validate() error {
 		return fmt.Errorf("provider_type is required")
 	case i.SourceService == "":
 		return fmt.Errorf("source_service is required")
+	case !CanonicalSettlementSource(i.SourceService):
+		return fmt.Errorf("source_service must be TAXI, DISPATCH or HAULING")
 	case i.SourceJobID == "":
 		return fmt.Errorf("source_job_id is required")
 	case len(i.Currency) != 3:
@@ -184,6 +202,29 @@ func (i ManagedSettlementInstruction) Validate() error {
 	return nil
 }
 
+// CanonicalSettlementSource reports whether a source service is one of the
+// canonical settlement names, in any case.
+//
+// Only the canonical name may identify a settlement. A payment spelling such
+// as "taxi-service" names a payment, not a settlement: accepting it here would
+// store a settlement the execution service, asking under its canonical name,
+// could never find -- and "no settlement found" is the answer that leads to
+// paying a job twice.
+func CanonicalSettlementSource(name string) bool {
+	canonical, ok := managedsettlement.CanonicalSource(name)
+	return ok && strings.EqualFold(strings.TrimSpace(name), canonical)
+}
+
+// PaymentReference is the payment intent source_reference this instruction
+// settles: the explicit payment reference when the execution service supplied
+// one, otherwise the job id itself.
+func (i ManagedSettlementInstruction) PaymentReference() string {
+	if i.PaymentSourceReference != "" {
+		return i.PaymentSourceReference
+	}
+	return i.SourceJobID
+}
+
 // ManagedSettlement is a posted (or attempted) managed settlement.
 type ManagedSettlement struct {
 	ID                 string `json:"id"`
@@ -198,6 +239,12 @@ type ManagedSettlement struct {
 	SourceService      string `json:"source_service"`
 	SourceJobID        string `json:"source_job_id"`
 	SourceAssignmentID string `json:"source_assignment_id,omitempty"`
+
+	// The payment this settlement resolved to and released. Empty for a
+	// refusal that never reached a payment.
+	PaymentIntentID        string `json:"payment_intent_id,omitempty"`
+	PaymentSourceService   string `json:"payment_source_service,omitempty"`
+	PaymentSourceReference string `json:"payment_source_reference,omitempty"`
 
 	Currency               string `json:"currency"`
 	GrossBasisMinor        int64  `json:"gross_basis_minor"`

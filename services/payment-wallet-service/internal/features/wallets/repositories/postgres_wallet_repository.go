@@ -14,6 +14,7 @@ import (
 
 	walletmodels "cosmicforge/logistics/services/payment-wallet-service/internal/features/wallets/models"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/managedsettlement"
 	"cosmicforge/logistics/shared/go/outbox"
 	"cosmicforge/logistics/shared/go/referralcontract"
 )
@@ -1713,10 +1714,17 @@ func (r *PostgresWalletRepository) jobIsOrganizationManaged(
 	if mode == walletmodels.SettlementModeManaged {
 		return true, nil
 	}
+	// A settlement is matched by the payment it released, and also by the
+	// legacy exact identity for rows written before that binding existed.
+	// Matching only on the identity would miss every real settlement: Fleet
+	// names it "taxi"/"dispatch"/"hauling", while the intent here carries the
+	// execution service's own spelling.
 	var settlements int
 	if err := tx.QueryRow(ctx,
-		`SELECT count(*) FROM managed_settlements WHERE source_service = $1 AND source_job_id = $2`,
-		intent.SourceService, intent.SourceReference,
+		`SELECT count(*) FROM managed_settlements
+		 WHERE payment_intent_id = $3::uuid
+		    OR (source_service = $1 AND source_job_id = $2)`,
+		intent.SourceService, intent.SourceReference, intent.ID,
 	).Scan(&settlements); err != nil {
 		return false, err
 	}
@@ -1727,13 +1735,38 @@ func (r *PostgresWalletRepository) jobIsOrganizationManaged(
 //
 // It is idempotent and one-way: a job that has been identified as managed
 // never silently reverts to the direct-payout path.
+//
+// The job is addressed the same way a settlement addresses it: the canonical
+// service name or any of its payment spellings, and the reference the payment
+// was created under (the job id, or Dispatch's booking id). It resolves to
+// exactly one payment or refuses -- a marker that silently matched nothing
+// would report the legacy path closed while leaving it open.
 func (r *PostgresWalletRepository) MarkPaymentIntentManaged(
 	ctx context.Context, sourceService, sourceReference string,
 ) error {
-	_, err := r.db.Exec(ctx, `
-		UPDATE payment_intents
-		SET settlement_mode = $3, updated_at = now()
-		WHERE source_service = $1 AND source_reference = $2 AND settlement_mode <> $3`,
-		sourceService, sourceReference, walletmodels.SettlementModeManaged)
-	return err
+	spellings := []string{sourceService}
+	if canonical, ok := managedsettlement.CanonicalSource(sourceService); ok {
+		spellings = managedsettlement.PaymentSourceServices(canonical)
+	}
+	return r.withTx(ctx, func(tx pgx.Tx) error {
+		intents, err := r.paymentIntentsForSpellings(ctx, tx, spellings, sourceReference, true)
+		if err != nil {
+			return err
+		}
+		switch len(intents) {
+		case 0:
+			return apperrors.NotFound("No payment exists for this job.", nil)
+		case 1:
+		default:
+			return apperrors.Conflict(
+				"More than one payment matches this job; it cannot be marked until that is resolved.",
+				ErrManagedPaymentAmbiguous)
+		}
+		_, err = tx.Exec(ctx, `
+			UPDATE payment_intents
+			SET settlement_mode = $2, updated_at = now()
+			WHERE id = $1::uuid AND settlement_mode <> $2`,
+			intents[0].ID, walletmodels.SettlementModeManaged)
+		return err
+	})
 }

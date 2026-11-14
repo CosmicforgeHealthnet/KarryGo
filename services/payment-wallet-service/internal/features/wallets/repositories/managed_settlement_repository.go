@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/managedsettlement"
 
 	walletmodels "cosmicforge/logistics/services/payment-wallet-service/internal/features/wallets/models"
 )
@@ -38,6 +39,7 @@ const managedSettlementColumns = `
 	id, instruction_id, instruction_version,
 	organization_id, membership_id, provider_id, provider_type,
 	source_service, source_job_id, source_assignment_id,
+	COALESCE(payment_intent_id::text, ''), payment_source_service, payment_source_reference,
 	currency, gross_basis_minor, provider_share_minor, organization_share_minor, platform_share_minor,
 	compensation_plan_id, compensation_plan_version, compensation_resolution_version,
 	status, failure_code,
@@ -61,6 +63,7 @@ func scanManagedSettlement(row rowScanner) (walletmodels.ManagedSettlement, erro
 		&m.ID, &m.InstructionID, &m.InstructionVersion,
 		&m.OrganizationID, &m.MembershipID, &m.ProviderID, &m.ProviderType,
 		&m.SourceService, &m.SourceJobID, &m.SourceAssignmentID,
+		&m.PaymentIntentID, &m.PaymentSourceService, &m.PaymentSourceReference,
 		&m.Currency, &m.GrossBasisMinor, &m.ProviderShareMinor, &m.OrganizationShareMinor, &m.PlatformShareMinor,
 		&m.CompensationPlanID, &m.CompensationPlanVersion, &m.CompensationResolutionVersion,
 		&m.Status, &m.FailureCode,
@@ -94,6 +97,13 @@ func ManagedSettlementFingerprint(in walletmodels.ManagedSettlementInstruction, 
 		strconv.FormatInt(in.ProviderShareMinor, 10),
 		strconv.FormatInt(in.OrganizationShareMinor, 10),
 		strconv.FormatInt(platformShareMinor, 10),
+	}
+	// The payment reference joins the fingerprint only when it is present, so
+	// an instruction that carries none fingerprints exactly as it did before
+	// the field existed: a retry of a settlement posted then must still be
+	// recognised as the same settlement, not refused as a contradiction.
+	if in.PaymentSourceReference != "" {
+		parts = append(parts, "payment_source_reference="+in.PaymentSourceReference)
 	}
 	sum := sha256.Sum256([]byte(strings.Join(parts, "|")))
 	return hex.EncodeToString(sum[:])
@@ -133,7 +143,15 @@ func (r *PostgresWalletRepository) GetManagedSettlementByIdempotencyKey(ctx cont
 // meant an execution service could never find its own settlement: the read
 // returned nothing, which reads as "not settled", which is the one answer that
 // leads to paying a job twice.
+//
+// An execution service asking under its payment spelling ("taxi-service")
+// is answered as though it had asked under its canonical name: settlements
+// are only ever stored canonically, so that is the one name they can be
+// found under.
 func (r *PostgresWalletRepository) ListManagedSettlementsForSource(ctx context.Context, sourceService, sourceJobID string) ([]walletmodels.ManagedSettlement, error) {
+	if canonical, ok := managedsettlement.CanonicalSource(sourceService); ok {
+		sourceService = canonical
+	}
 	rows, err := r.db.Query(ctx, selectManagedSettlementSQL()+
 		` WHERE lower(source_service) = lower($1) AND source_job_id = $2 ORDER BY created_at DESC`, sourceService, sourceJobID)
 	if err != nil {
@@ -167,11 +185,8 @@ func (r *PostgresWalletRepository) PostManagedSettlement(
 		// Lock the job's money first. Everything after this reads a stable
 		// intent, so two concurrent sends of the same instruction serialize
 		// here rather than racing to post two journals.
-		intent, err := r.getPaymentIntentBySourceForUpdate(ctx, tx, in.SourceService, in.SourceJobID)
+		intent, err := r.resolveManagedPaymentForUpdate(ctx, tx, in.SourceService, in.PaymentReference())
 		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return apperrors.NotFound("No payment exists for this job.", nil)
-			}
 			return err
 		}
 		if !strings.EqualFold(intent.Currency, in.Currency) {
@@ -319,8 +334,11 @@ func (r *PostgresWalletRepository) PostManagedSettlement(
 			OrganizationID: in.OrganizationID, MembershipID: in.MembershipID,
 			ProviderID: in.ProviderID, ProviderType: in.ProviderType,
 			SourceService: in.SourceService, SourceJobID: in.SourceJobID,
-			SourceAssignmentID: in.SourceAssignmentID, Currency: intent.Currency,
-			GrossBasisMinor: in.GrossBasisMinor, ProviderShareMinor: in.ProviderShareMinor,
+			SourceAssignmentID: in.SourceAssignmentID,
+			PaymentIntentID:    intent.ID, PaymentSourceService: intent.SourceService,
+			PaymentSourceReference: intent.SourceReference,
+			Currency:               intent.Currency,
+			GrossBasisMinor:        in.GrossBasisMinor, ProviderShareMinor: in.ProviderShareMinor,
 			OrganizationShareMinor: in.OrganizationShareMinor, PlatformShareMinor: platformShare,
 			CompensationPlanID: in.CompensationPlanID, CompensationPlanVersion: in.CompensationPlanVersion,
 			CompensationResolutionVersion: in.CompensationResolutionVersion,
@@ -361,6 +379,77 @@ func (r *PostgresWalletRepository) PostManagedSettlement(
 	return settlement, nil
 }
 
+// ErrManagedPaymentAmbiguous means a settlement identity matched more than one
+// payment. It is refused, never resolved by picking one.
+var ErrManagedPaymentAmbiguous = errors.New("managed settlement identity matches more than one payment")
+
+// resolveManagedPaymentForUpdate finds and locks the one payment intent a
+// managed job's money is held in.
+//
+// The settlement is named canonically (TAXI, DISPATCH, HAULING) but the
+// payment was created by the execution service under its own provisioned name
+// -- "taxi-service", "dispatch-delivery-service", "driver-hauling-service" --
+// so the canonical name is widened to exactly the spellings
+// shared/go/managedsettlement lists for it, and nothing else. The reference is
+// the one the execution service supplied: the job id itself, or, for Dispatch,
+// the booking the payment was taken for.
+//
+// Exactly one intent may match. None is "no payment for this job"; more than
+// one means two spellings of one service both hold a payment under the same
+// reference, and choosing between them would be a guess about which customer's
+// money to release -- so it is refused as a conflict for a person to resolve.
+func (r *PostgresWalletRepository) resolveManagedPaymentForUpdate(
+	ctx context.Context, tx pgx.Tx, sourceService, paymentReference string,
+) (walletmodels.PaymentIntent, error) {
+	canonical, ok := managedsettlement.CanonicalSource(sourceService)
+	if !ok {
+		return walletmodels.PaymentIntent{}, apperrors.Validation("Check the settlement instruction.",
+			[]apperrors.FieldViolation{{Field: "source_service", Message: "Source service is not an execution service."}})
+	}
+	intents, err := r.paymentIntentsForSpellings(ctx, tx,
+		managedsettlement.PaymentSourceServices(canonical), paymentReference, true)
+	if err != nil {
+		return walletmodels.PaymentIntent{}, err
+	}
+	switch len(intents) {
+	case 0:
+		return walletmodels.PaymentIntent{}, apperrors.NotFound("No payment exists for this job.", nil)
+	case 1:
+		return intents[0], nil
+	default:
+		return walletmodels.PaymentIntent{}, apperrors.Conflict(
+			"More than one payment matches this job; it cannot be settled until that is resolved.",
+			ErrManagedPaymentAmbiguous)
+	}
+}
+
+// paymentIntentsForSpellings reads every intent held under any of the given
+// source spellings with the given reference, locking them when asked.
+func (r *PostgresWalletRepository) paymentIntentsForSpellings(
+	ctx context.Context, q interface {
+		Query(context.Context, string, ...any) (pgx.Rows, error)
+	}, spellings []string, reference string, forUpdate bool,
+) ([]walletmodels.PaymentIntent, error) {
+	query := selectPaymentIntentSQL() + ` WHERE source_service = ANY($1::text[]) AND source_reference = $2 ORDER BY id`
+	if forUpdate {
+		query += ` FOR UPDATE`
+	}
+	rows, err := q.Query(ctx, query, spellings, reference)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var intents []walletmodels.PaymentIntent
+	for rows.Next() {
+		intent, scanErr := scanPaymentIntent(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		intents = append(intents, intent)
+	}
+	return intents, rows.Err()
+}
+
 func (r *PostgresWalletRepository) findManagedSettlementForUpdate(
 	ctx context.Context, tx pgx.Tx, instructionID string, version int64,
 ) (walletmodels.ManagedSettlement, error) {
@@ -384,8 +473,10 @@ func (r *PostgresWalletRepository) insertManagedSettlement(
 			source_service, source_job_id, source_assignment_id,
 			currency, gross_basis_minor, provider_share_minor, organization_share_minor, platform_share_minor,
 			compensation_plan_id, compensation_plan_version, compensation_resolution_version,
-			status, ledger_transaction_id, idempotency_key, request_fingerprint, correlation_id, posted_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+			status, ledger_transaction_id, idempotency_key, request_fingerprint, correlation_id, posted_at,
+			payment_intent_id, payment_source_service, payment_source_reference
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,
+			NULLIF($25, '')::uuid, $26, $27)
 		RETURNING `+managedSettlementColumns,
 		m.ID, m.InstructionID, m.InstructionVersion,
 		m.OrganizationID, m.MembershipID, m.ProviderID, m.ProviderType,
@@ -393,6 +484,7 @@ func (r *PostgresWalletRepository) insertManagedSettlement(
 		m.Currency, m.GrossBasisMinor, m.ProviderShareMinor, m.OrganizationShareMinor, m.PlatformShareMinor,
 		m.CompensationPlanID, m.CompensationPlanVersion, m.CompensationResolutionVersion,
 		m.Status, ledgerTx, m.IdempotencyKey, m.RequestFingerprint, m.CorrelationID, postedAt,
+		m.PaymentIntentID, m.PaymentSourceService, m.PaymentSourceReference,
 	)
 	return scanManagedSettlement(row)
 }
@@ -429,8 +521,20 @@ func (r *PostgresWalletRepository) ReverseManagedSettlement(
 			return apperrors.Conflict("Only a posted settlement can be reversed.", nil)
 		}
 
+		// The money goes back into the escrow it was released from, which is
+		// the payment's escrow -- named by the payment's own source, not by
+		// the settlement's canonical identity. The two differ for every real
+		// execution service ("taxi-service" pays, "TAXI" settles), and
+		// reversing into an escrow named after the settlement would credit an
+		// account that never held this money.
+		paymentService, paymentReference := existing.PaymentSourceService, existing.PaymentSourceReference
+		if paymentService == "" || paymentReference == "" {
+			// A settlement recorded before the payment binding existed was
+			// resolved by an exact match, so its identity is its payment's.
+			paymentService, paymentReference = existing.SourceService, existing.SourceJobID
+		}
 		escrow, err := r.ensureAccount(ctx, tx, walletmodels.OwnerTypeJob,
-			jobOwnerID(existing.SourceService, existing.SourceJobID),
+			jobOwnerID(paymentService, paymentReference),
 			walletmodels.AccountJobEscrow, existing.Currency, walletmodels.NormalCredit)
 		if err != nil {
 			return err
@@ -486,8 +590,8 @@ func (r *PostgresWalletRepository) ReverseManagedSettlement(
 			Reference:       "ldt_" + uuid.NewString(),
 			TransactionType: walletmodels.JournalManagedSettlementReversal,
 			Status:          postedStatus,
-			SourceService:   existing.SourceService,
-			SourceReference: existing.SourceJobID,
+			SourceService:   paymentService,
+			SourceReference: paymentReference,
 			IdempotencyKey:  "reverse:" + existing.IdempotencyKey,
 			Metadata: map[string]interface{}{
 				"instruction_id":       existing.InstructionID,
