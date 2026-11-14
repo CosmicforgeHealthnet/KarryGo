@@ -11,7 +11,6 @@ import (
 	"cosmicforge/logistics/shared/go/apperrors"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"strings"
@@ -360,8 +359,15 @@ func (s *Service) UpdateRecord(ctx context.Context, t tenant.Context, code, id s
 	status := old.Status
 	event := "specialized_record.updated.v1"
 	if command != "" {
+		if old.Status == "COMPLETED" {
+			return v, apperrors.Conflict("The specialized record is already completed.", nil)
+		}
 		switch command {
 		case "COMPLETE":
+			// Quarantined cold-chain goods need an authorized release first.
+			if old.Status == "QUARANTINED" {
+				return v, apperrors.Conflict("A quarantined record must be released before it is completed.", nil)
+			}
 			status = "COMPLETED"
 		case "QUARANTINE":
 			if code != ColdChain {
@@ -374,7 +380,11 @@ func (s *Service) UpdateRecord(ctx context.Context, t tenant.Context, code, id s
 			}
 			var release map[string]any
 			_ = json.Unmarshal(v.Payload, &release)
-			if strings.TrimSpace(fmt.Sprint(release["releaseEvidenceReference"])) == "" || strings.TrimSpace(fmt.Sprint(release["authorizedBy"])) == "" {
+			// fmt.Sprint of a missing key is "<nil>", which is not empty, so
+			// read the values as strings.
+			evidence, _ := release["releaseEvidenceReference"].(string)
+			authorizedBy, _ := release["authorizedBy"].(string)
+			if strings.TrimSpace(evidence) == "" || strings.TrimSpace(authorizedBy) == "" {
 				return v, apperrors.BadRequest("Cold-chain release requires evidence and an authorized actor.", nil)
 			}
 			status = "RELEASED"
@@ -453,6 +463,11 @@ func (s *Service) AddTemperature(ctx context.Context, t tenant.Context, id strin
 	}
 	existing, existingErr := scanTemperature(s.o.Pool.QueryRow(ctx, `SELECT `+temperatureCols+` FROM fleet_partner_temperature_events WHERE organization_id=$1 AND sensor_reference=$2 AND source_version=$3`, t.OrganizationID, v.SensorReference, v.SourceVersion))
 	if existingErr == nil {
+		// A sensor reading belongs to one record: replaying it against a
+		// different record must not hand back the other record's event.
+		if existing.RecordID != id {
+			return v, apperrors.Conflict("This sensor reading is already recorded against another record.", nil)
+		}
 		return existing, nil
 	}
 	if !errors.Is(existingErr, pgx.ErrNoRows) {
