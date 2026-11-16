@@ -224,7 +224,7 @@ Unchanged since 2026-11-14:
 
 | Package | Status | Reason |
 |---|---|---|
-| A CI failure | Fixed (7.1) | Pending the mandatory run on the fix commit |
+| A CI failure | Fixed (7.1); Section 31 mandatory green on `24f9b6a6` (run 43963592101, all jobs; restored step 72 events, 0 skips) | |
 | B Settings ownership | Blocked: authorized infrastructure action | Needs root on the staging host; no sanctioned automation has root (all repo `sudo` runs on CI runners). Command in section 5A. |
 | C Wallet, Taxi, Hauling, Customer deploys | Blocked by B | Deploy account cannot read their settings files |
 | D Dispatch 070 | Blocked: human release approval | Named operator, separate reviewer and maintenance window required; not attempted |
@@ -233,3 +233,30 @@ Unchanged since 2026-11-14:
 | G Authenticated journeys | Blocked: authenticated test access | No authorized test inbox; the session's Gmail connector is not authorized. No journey was run or claimed. |
 | H Frontend regression | Type check, unit tests and build pass | Signed-in browser regression needs G |
 | I Release certification | Partial | Code and CI only; live parts blocked as above |
+
+### 7.5 Other required workflows (release-gate acceptance list)
+
+- **Customer V4 backend certification** had failed on every staging commit
+  since at least 2026-11-13, in the backup/restore drill for all seven
+  services: `pg_restore: ERROR: unrecognized configuration parameter
+  "transaction_timeout"`. The Ubuntu 26 runner image installs a PostgreSQL
+  18 client; `pg_dump` 17+ emits `SET transaction_timeout`, which the
+  `postgres:16` drill server rejects. Fix: the workflow now runs the pg
+  tools inside the server's own container (`PGTOOLS_DOCKER_CONTAINER`,
+  already supported by `scripts/customer-v4/pgbackup.py`), so client and
+  server versions always match. CI-only; no service or runtime change.
+- **Admin bridge Sections 2-5** fails its dependency scan on every staging
+  commit since at least `43109bad`: `GO-2026-6859` in the Go standard
+  library `net/http`, found in go1.26.10, fixed in go1.26.11
+  (`admin-backoffice-service` hqops export path). Not Fleet code. The fix is
+  a platform-wide toolchain patch bump (7 workflows, `go.work`,
+  `admin-backoffice-service/go.mod`, `services/Dockerfile`,
+  `notification-service/Dockerfile`, `vendor-service/Dockerfile`). Changing
+  the shared Dockerfile makes the automatic deploy select every service that
+  uses it, and those blocked by section 5A would fail preflight. Left for an
+  owner decision; not changed here.
+- Deployment safety, Admin owner closure, Admin Sections 16-38, Vendor
+  46-48, Partner/Gateway split, Fleet authentication v2 and email branding
+  passed on `24f9b6a6`.
+- Automatic deploy run 43963592511 redeployed Fleet API and worker:
+  host-verified image revision `24f9b6a6` on both, API healthy.

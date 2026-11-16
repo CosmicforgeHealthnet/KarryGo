@@ -21,8 +21,10 @@ concurrency:
 
 env:
   GOFLAGS: -buildvcs=false
-  # Disposable server: maintenance URLs for cert.py. Client tools run on the
-  # runner, so the tools URL is the same address.
+  # Disposable server: maintenance URLs for cert.py. Backup/restore client
+  # tools run inside the postgres service container (PGTOOLS_DOCKER_CONTAINER,
+  # set below) so their version always matches the server; 127.0.0.1:5432 is
+  # the same server from inside that container.
   CERT_PG_URL: postgres://karry_ci:karry_ci@127.0.0.1:5432/postgres?sslmode=disable
   CERT_PG_TOOLS_URL: postgres://karry_ci:karry_ci@127.0.0.1:5432/postgres?sslmode=disable
   CERT_REDIS_ADDR: 127.0.0.1:6379
@@ -66,6 +68,12 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y -q postgresql-client
           psql --version
+          # The runner's client can be newer than the server (Ubuntu 26 ships
+          # PostgreSQL 18; pg_dump 17+ emits SET transaction_timeout, which a
+          # 16 server rejects on restore). Run pg tools inside the server's
+          # own container instead.
+          echo "PGTOOLS_DOCKER_CONTAINER=${{ job.services.postgres.id }}" >> "$GITHUB_ENV"
+          docker exec "${{ job.services.postgres.id }}" pg_dump --version
 
       - name: Download Go modules
         run: |
