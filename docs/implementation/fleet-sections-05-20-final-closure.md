@@ -260,3 +260,16 @@ Unchanged since 2026-11-14:
   passed on `24f9b6a6`.
 - Automatic deploy run 43963592511 redeployed Fleet API and worker:
   host-verified image revision `24f9b6a6` on both, API healthy.
+
+### 7.6 CI results on `3f8271af` (Customer V4 fix)
+
+- Section 31 mandatory acceptance: success (run 43968504232).
+- Customer V4 backend certification: **success** (run 43968504260), the
+  first pass since at least 2026-11-13. All seven drills pass with the
+  in-container `pg_dump` 16.16 (customer, taxi through 031, dispatch,
+  hauling through 035, vendor, wallet through 000023, media).
+- Deployment safety, Admin owner closure, Admin Sections 16-38, Vendor
+  46-48, Partner/Gateway split, email branding: success.
+- Admin bridge Sections 2-5: **failure**, `GO-2026-6859` only (7.5).
+- Automatic deploy run 43968504452 selected no services; Fleet stays on
+  `24f9b6a6`, which carries all service code at this HEAD.
