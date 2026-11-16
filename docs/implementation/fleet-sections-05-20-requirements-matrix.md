@@ -1,5 +1,7 @@
 # Fleet Sections 5-20: requirements matrix
 
+**2026-11-16 re-check.** No row changed status. The final-closure pass re-ran the full Fleet suite (99 packages ok, 0 regressions) and fixed a CI path that had stopped running the integrations tests in the mandatory workflow; the rows citing those tests were already proven by full-suite runs. Live certification is tracked in the closure report, not here.
+
 Snapshot **2026-11-14**, branch `staging`, evaluated at commit `692ca11`. Spec: KarryGo Corporate Logistics Specification v2.0 (Part 1 Sections 5-20; detail rows from Part 2 Sections 36-50).
 
 **Method.** This replaces the 2026-11-13 snapshot, in which most rows said "IMPLEMENTED (audit) / not re-verified". Every row now carries direct evidence or an open status:

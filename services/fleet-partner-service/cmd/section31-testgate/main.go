@@ -23,6 +23,8 @@ type event struct {
 	Action  string `json:"Action"`
 	Package string `json:"Package"`
 	Test    string `json:"Test"`
+	// ImportPath is set on build events, which carry no Package.
+	ImportPath string `json:"ImportPath"`
 }
 
 func main() {
@@ -59,6 +61,15 @@ func enforce(reader io.Reader, allowed []string) error {
 		}
 		if item.Action == "fail" && item.Test != "" {
 			failed = append(failed, item.Package+"/"+item.Test)
+		}
+		// A package can fail without any test failing: a build or setup error,
+		// a TestMain exit, or a panic outside a test. Count those too.
+		if item.Test == "" && (item.Action == "fail" || item.Action == "build-fail") {
+			name := item.Package
+			if name == "" {
+				name = item.ImportPath
+			}
+			failed = append(failed, name+" (package "+item.Action+")")
 		}
 	}
 	if err := scanner.Err(); err != nil {

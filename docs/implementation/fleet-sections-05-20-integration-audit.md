@@ -48,7 +48,8 @@ actions below.
 ## 3. Owner actions (inaccessible authorized infrastructure)
 
 As root on the staging host, keeping mode 600:
-`chown deploy:deploy /opt/karrygo/{payment-wallet-service/wallet.env,customer-service/customer.env,taxi-service/taxi.env,hauling-service/hauling.env}`.
+`chown deploy:deploy /opt/karrygo/{payment-wallet-service/wallet.env,customer-service/customer.env,taxi-service/taxi.env,hauling-service/hauling.env,dispatch-delivery-service/dispatch.env}`.
+Still required as of read-only evidence run 43959094559 (2026-11-16).
 Then re-run the deploy and pairing workflows. Dispatch needs its reviewed
 migration-070 transition.
 

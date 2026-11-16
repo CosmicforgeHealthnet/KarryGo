@@ -197,3 +197,19 @@ found and fixed 26 defects (listed in its commits `57676e4`..`b0d37c8`).
   (`7b9b87a`, `35073a3`, `43109ba`) reporting settings ownership (never
   contents), running revisions, migration heads and media at-rest status.
 - Final Fleet suite at `bc5f703`: 99 packages ok, 0 failures.
+
+## Phase 4 (2026-11-16): final-closure pass
+
+- Mandatory CI fix: `section31-mandatory.yml` named
+  `./internal/features/integrations`, which has had no Go files since the
+  re-layering in `457dac8`, so `go test` failed setup and the integrations
+  tests stopped running in CI. Now `./internal/features/integrations/...`.
+- `cmd/section31-testgate` now fails on package-level `fail` and
+  `build-fail` events (previously only failures with a test name), with two
+  new tests.
+- Local verification on the fix: Fleet vet clean, 99 packages ok; the
+  corrected mandatory step passes with 72 events and zero skips; web
+  `tsc`, 43/43 tests and production build ok.
+- Read-only staging evidence run 43959094559: unchanged since 2026-11-14;
+  five settings files still root-owned. Details in the closure report,
+  section 7.

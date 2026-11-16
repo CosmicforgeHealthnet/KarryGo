@@ -171,7 +171,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          go test -json ./internal/masterreleasecontract ./internal/features/integrations ./internal/integration ./internal/app \
+          go test -json ./internal/masterreleasecontract ./internal/features/integrations/... ./internal/integration ./internal/app \
             -run 'TestCoverageMatrix|TestDeferralADR|TestSection71|TestSpecializedCapability|TestSection55|TestDestinationValidator|TestWebhook|TestClientSecrets|TestOrganizationAPI' \
             -count=1 -parallel 4 -p 1 -timeout=600s \
             | go run ./cmd/section31-testgate
