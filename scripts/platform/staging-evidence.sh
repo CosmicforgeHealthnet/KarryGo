@@ -97,6 +97,40 @@ BEGIN
 END
 $evidence$;
 SQL
+    # Dispatch only: the read-only inventory step 1 of the reviewed 070
+    # transition needs (docs/deployment/staging-release-approval.md).
+    # Aggregate counts only; no payload, key, provider or offer is printed.
+    if [ "$key" = driver-dispatch-delivery-service ]; then
+      docker exec -i "$db" sh -c 'psql -X -q -U "$POSTGRES_USER" -d "${POSTGRES_DB:-$POSTGRES_USER}" -v ON_ERROR_STOP=0 -f - 2>&1' <<'SQL' | sed -n 's/^.*NOTICE:  //p'
+DO $relay$
+DECLARE r record; has_fence boolean;
+BEGIN
+  IF to_regclass('public.dispatch_fleet_relay_operations') IS NULL THEN
+    RAISE NOTICE 'DISPATCH_RELAY table=absent'; RETURN;
+  END IF;
+  FOR r IN SELECT status, operation_type, count(*) AS n,
+                  count(*) FILTER (WHERE lease_expires_at > now()) AS leased,
+                  min(created_at) AS oldest
+             FROM dispatch_fleet_relay_operations GROUP BY 1, 2 ORDER BY 1, 2 LOOP
+    RAISE NOTICE 'DISPATCH_RELAY status=% type=% rows=% live_leases=% oldest=%', r.status, r.operation_type, r.n, r.leased, r.oldest;
+  END LOOP;
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'dispatch_fleet_relay_operations' AND column_name = 'readback_required') INTO has_fence;
+  RAISE NOTICE 'DISPATCH_RELAY fence_column_present=% would_be_fenced_by_070=%', has_fence,
+    (SELECT count(*) FROM dispatch_fleet_relay_operations WHERE status IN ('UNKNOWN_OUTCOME','DELIVERING','DEAD_LETTER'));
+  RAISE NOTICE 'DISPATCH_RELAY readback_audit_table=%', CASE WHEN to_regclass('public.dispatch_fleet_relay_readback_audit') IS NULL THEN 'absent' ELSE 'present' END;
+END
+$relay$;
+SQL
+      # Every process that could act as a Dispatch relay consumer: any
+      # container (any state) running a Dispatch image, and its restart policy.
+      for c in $(docker ps -a --format '{{.Names}}'); do
+        img_name="$(docker inspect -f '{{.Config.Image}}' "$c" 2>/dev/null)"
+        case "$img_name" in *driver-dispatch-delivery-service*|*dispatch-delivery*) ;; *) continue ;; esac
+        echo "DISPATCH_CONSUMER name=$c state=$(docker inspect -f '{{.State.Status}}' "$c") restart=$(docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' "$c") image=$img_name"
+      done
+      systemctl list-units --all --no-legend 2>/dev/null | grep -i dispatch | sed 's/^/DISPATCH_SUPERVISOR unit=/' || true
+      crontab -l 2>/dev/null | grep -i dispatch | sed 's/^/DISPATCH_SUPERVISOR cron=/' || true
+    fi
   else
     echo "DATABASE container=$db not-running-or-shared"
   fi
