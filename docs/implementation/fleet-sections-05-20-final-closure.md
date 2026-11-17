@@ -1,6 +1,6 @@
 # Fleet Sections 5-20: closure report
 
-Date 2026-11-14, final-closure pass 2026-11-16 (section 7). Branch `staging` (never `main`, never production).
+Date 2026-11-14, final-closure pass 2026-11-16 (section 7), activation pass 2026-11-17 (section 8). Branch `staging` (never `main`, never production).
 Service `services/fleet-partner-service`, with its Karryam counterparts
 (payment-wallet, driver-dispatch-delivery, driver-taxi, driver-hauling,
 verification-compliance, media-file) and the Fleet web app `web/fleet`.
@@ -44,9 +44,9 @@ Change from the 2026-11-14 report: Section 7 moves from closed to live-blocked. 
 The previous report marked Sections 7-9 and 14-20 CLOSED on code, tests
 and an unauthenticated live smoke. That was over-generous by this
 standard: their tenant journeys have not been exercised as a signed-in user
-on staging, so they are reported here as live-certification blocked. Sections 5-7
-need no tenant journey to certify: their evidence is structural, contractual
-and runtime (running image, migrations, guards, at-rest encryption).
+on staging, so they are reported here as live-certification blocked. Sections 5
+and 6 need no tenant journey to certify: their evidence is structural,
+contractual and runtime (running image, migrations, guards).
 
 ## 2. What this phase closed (engineering)
 
@@ -158,8 +158,8 @@ executed from this environment; they were not claimed.
 
 Every one of the 287 requirement rows in Sections 5-20 is built and proven
 by a named PostgreSQL-backed test, with structural and contractual guards
-for the conventions. Sections 5, 6 and 7 are closed including their runtime
-evidence. Sections 8-20 are implemented and tested; their live certification
+for the conventions. Sections 5 and 6 are closed including their runtime
+evidence. Sections 7-20 are implemented and tested; their live certification
 waits only on the owner actions above: settings-file ownership, the reviewed
 Dispatch transition, and an authorized test inbox for signed-in journeys.
 
@@ -273,3 +273,77 @@ Unchanged since 2026-11-14:
 - Admin bridge Sections 2-5: **failure**, `GO-2026-6859` only (7.5).
 - Automatic deploy run 43968504452 selected no services; Fleet stays on
   `24f9b6a6`, which carries all service code at this HEAD.
+
+## 8. Final activation pass (2026-11-17)
+
+Starting point `38f71e73`. Commits: `ef9e5b39` (Go 1.26.11), `f0dbb379`
+(Dispatch inventory in the evidence script), and this documentation commit.
+
+### 8.1 Go security patch (done)
+
+- Advisory `GO-2026-6859`, `net/http`, found in go1.26.10, fixed in
+  go1.26.11 (confirmed from the failing scan, run 43972417436).
+- Every remaining 1.26.10 pin moved to 1.26.11: `go.work`, Admin `go.mod`,
+  `services/Dockerfile`, Notification and Vendor Dockerfiles, and seven CI
+  workflows. Fleet was already on 1.26.11. No code change.
+- Local: all 19 Go modules build and vet on 1.26.11; Admin `govulncheck`
+  reports no vulnerable call path; Admin, Gateway, Partner Web and shared
+  unit suites pass. (One Notification test fails only on a Windows
+  CRLF checkout; it passes in CI.)
+- CI on `f0dbb379`, all success: Admin bridge Sections 2-5 (44185272099,
+  first pass since the advisory), Section 31 mandatory (44185272071),
+  Customer V4 (44185272011), Deployment safety, Admin owner closure, Admin
+  16-38, Vendor 46-48, Partner/Gateway split, email branding.
+- Rollout (deploy run 44184998986): images for all ten affected services
+  were built and pushed at `ef9e5b39`. Media, Notification, Verification and
+  Support were deployed and reported healthy on Go 1.26.11. Wallet,
+  Customer, Taxi, Hauling, Referral and Pricing were skipped by preflight
+  (root-owned settings) and their patched images wait in GHCR; the run is
+  red for exactly that reason. Dispatch, Admin, Gateway and Partner Web are
+  excluded from automatic deploy by design and still run go1.26.10 builds.
+
+### 8.2 Settings-file ownership (infrastructure access pending)
+
+Evidence run 44185288548: `wallet.env`, `taxi.env`, `hauling.env`,
+`customer.env`, `dispatch.env` (and `referral.env`, `pricing.env`) are
+`root:root 600`. No sanctioned mechanism in the repository runs as root:
+`server-setup.sh` requires an interactive root shell, and the deploy
+account's Docker access is not used to change host file ownership (that
+would bypass the permission control rather than satisfy it).
+
+### 8.3 Dispatch 070 (human approval pending)
+
+Prepared in `docs/deployment/dispatch-070-transition-package.md` from real
+inventory: relay table has 0 rows, 0 rows would be fenced, one running
+consumer, plus an exited old container with restart `unless-stopped` that
+step 2 must neutralize. The staging environment has no required-reviewer
+rule (admin bypass is now off), so the separate approval has no GitHub
+mechanism yet and must be recorded in that package.
+
+### 8.4 Status per service
+
+| Service | Engineering | Deployed (revision) | Paired with Fleet | Live journey | Pending |
+|---|---|---|---|---|---|
+| Fleet API + worker | Complete | Yes, `24f9b6a6`, Go 1.26.11, migrations 000099 | n/a | Not certified | Authenticated test access |
+| Verification | Complete | Yes, `ef9e5b39` | Yes | Not certified | Authenticated test access |
+| Media | Complete | Yes, `ef9e5b39` | Yes (at-rest keys) | Not certified | Authenticated test access |
+| Notification | Complete | Yes, `ef9e5b39` | Yes | OTP email delivery proven earlier (run 42977917689) | - |
+| Payment Wallet | Complete | No, still `4d90bfb6` (000023 missing); `ef9e5b39` image ready | No | No | Infrastructure access (A1); then waiver removal |
+| Taxi | Complete | No, still `4d90bfb6` (029-031 missing); image ready | No | No | Infrastructure access (A1) |
+| Hauling | Complete | No, still `a7e08d0e` (034-035 missing); image ready | No | No | Infrastructure access (A1) |
+| Customer | Complete | No, still `4d90bfb6`; image ready | n/a | No | Infrastructure access (A1) |
+| Dispatch | Complete | No, still `9caa16b6`, 000068 | No | No | Infrastructure access (A1) and human approval (A2) |
+
+Wallet waiver: still on. Its removal conditions (Wallet deployed, a real
+organization wallet read back ACTIVE, activation refused without it) cannot
+be checked until Wallet deploys.
+
+Live journeys (Section 70 list): none run. Signed-in journeys need an
+authorized inbox to receive the email OTP; no inbox is available to this
+environment, and no OTP bypass was added.
+
+### 8.5 Next phase
+
+`fleet-sections-21-72-dependency-map.md` lists every section of 21-72 as
+"start now" (Fleet-internal, most of them) or "build now, certify after" an
+activation (37-42, 60, 70, 71 and the cross-service halves of 26/61).

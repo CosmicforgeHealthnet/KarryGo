@@ -128,8 +128,8 @@ SQL
         case "$img_name" in *driver-dispatch-delivery-service*|*dispatch-delivery*) ;; *) continue ;; esac
         echo "DISPATCH_CONSUMER name=$c state=$(docker inspect -f '{{.State.Status}}' "$c") restart=$(docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' "$c") image=$img_name"
       done
-      systemctl list-units --all --no-legend 2>/dev/null | grep -i dispatch | sed 's/^/DISPATCH_SUPERVISOR unit=/' || true
-      crontab -l 2>/dev/null | grep -i dispatch | sed 's/^/DISPATCH_SUPERVISOR cron=/' || true
+      systemctl list-units --all --no-legend 2>/dev/null | grep -iE 'karrygo|dispatch-delivery' | sed 's/^/DISPATCH_SUPERVISOR unit=/' || true
+      crontab -l 2>/dev/null | grep -iE 'karrygo|dispatch-delivery' | sed 's/^/DISPATCH_SUPERVISOR cron=/' || true
     fi
   else
     echo "DATABASE container=$db not-running-or-shared"
