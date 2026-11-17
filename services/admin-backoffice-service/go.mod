@@ -2,7 +2,7 @@ module cosmicforge/logistics/services/admin-backoffice-service
 
 go 1.26.3
 
-toolchain go1.26.10
+toolchain go1.26.11
 
 require (
 	cosmicforge/logistics/shared/go v0.0.0
