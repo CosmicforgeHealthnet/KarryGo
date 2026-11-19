@@ -134,5 +134,31 @@ class StagingPairingKeygenTest(unittest.TestCase):
         self.assert_valid_key(self.media_value())
 
 
+    def test_verification_allowlist_keeps_existing_callers_and_adds_fleet(self):
+        # Staging refused every Fleet company submission (403) because the
+        # organization routes check VERIFICATION_COMPLIANCE_ALLOWED_CALLERS
+        # and staging listed only vendor-service and admin-backoffice-service.
+        desired = (ROOT / "deploy" / "platform" / "staging-pairings.txt").read_text()
+        line = [l for l in desired.splitlines()
+                if l.startswith("CALLERS verification-compliance-service VERIFICATION_COMPLIANCE_ALLOWED_CALLERS=")]
+        self.assertEqual(len(line), 1, "exactly one Verification allowlist line")
+        names = set(line[0].split("=", 1)[1].split(","))
+        self.assertEqual(names, {"vendor-service", "admin-backoffice-service", "fleet-partner-service"})
+
+        verification_env = self.tmp / "opt" / "verification-service" / "verification.env"
+        verification_env.parent.mkdir(parents=True)
+        verification_env.write_text("APP_ENV=staging\nVERIFICATION_COMPLIANCE_ALLOWED_CALLERS=vendor-service,admin-backoffice-service\n")
+        verification_env.chmod(0o600)
+        result = self.run_pairing(line[0] + "\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("VERIFICATION_COMPLIANCE_ALLOWED_CALLERS=vendor-service,admin-backoffice-service,fleet-partner-service",
+                      verification_env.read_text().splitlines())
+
+    def test_callers_refuses_unknown_identity(self):
+        result = self.run_pairing("CALLERS verification-compliance-service VERIFICATION_COMPLIANCE_ALLOWED_CALLERS=fleet-partner-service,evil-service\n")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Refusing", result.stdout + result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

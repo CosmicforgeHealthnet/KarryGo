@@ -53,7 +53,8 @@ KEYGENS = {
 }
 # Service identities that may appear in a CALLERS list.
 KNOWN_CALLERS = {"fleet-partner-service", "verification-compliance-service", "payment-wallet-service",
-                 "driver-hauling-service", "driver-taxi-service", "driver-dispatch-delivery-service"}
+                 "driver-hauling-service", "driver-taxi-service", "driver-dispatch-delivery-service",
+                 "vendor-service", "admin-backoffice-service"}
 # (caller, callee) -> where each side keeps the shared secret.
 #   caller_var: the caller's single secret setting
 #   callee_list: the callee's "name=secret,..." list the caller is added to
