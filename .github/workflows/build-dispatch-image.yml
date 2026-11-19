@@ -3,8 +3,11 @@ name: Build Dispatch image (no deploy)
 # immutable digest, for the reviewed migration-070 transition
 # (docs/deployment/dispatch-070-transition-package.md, precondition 2).
 #
-# It never touches the staging server: it has no environment, so it cannot
-# read the staging deploy host, user or SSH key, and it runs no ssh/scp. The
+# It never touches the staging server. The staging environment is attached
+# only to read the authorized-initiator list; an environment secret reaches a
+# job only when the workflow names it, and this file names none of the deploy
+# host, user or key secrets and opens no remote shell (pinned by
+# scripts/release/test_build_dispatch_image.py). The
 # deploy script, rollback script and release gate keep refusing Dispatch; the
 # transition itself stays a separately approved, operator-run procedure.
 # Runs when this file changes on staging (a dispatch-only workflow cannot be
@@ -24,6 +27,7 @@ jobs:
   build:
     if: github.repository == 'CosmicforgeHealthnet/KarryGo' && github.ref == 'refs/heads/staging'
     runs-on: ubuntu-latest
+    environment: staging
     timeout-minutes: 30
     permissions:
       contents: read

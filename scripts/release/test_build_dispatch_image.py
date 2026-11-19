@@ -29,8 +29,11 @@ class BuildDispatchImageTest(unittest.TestCase):
         self.assertIn("refs/heads/staging", job["if"])
 
     def test_cannot_reach_the_server(self):
-        job = self.data["jobs"]["build"]
-        self.assertNotIn("environment", job, "an environment would expose the deploy SSH key")
+        # The staging environment is attached only for the initiator list.
+        # An environment secret reaches a job only when the workflow names
+        # it, so the only secret this file may name is the registry token.
+        import re
+        self.assertEqual(set(re.findall(r"secrets\.([A-Z_]+)", self.text)), {"GITHUB_TOKEN"})
         for forbidden in ("STAGING_DEPLOY", "ssh ", "scp ", "deploy-service.sh", "rollback.sh", "migrate.sh"):
             self.assertNotIn(forbidden, self.text)
 
