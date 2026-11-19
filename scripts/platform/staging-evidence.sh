@@ -49,13 +49,10 @@ for key in "${services[@]}"; do
     health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}-{{end}}' "$c" 2>/dev/null)"
     started="$(docker inspect -f '{{.State.StartedAt}}' "$c" 2>/dev/null)"
     echo "CONTAINER name=$c state=$state health=$health revision=${rev:-unknown} started=$started"
-    # Service-to-service authentication: how many log lines in the last two
-    # hours report a refused signature or caller. A count only; no log line
-    # is printed. Databases, caches and stopped containers are skipped.
+    # Databases, caches and stopped containers have no service trust or
+    # access log to report.
     case "$c" in *-db|*-redis|*-redis-*) continue ;; esac
     [ "$state" = running ] || continue
-    authfail=$(docker logs --since 2h "$c" 2>&1 | grep -ciE 'Service authentication (is required|is invalid|has expired)|Service is not allowed to call|invalid signature|replayed nonce')
-    echo "AUTH_LOG container=$c window=2h service_auth_lines=${authfail:-0}"
     # Who this container trusts: the caller NAMES in each *_SERVICE_SECRETS
     # list (the part before "=", never the secret) and every *_CALLERS
     # allowlist (service identity names only). Split inside the container so
