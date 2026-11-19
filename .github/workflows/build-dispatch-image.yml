@@ -7,7 +7,13 @@ name: Build Dispatch image (no deploy)
 # read the staging deploy host, user or SSH key, and it runs no ssh/scp. The
 # deploy script, rollback script and release gate keep refusing Dispatch; the
 # transition itself stays a separately approved, operator-run procedure.
+# Runs when this file changes on staging (a dispatch-only workflow cannot be
+# started until it exists on the default branch), or manually.
 on:
+  push:
+    branches: [staging]
+    paths:
+      - .github/workflows/build-dispatch-image.yml
   workflow_dispatch:
 permissions:
   contents: read

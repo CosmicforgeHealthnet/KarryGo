@@ -20,8 +20,11 @@ class BuildDispatchImageTest(unittest.TestCase):
         self.text = WORKFLOW.read_text()
         self.data = yaml.load(self.text, Loader=yaml.BaseLoader)
 
-    def test_manual_only_on_staging(self):
-        self.assertEqual(set(self.data["on"]), {"workflow_dispatch"})
+    def test_starts_only_on_staging_and_only_for_this_file(self):
+        self.assertEqual(set(self.data["on"]), {"workflow_dispatch", "push"})
+        push = self.data["on"]["push"]
+        self.assertEqual(push["branches"], ["staging"])
+        self.assertEqual(push["paths"], [".github/workflows/build-dispatch-image.yml"])
         job = self.data["jobs"]["build"]
         self.assertIn("refs/heads/staging", job["if"])
 
