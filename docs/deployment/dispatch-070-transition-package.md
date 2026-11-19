@@ -1,6 +1,6 @@
 # Dispatch 070 transition package (staging)
 
-Prepared 2026-11-17 for the reviewed procedure in
+Prepared 2026-11-17, refreshed 2026-11-19 (section 5), for the reviewed procedure in
 `docs/deployment/staging-release-approval.md`, "Dispatch 070
 stop/migrate/verify/start and recovery hold". This package is preparation
 only. Nothing here has been executed, and nothing here is an approval.
@@ -71,8 +71,8 @@ old incompatible consumer with a restart path. Step 2 must remove it (or set
 | Operator (executes) | _name / GitHub login_ |
 | Reviewer (separate person) | _name / GitHub login_ |
 | Maintenance window (UTC) | _start - end_ |
-| Approved image digest | _ghcr digest of the Dispatch build_ |
-| Evidence run before | _run id_ |
+| Approved image digest | Candidate: `ghcr.io/cosmicforgehealthnet/driver-dispatch-delivery-service@sha256:7acd0c138b096e66bdbc2dc02f0a667d7d6565845b11b065aeb4a0454728b715` (revision `8f992eee`, build run 44479021476). The reviewer confirms or asks for a rebuild. |
+| Evidence run before | Latest: 44479278733 (2026-11-19). Re-run at the start of the window. |
 | Evidence run after | _run id_ |
 | Decision | _approved / refused_ |
 
@@ -80,3 +80,27 @@ The existing mechanism for the separate approval is GitHub environment
 `staging` required reviewers with self-review prevention. As of 2026-11-17
 that rule is not configured (only a branch policy; admin bypass is off), so
 the approval must be recorded here until it is.
+
+## 5. Status on 2026-11-19
+
+Evidence run 44479278733 (`8f992eee`):
+
+| Precondition | Status |
+|---|---|
+| 1. `dispatch.env` owned by the deploy account, 600 | **Done.** Deploy-owned, 600, readable by deploy. |
+| 2. Dispatch image from current staging | **Done.** Built by "Build Dispatch image (no deploy)" (`.github/workflows/build-dispatch-image.yml`), run 44479021476: digest above, carries 000069-000079. The workflow cannot reach the server (`scripts/release/test_build_dispatch_image.py`). Nothing was deployed. |
+| 3. Fleet receipt schema/API | **Done.** Fleet `24f9b6a6`, migrations 000099 (includes 000081). |
+| 4. Operator, separate reviewer, window | **Open.** The staging environment still has no required-reviewer rule (only a branch policy; admin bypass off), so the approval is recorded in section 4. |
+| 5. Fresh backup + restore check | At execution (step 3 of section 3). |
+
+Inventory unchanged since 2026-11-17: relay table 0 rows, 0 rows to fence,
+`readback_required` absent, read-back audit table absent, migration head
+000068 (41 rows). One running consumer (`9caa16b6`, restart
+`unless-stopped`); the exited `...-before-email-20261016-090932` container
+(restart `unless-stopped`, image `:latest`) is still the hazard step 2 must
+remove; `karrygo-dispatch-email-diagnostic` is exited with restart `no`. No
+systemd or cron supervisor runs Dispatch (`karrygo-close-public-ports` is a
+firewall unit).
+
+Dispatch is not paired with Fleet in `deploy/platform/staging-pairings.txt`;
+add its PAIR lines after the transition, not before.

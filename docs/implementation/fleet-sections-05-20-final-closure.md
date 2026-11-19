@@ -347,3 +347,123 @@ environment, and no OTP bypass was added.
 `fleet-sections-21-72-dependency-map.md` lists every section of 21-72 as
 "start now" (Fleet-internal, most of them) or "build now, certify after" an
 activation (37-42, 60, 70, 71 and the cross-service halves of 26/61).
+
+## 9. Final activation and certification (2026-11-19)
+
+Starting point `8141e154`, after the owner corrected the settings-file
+ownership on the staging host as root. Commits: `acc270ef`, `d0c100d0`,
+`ef3a2f9a`, `c3c2ac13` (read-only evidence), `953bfb29` and `4389654b`
+(Verification allowlist fix), `678e0695` and `8f992eee` (build-only Dispatch
+image). Deployment safety passed on each.
+
+### 9.1 What was done
+
+- **Ownership verified** (evidence run 44474983116): `wallet.env`,
+  `taxi.env`, `hauling.env`, `customer.env`, `dispatch.env`, `referral.env`,
+  `pricing.env` are deploy-owned, mode 600, readable by deploy.
+- **Deployed** Wallet, Taxi, Hauling, Customer at `8141e154` (run
+  44475350790). Each database was backed up first; all four reported
+  healthy. Migration heads now: Wallet 000023 (23/23 in the deploy-tracked
+  table), Taxi 031, Hauling 035.
+- **Paired** (run 44476027696): new server-generated HMAC secrets for
+  Fleet -> Wallet, Wallet -> Fleet, Fleet -> Hauling, Fleet -> Taxi,
+  Hauling -> Fleet, Taxi -> Fleet; finance private API and outbox, wallet
+  read/projection/reconciliation, sub-wallets, managed providers and the
+  marketplace feeds turned on. All touched services healthy. The wallet
+  waiver stays on.
+- **Defect found and fixed.** Verification refused every Fleet company
+  submission with 403 (12 refusals in 2 hours, run 44476672814), so the one
+  staging company was stuck in BUSINESS_SUBMITTED / PENDING_DISPATCH. Cause:
+  Verification's organization routes also check
+  `VERIFICATION_COMPLIANCE_ALLOWED_CALLERS`, which on staging listed only
+  `vendor-service,admin-backoffice-service`. The secret was correct, so the
+  earlier "paired" status hid it. The pairing file now keeps both callers and
+  adds Fleet (`4389654b`, test-pinned); applied by run 44478136628. Result:
+  Verification accepted the submission (202) and the company and its request
+  are now UNDER_REVIEW, with Fleet reading the decision back (GET 200).
+  One 500 preceded the 202, seconds after Verification restarted with
+  migrations on; Fleet retried with the same idempotency key and one
+  submission exists. The handler does not log database errors, so the exact
+  cause is unconfirmed.
+- **Evidence extended** (aggregate only, no ids or payloads): trusted caller
+  names per service, received internal calls by route template and status,
+  outbox delivery state, Fleet organization / verification / wallet counts,
+  Wallet organization wallets. A log-line count of auth refusals was tried
+  and removed: it read 0 even during the 403s, because services do not log
+  refused service calls.
+
+### 9.2 Status per service (evidence run 44479278733)
+
+| Service | Revision | Migrations | Trust (both ways) | Exercised live |
+|---|---|---|---|---|
+| Fleet API + worker | `24f9b6a6` | 000099 | trusts Hauling, Taxi, Wallet, Verification | Submission + decision read-back with Verification |
+| Verification | `ef9e5b39` | current | trusts and allows Fleet | 202 / 200 to Fleet |
+| Payment Wallet | `8141e154` | 000023 | trusts Fleet; finance callers default includes Fleet | No call yet: no organization wallet requested (0 wallets) |
+| Taxi | `8141e154` | 031 | trusts Fleet; execution callers default Fleet | No call yet: no managed provider or corporate trip |
+| Hauling | `8141e154` | 035 | trusts Fleet; Fleet callers default Fleet | No call yet: same |
+| Customer | `8141e154` | startup-managed | n/a to Fleet | Healthy |
+| Media / Notification / Support | `ef9e5b39` | current | trust Fleet | Unchanged |
+| Dispatch | `9caa16b6` | 000068 | not paired (held) | Held behind the 070 transition |
+
+Wallet waiver: on. 0 organizations ACTIVE, so no company is relying on it.
+
+### 9.3 Live staging tests run without sign-in
+
+- Fleet auth origin: the real web origin is trusted (422 on a deliberately
+  invalid body, no code sent); a forged origin is refused (403
+  untrusted_origin).
+- Protected Fleet routes refuse anonymous calls: identity profile, sessions,
+  wallet provisioning all 401; refresh without a cookie 401 session_expired;
+  verify without a challenge 400 otp_invalid.
+- Public gateway health 200; all staging containers healthy.
+- Internal: Fleet -> Verification signed submission and read-back succeed.
+
+### 9.4 Journeys that still need OTP sign-in
+
+Every one starts with an email OTP (Fleet owner/staff) or an admin sign-in:
+
+1. Admin decision on the UNDER_REVIEW company (Admin backoffice sign-in).
+2. Owner sign-in, then `POST /organizations/{id}/wallet-provisioning/retry`
+   to provision the company wallet; read back ACTIVE. While the waiver is on,
+   Fleet does not request a wallet on approval
+   (`verification_outcome.go`), so this owner call is how a wallet exists
+   before the waiver is removed.
+3. Branches, staff and roles (role changes need step-up OTP).
+4. CRM lead to order; private order with shipment; dispatch plan and alert.
+5. Workforce shift, asset inspection, compliance check, specialized record.
+6. Export, then confirm the stored object carries the encryption header.
+7. Managed provider onboarding and marketplace offer / accept / cancel with
+   Taxi and Hauling (also needs provider-app sign-in). This is the first
+   journey that exercises Fleet <-> Wallet / Taxi / Hauling signed calls.
+
+### 9.5 Certification
+
+Engineering: 287/287 requirement rows built and proven by tests, 0
+regressions. Runtime: every Fleet dependency except Dispatch now runs the
+current code with its migrations, trusts Fleet in both directions and is
+healthy; the one live integration path that real data reaches today
+(company verification) works after the allowlist fix. Sections 5 and 6
+remain closed with runtime evidence. Sections 7-20 are certified at the
+infrastructure and integration level; their user-journey certification
+needs the sign-ins in 9.4 and, for Dispatch-backed work, the reviewed 070
+transition. Neither was claimed.
+
+### 9.6 Remaining owner actions (complete list)
+
+1. **Sign-in access for the test window**: an authorized inbox for the
+   Fleet owner OTP and an Admin backoffice sign-in. Unblocks 9.4, the admin
+   decision and the wallet.
+2. **Wallet waiver**: after the owner provisions the wallet (9.4 item 2) and
+   evidence shows it ACTIVE, delete the
+   `FLEET_ACTIVATION_WALLET_GATE_WAIVED=true` line from
+   `deploy/platform/staging-pairings.txt` (the push re-pairs). Then approve
+   the company and confirm it activates through the gate.
+3. **Dispatch 070**: name the operator and a separate reviewer and agree a
+   window in `docs/deployment/dispatch-070-transition-package.md` section 4
+   (image, inventory and preconditions 1-3 are ready). Optionally add a
+   staging required-reviewer rule with self-review prevention so the
+   approval is enforced by GitHub instead of recorded in the document.
+
+Not owner actions, available on request: Referral and Pricing can now be
+deployed with their Go 1.26.11 images (their settings files are readable);
+they are outside Sections 5-20 and were left as they are.
