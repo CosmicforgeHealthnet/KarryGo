@@ -1,0 +1,81 @@
+name: Build Dispatch image (no deploy)
+# Builds and pushes ONE Dispatch image tagged with the commit and records its
+# immutable digest, for the reviewed migration-070 transition
+# (docs/deployment/dispatch-070-transition-package.md, precondition 2).
+#
+# It never touches the staging server: it has no environment, so it cannot
+# read the staging deploy host, user or SSH key, and it runs no ssh/scp. The
+# deploy script, rollback script and release gate keep refusing Dispatch; the
+# transition itself stays a separately approved, operator-run procedure.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: build-dispatch-image
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.repository == 'CosmicforgeHealthnet/KarryGo' && github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Require authorized staging initiator
+        shell: bash
+        env:
+          AUTHORIZED_INITIATORS: ${{ vars.STAGING_RELEASE_INITIATORS }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          try:
+              allowed = json.loads(os.environ.get('AUTHORIZED_INITIATORS', ''))
+          except (ValueError, TypeError):
+              allowed = None
+          if not isinstance(allowed, list) or not allowed or os.environ['ACTOR'] not in allowed:
+              sys.exit('Not an authorized staging release initiator')
+          print('Staging release initiator authorized')
+          PY
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push, record the digest
+        shell: bash
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          svc=driver-dispatch-delivery-service
+          image="ghcr.io/cosmicforgehealthnet/$svc:$SHA"
+          docker buildx build --push --file services/Dockerfile \
+            --build-arg SERVICE_DIR="$svc" \
+            --build-arg BUILD_COMMIT_SHA="$SHA" \
+            --build-arg BUILD_VERSION="staging-$SHA" \
+            --label org.opencontainers.image.revision="$SHA" \
+            --metadata-file "$RUNNER_TEMP/meta.json" \
+            --tag "$image" .
+          digest=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["containerimage.digest"])' "$RUNNER_TEMP/meta.json")
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          # The migration set this image carries, for the approval record.
+          migrations=$(ls services/$svc/migrations | grep -E '^0000(69|7[0-9])_.*\.up\.sql$' | tr '\n' ' ')
+          echo "DISPATCH_IMAGE image=$image"
+          echo "DISPATCH_IMAGE digest=$digest"
+          echo "DISPATCH_IMAGE pending_migrations=$migrations"
+          {
+            echo "### Dispatch image built (not deployed)"
+            echo "- image: \`$image\`"
+            echo "- digest: \`$digest\`"
+            echo "- revision: \`$SHA\`"
+            echo "- migrations 000069-000079: $migrations"
+            echo
+            echo "Record the digest in docs/deployment/dispatch-070-transition-package.md section 4."
+          } >> "$GITHUB_STEP_SUMMARY"

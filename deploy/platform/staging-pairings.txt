@@ -23,6 +23,11 @@ URL fleet-partner-service FLEET_PARTNER_VERIFICATION_COMPLIANCE_SERVICE_BASE_URL
 URL verification-compliance-service VERIFICATION_COMPLIANCE_FLEET_EVENTS_URL=http://karrygo-fleet-partner-api:8113
 SET verification-compliance-service VERIFICATION_COMPLIANCE_MIGRATION=true
 SET verification-compliance-service VERIFICATION_COMPLIANCE_PRIVATE_API_ENABLED=true
+# The organization routes also check this allowlist (a trusted secret alone is
+# not enough). Staging had only the Vendor and Admin callers, so every Fleet
+# company submission was refused with 403. A CALLERS line replaces the whole
+# list, so both existing callers are kept.
+CALLERS verification-compliance-service VERIFICATION_COMPLIANCE_ALLOWED_CALLERS=vendor-service,admin-backoffice-service,fleet-partner-service
 # Company wallet and provider sub-wallets (spec 13, 42). Read, projection,
 # provisioning and reconciliation only: allocations, withdrawals, payroll
 # posting and finance execution stay off until finance reconciliation
