@@ -49,6 +49,13 @@ for key in "${services[@]}"; do
     health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}-{{end}}' "$c" 2>/dev/null)"
     started="$(docker inspect -f '{{.State.StartedAt}}' "$c" 2>/dev/null)"
     echo "CONTAINER name=$c state=$state health=$health revision=${rev:-unknown} started=$started"
+    # Service-to-service authentication: how many log lines in the last two
+    # hours report a refused signature or caller. A count only; no log line
+    # is printed. Databases, caches and stopped containers are skipped.
+    case "$c" in *-db|*-redis|*-redis-*) continue ;; esac
+    [ "$state" = running ] || continue
+    authfail=$(docker logs --since 2h "$c" 2>&1 | grep -ciE 'Service authentication (is required|is invalid|has expired)|Service is not allowed to call|invalid signature|replayed nonce')
+    echo "AUTH_LOG container=$c window=2h service_auth_lines=${authfail:-0}"
   done
   # Media only: private-object encryption at rest (FLEET-7h.c). Reports the
   # backend, whether keys are configured (yes/no, never the value) and, for
@@ -96,6 +103,62 @@ BEGIN
   END LOOP;
 END
 $evidence$;
+SQL
+    # Integration state, aggregate counts only (no payload, id or name):
+    #   - every cross-service outbox: pending / delivered / dead-lettered and
+    #     the last delivery time, so signed delivery between services is
+    #     evidenced by rows the receiver accepted;
+    #   - Fleet: organizations, verification requests and wallet provisioning
+    #     by status (the wallet-gate waiver removal condition);
+    #   - Wallet: organization wallets by status.
+    docker exec -i "$db" sh -c 'psql -X -q -U "$POSTGRES_USER" -d "${POSTGRES_DB:-$POSTGRES_USER}" -v ON_ERROR_STOP=0 -f - 2>&1' <<'SQL' | sed -n 's/^.*NOTICE:  //p'
+DO $integration$
+DECLARE t text; has_status boolean; has_delivered boolean; has_target boolean; r record; q text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['taxi_outbox','hauling_domain_outbox','finance_outbox','fleet_partner_outbox'] LOOP
+    CONTINUE WHEN to_regclass('public.' || t) IS NULL;
+    SELECT bool_or(column_name = 'status'), bool_or(column_name = 'delivered_at'), bool_or(column_name = 'target')
+      INTO has_status, has_delivered, has_target
+      FROM information_schema.columns WHERE table_schema = 'public' AND table_name = t;
+    IF has_delivered THEN
+      q := format('SELECT %s AS target, count(*) FILTER (WHERE delivered_at IS NULL AND dead_lettered_at IS NULL) AS pending,
+                          count(*) FILTER (WHERE delivered_at IS NOT NULL) AS delivered,
+                          count(*) FILTER (WHERE dead_lettered_at IS NOT NULL) AS dead, max(delivered_at)::text AS last
+                     FROM %I GROUP BY 1 ORDER BY 1', CASE WHEN has_target THEN 'coalesce(target,''-'')' ELSE '''-''' END, t);
+    ELSIF has_status THEN
+      q := format('SELECT ''-'' AS target, count(*) FILTER (WHERE status = ''PENDING'') AS pending,
+                          count(*) FILTER (WHERE status IN (''PUBLISHED'',''DELIVERED'',''SENT'')) AS delivered,
+                          count(*) FILTER (WHERE status IN (''DEAD_LETTERED'',''DEAD_LETTER'',''FAILED'')) AS dead, ''-'' AS last
+                     FROM %I', t);
+    ELSE CONTINUE; END IF;
+    FOR r IN EXECUTE q LOOP
+      RAISE NOTICE 'OUTBOX table=% target=% pending=% delivered=% dead_lettered=% last_delivered=%', t, r.target, r.pending, r.delivered, r.dead, coalesce(r.last, '-');
+    END LOOP;
+  END LOOP;
+  IF to_regclass('public.fleet_partner_organizations') IS NOT NULL THEN
+    FOR r IN SELECT status, count(*) AS n FROM fleet_partner_organizations GROUP BY 1 ORDER BY 1 LOOP
+      RAISE NOTICE 'FLEET_ORGANIZATIONS status=% count=%', r.status, r.n;
+    END LOOP;
+    FOR r IN SELECT status, count(*) AS n FROM fleet_partner_organization_verification_requests GROUP BY 1 ORDER BY 1 LOOP
+      RAISE NOTICE 'FLEET_VERIFICATION_REQUESTS status=% count=%', r.status, r.n;
+    END LOOP;
+    FOR r IN SELECT status, count(*) AS n, count(*) FILTER (WHERE wallet_account_id IS NOT NULL) AS with_account
+               FROM fleet_partner_organization_wallet_provisioning GROUP BY 1 ORDER BY 1 LOOP
+      RAISE NOTICE 'FLEET_WALLET_PROVISIONING status=% count=% with_account=%', r.status, r.n, r.with_account;
+    END LOOP;
+    RAISE NOTICE 'FLEET_WALLET_PROVISIONING active_organizations_without_active_wallet=%',
+      (SELECT count(*) FROM fleet_partner_organizations o
+        LEFT JOIN fleet_partner_organization_wallet_provisioning w ON w.organization_id = o.id
+        WHERE o.status = 'ACTIVE' AND coalesce(w.status, '') <> 'ACTIVE');
+  END IF;
+  IF to_regclass('public.finance_wallets') IS NOT NULL THEN
+    FOR r IN SELECT status, currency, count(*) AS n FROM finance_wallets GROUP BY 1, 2 ORDER BY 1, 2 LOOP
+      RAISE NOTICE 'WALLET_ORGANIZATION_WALLETS status=% currency=% count=%', r.status, r.currency, r.n;
+    END LOOP;
+    RAISE NOTICE 'WALLET_ORGANIZATION_WALLETS total=%', (SELECT count(*) FROM finance_wallets);
+  END IF;
+END
+$integration$;
 SQL
     # Dispatch only: the read-only inventory step 1 of the reviewed 070
     # transition needs (docs/deployment/staging-release-approval.md).
