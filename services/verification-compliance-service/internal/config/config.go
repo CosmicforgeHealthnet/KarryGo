@@ -8,13 +8,20 @@ import (
 )
 
 type Config struct {
-	AppEnv               string
-	HTTPAddr             string
-	DatabaseURL          string
-	Migration            bool
-	PrivateAPIEnabled    bool
-	ServiceSecrets       string
-	AllowedCallers       string
+	AppEnv            string
+	HTTPAddr          string
+	DatabaseURL       string
+	Migration         bool
+	PrivateAPIEnabled bool
+	ServiceSecrets    string
+	AllowedCallers    string
+
+	// OrganizationDecisionCallers may record a company verification decision
+	// (VERIFICATION_COMPLIANCE_ORGANIZATION_DECISION_CALLERS). Separate from
+	// AllowedCallers so the submitting service cannot decide its own
+	// submission.
+	OrganizationDecisionCallers string
+
 	VendorCallbackURL    string
 	VendorCallbackSecret string
 	// FleetEventsURL is fleet-partner-service's base origin; organization
@@ -65,17 +72,19 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		AppEnv:               getEnv("APP_ENV", "development"),
-		HTTPAddr:             getEnv("HTTP_ADDR", ":8108"),
-		DatabaseURL:          getEnv("VERIFICATION_COMPLIANCE_DATABASE_URL", "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5440/verification_compliance_service?sslmode=disable"),
-		Migration:            getEnv("VERIFICATION_COMPLIANCE_MIGRATION", "false") == "true",
-		PrivateAPIEnabled:    getEnv("VERIFICATION_COMPLIANCE_PRIVATE_API_ENABLED", "false") == "true",
-		ServiceSecrets:       os.Getenv("VERIFICATION_COMPLIANCE_SERVICE_SECRETS"),
-		AllowedCallers:       getEnv("VERIFICATION_COMPLIANCE_ALLOWED_CALLERS", "fleet-partner-service,vendor-service,admin-backoffice-service"),
-		VendorCallbackURL:    strings.TrimSpace(os.Getenv("VERIFICATION_COMPLIANCE_VENDOR_CALLBACK_URL")),
-		VendorCallbackSecret: strings.TrimSpace(os.Getenv("VERIFICATION_COMPLIANCE_VENDOR_CALLBACK_SECRET")),
-		FleetEventsURL:       strings.TrimSpace(os.Getenv("VERIFICATION_COMPLIANCE_FLEET_EVENTS_URL")),
-		FleetEventsSecret:    strings.TrimSpace(os.Getenv("VERIFICATION_COMPLIANCE_FLEET_EVENTS_SECRET")),
+		AppEnv:            getEnv("APP_ENV", "development"),
+		HTTPAddr:          getEnv("HTTP_ADDR", ":8108"),
+		DatabaseURL:       getEnv("VERIFICATION_COMPLIANCE_DATABASE_URL", "postgres://cosmicforge_logistics:cosmicforge_logistics@localhost:5440/verification_compliance_service?sslmode=disable"),
+		Migration:         getEnv("VERIFICATION_COMPLIANCE_MIGRATION", "false") == "true",
+		PrivateAPIEnabled: getEnv("VERIFICATION_COMPLIANCE_PRIVATE_API_ENABLED", "false") == "true",
+		ServiceSecrets:    os.Getenv("VERIFICATION_COMPLIANCE_SERVICE_SECRETS"),
+		AllowedCallers:    getEnv("VERIFICATION_COMPLIANCE_ALLOWED_CALLERS", "fleet-partner-service,vendor-service,admin-backoffice-service"),
+
+		OrganizationDecisionCallers: getEnv("VERIFICATION_COMPLIANCE_ORGANIZATION_DECISION_CALLERS", "admin-backoffice-service"),
+		VendorCallbackURL:           strings.TrimSpace(os.Getenv("VERIFICATION_COMPLIANCE_VENDOR_CALLBACK_URL")),
+		VendorCallbackSecret:        strings.TrimSpace(os.Getenv("VERIFICATION_COMPLIANCE_VENDOR_CALLBACK_SECRET")),
+		FleetEventsURL:              strings.TrimSpace(os.Getenv("VERIFICATION_COMPLIANCE_FLEET_EVENTS_URL")),
+		FleetEventsSecret:           strings.TrimSpace(os.Getenv("VERIFICATION_COMPLIANCE_FLEET_EVENTS_SECRET")),
 
 		AssetCapabilityCertificationEnabled: getEnv("ASSET_CAPABILITY_CERTIFICATION_ENABLED", "false") == "true",
 
@@ -106,6 +115,11 @@ func (c Config) Validate() error {
 		}
 		if strings.TrimSpace(c.AllowedCallers) == "" {
 			p = append(p, "VERIFICATION_COMPLIANCE_ALLOWED_CALLERS is required")
+		}
+		for _, name := range strings.Split(c.OrganizationDecisionCallers, ",") {
+			if strings.TrimSpace(name) == "fleet-partner-service" {
+				p = append(p, "VERIFICATION_COMPLIANCE_ORGANIZATION_DECISION_CALLERS must not include fleet-partner-service: the submitting service cannot decide its own submission")
+			}
 		}
 	}
 	if (c.VendorCallbackURL == "") != (c.VendorCallbackSecret == "") {

@@ -44,10 +44,12 @@ func TestOrganizationVerificationLifecyclePostgres(t *testing.T) {
 	}
 
 	secret := []byte("verification-integration-secret")
+	adminSecret := []byte("verification-integration-admin-secret")
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	root := router.Group("/api/v1/verification-compliance")
-	Register(root, New(pool, true), serviceauth.NewVerifier(map[string][]byte{"fleet-partner-service": secret}, 5*time.Minute), []string{"fleet-partner-service"})
+	verifier := serviceauth.NewVerifier(map[string][]byte{"fleet-partner-service": secret, "admin-backoffice-service": adminSecret}, 5*time.Minute)
+	Register(root, New(pool, true), verifier, []string{"fleet-partner-service", "admin-backoffice-service"}, []string{"admin-backoffice-service"})
 
 	organizationID, submissionID := uuid.NewString(), uuid.NewString()
 	submitPath := "/api/v1/verification-compliance/internal/organizations/submissions"
@@ -63,16 +65,21 @@ func TestOrganizationVerificationLifecyclePostgres(t *testing.T) {
 
 	decisionPath := "/api/v1/verification-compliance/internal/organizations/" + organizationID + "/submissions/" + submissionID + "/decisions"
 	decision := map[string]any{"status": "VERIFIED", "restrictionStatus": "NONE", "expectedVersion": 1, "issues": []any{}}
-	decided := verificationCall(t, router, secret, http.MethodPost, decisionPath, decision, "decision-"+submissionID, uuid.NewString())
+	// The submitting service cannot decide its own submission.
+	selfDecided := verificationCall(t, router, secret, http.MethodPost, decisionPath, decision, "decision-self-"+submissionID, uuid.NewString())
+	if selfDecided.Code != http.StatusForbidden {
+		t.Fatalf("fleet self-decision status=%d body=%s", selfDecided.Code, selfDecided.Body.String())
+	}
+	decided := verificationCallAs(t, router, "admin-backoffice-service", adminSecret, http.MethodPost, decisionPath, decision, "decision-"+submissionID, uuid.NewString())
 	if decided.Code != http.StatusOK {
 		t.Fatalf("decision status=%d body=%s", decided.Code, decided.Body.String())
 	}
-	decisionReplay := verificationCall(t, router, secret, http.MethodPost, decisionPath, decision, "decision-"+submissionID, uuid.NewString())
+	decisionReplay := verificationCallAs(t, router, "admin-backoffice-service", adminSecret, http.MethodPost, decisionPath, decision, "decision-"+submissionID, uuid.NewString())
 	if decisionReplay.Code != http.StatusOK {
 		t.Fatalf("decision replay status=%d body=%s", decisionReplay.Code, decisionReplay.Body.String())
 	}
 	conflict := map[string]any{"status": "SUSPENDED", "restrictionStatus": "SUSPENDED", "expectedVersion": 1, "issues": []any{}}
-	conflicting := verificationCall(t, router, secret, http.MethodPost, decisionPath, conflict, "decision-"+submissionID, uuid.NewString())
+	conflicting := verificationCallAs(t, router, "admin-backoffice-service", adminSecret, http.MethodPost, decisionPath, conflict, "decision-"+submissionID, uuid.NewString())
 	if conflicting.Code != http.StatusConflict {
 		t.Fatalf("decision fingerprint conflict status=%d body=%s", conflicting.Code, conflicting.Body.String())
 	}
@@ -90,6 +97,11 @@ func TestOrganizationVerificationLifecyclePostgres(t *testing.T) {
 
 func verificationCall(t *testing.T, router http.Handler, secret []byte, method, path string, body any, key, nonce string) *httptest.ResponseRecorder {
 	t.Helper()
+	return verificationCallAs(t, router, "fleet-partner-service", secret, method, path, body, key, nonce)
+}
+
+func verificationCallAs(t *testing.T, router http.Handler, caller string, secret []byte, method, path string, body any, key, nonce string) *httptest.ResponseRecorder {
+	t.Helper()
 	var payload []byte
 	if body != nil {
 		var err error
@@ -106,7 +118,7 @@ func verificationCall(t *testing.T, router http.Handler, secret []byte, method, 
 	if key != "" {
 		request.Header.Set("Idempotency-Key", key)
 	}
-	if err := serviceauth.SignRequest(request, "fleet-partner-service", secret, payload, time.Now()); err != nil {
+	if err := serviceauth.SignRequest(request, caller, secret, payload, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	response := httptest.NewRecorder()

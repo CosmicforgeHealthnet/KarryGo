@@ -44,3 +44,19 @@ func TestSection18FlagsDefaultOffAndExternalAuthorityRefused(t *testing.T) {
 		}
 	}
 }
+
+func TestOrganizationDecisionsExcludeTheSubmitter(t *testing.T) {
+	t.Setenv("VERIFICATION_COMPLIANCE_ORGANIZATION_DECISION_CALLERS", "")
+	if got := Load().OrganizationDecisionCallers; got != "admin-backoffice-service" {
+		t.Fatalf("default decision callers = %q, want admin-backoffice-service only", got)
+	}
+	cfg := validConfig()
+	cfg.OrganizationDecisionCallers = "admin-backoffice-service, fleet-partner-service"
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("fleet-partner-service accepted as a decider of its own submissions")
+	}
+	cfg.OrganizationDecisionCallers = "admin-backoffice-service"
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("admin-only decision callers rejected: %v", err)
+	}
+}

@@ -20,12 +20,17 @@ type Handler struct {
 }
 
 func New(db *pgxpool.Pool, enabled bool) *Handler { return &Handler{db: db, enabled: enabled} }
-func Register(g *gin.RouterGroup, h *Handler, v *serviceauth.Verifier, allowed []string) {
+
+// Register mounts the organization verification routes. allowed may submit and
+// read; only deciders may record a decision. The service that submits a
+// company (fleet-partner-service) must never be able to decide it, so the
+// decision list is separate and checked before the nonce is consumed.
+func Register(g *gin.RouterGroup, h *Handler, v *serviceauth.Verifier, allowed, deciders []string) {
 	r := g.Group("/internal/organizations")
-	r.Use(serviceauth.Middleware(v), h.allow(allowed), h.nonce())
-	r.POST("/submissions", h.submit)
-	r.GET("/:organizationId/submissions/:submissionId", h.read)
-	r.POST("/:organizationId/submissions/:submissionId/decisions", h.decide)
+	r.Use(serviceauth.Middleware(v), h.allow(allowed))
+	r.POST("/submissions", h.nonce(), h.submit)
+	r.GET("/:organizationId/submissions/:submissionId", h.nonce(), h.read)
+	r.POST("/:organizationId/submissions/:submissionId/decisions", h.allow(deciders), h.nonce(), h.decide)
 }
 func (h *Handler) allow(names []string) gin.HandlerFunc {
 	set := map[string]bool{}

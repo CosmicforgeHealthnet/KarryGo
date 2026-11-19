@@ -186,7 +186,7 @@ func main() {
 		ReadyChecks: []func(context.Context) error{db.Ping},
 		Register: func(group *gin.RouterGroup) {
 			verifier := serviceauth.NewVerifier(serviceauth.ParseSecrets(cfg.ServiceSecrets), 5*time.Minute)
-			organizations.Register(group, organizations.New(db, cfg.PrivateAPIEnabled), verifier, allowed)
+			organizations.Register(group, organizations.New(db, cfg.PrivateAPIEnabled), verifier, allowed, split(cfg.OrganizationDecisionCallers))
 			vendors.Register(group, vendors.New(db, cfg.PrivateAPIEnabled, allowed), verifier)
 			assetcapability.Register(group, assetHandler, verifier)
 		},

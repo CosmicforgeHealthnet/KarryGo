@@ -52,7 +52,7 @@ func TestFleetCompanyDecisionDelivery(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	Register(router.Group("/api/v1/verification-compliance"), New(pool, true),
-		serviceauth.NewVerifier(map[string][]byte{"fleet-partner-service": secret}, 5*time.Minute), []string{"fleet-partner-service"})
+		serviceauth.NewVerifier(map[string][]byte{"fleet-partner-service": secret}, 5*time.Minute), []string{"fleet-partner-service"}, []string{"admin-backoffice-service"})
 
 	// Fleet's ids are prefixed text, not UUIDs.
 	organizationID, submissionID := "org_"+strings.ReplaceAll(uuid.NewString(), "-", ""), "vrq_"+strings.ReplaceAll(uuid.NewString(), "-", "")
