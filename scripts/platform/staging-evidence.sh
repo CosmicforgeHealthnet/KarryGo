@@ -56,6 +56,19 @@ for key in "${services[@]}"; do
     [ "$state" = running ] || continue
     authfail=$(docker logs --since 2h "$c" 2>&1 | grep -ciE 'Service authentication (is required|is invalid|has expired)|Service is not allowed to call|invalid signature|replayed nonce')
     echo "AUTH_LOG container=$c window=2h service_auth_lines=${authfail:-0}"
+    # Who this container trusts: the caller NAMES in each *_SERVICE_SECRETS
+    # list (the part before "=", never the secret) and every *_CALLERS
+    # allowlist (service identity names only). Split inside the container so
+    # no secret value crosses the docker exec boundary.
+    docker exec "$c" sh -c '
+      printenv | grep -E "^[A-Z0-9_]+_(SERVICE_SECRETS|CALLERS)=" | while IFS= read -r kv; do
+        name="${kv%%=*}"; value="${kv#*=}"
+        case "$name" in
+          *_SERVICE_SECRETS) names=$(printf "%s" "$value" | tr "," "\n" | sed "s/=.*//" | tr -d " " | grep -v "^$" | sort | tr "\n" "," | sed "s/,$//") ;;
+          *) names=$(printf "%s" "$value" | tr -d " ") ;;
+        esac
+        echo "TRUST setting=$name names=${names:-none}"
+      done' 2>/dev/null | sed "s/^/TRUST container=$c /; s/TRUST container=\([^ ]*\) TRUST /TRUST container=\1 /"
     # Signed internal calls this container RECEIVED in the last two hours, by
     # method, route template and HTTP status (the structured access log never
     # carries path parameters, query strings or identifiers). 401/403 here is
