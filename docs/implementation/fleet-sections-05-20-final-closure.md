@@ -420,9 +420,11 @@ Wallet waiver: on. 0 organizations ACTIVE, so no company is relying on it.
 
 ### 9.4 Journeys that still need OTP sign-in
 
-Every one starts with an email OTP (Fleet owner/staff) or an admin sign-in:
+Every one starts with an email OTP (Fleet owner/staff), except item 1, which
+needs an Admin operator (9.7):
 
-1. Admin decision on the UNDER_REVIEW company (Admin backoffice sign-in).
+1. Admin decision on the UNDER_REVIEW company (Admin bridge operator, two
+   staff for approval).
 2. Owner sign-in, then `POST /organizations/{id}/wallet-provisioning/retry`
    to provision the company wallet; read back ACTIVE. While the waiver is on,
    Fleet does not request a wallet on approval
@@ -448,22 +450,99 @@ infrastructure and integration level; their user-journey certification
 needs the sign-ins in 9.4 and, for Dispatch-backed work, the reviewed 070
 transition. Neither was claimed.
 
-### 9.6 Remaining owner actions (complete list)
+### 9.6 Remaining owner actions (complete list, superseded by 9.7.5)
 
-1. **Sign-in access for the test window**: an authorized inbox for the
-   Fleet owner OTP and an Admin backoffice sign-in. Unblocks 9.4, the admin
-   decision and the wallet.
-2. **Wallet waiver**: after the owner provisions the wallet (9.4 item 2) and
-   evidence shows it ACTIVE, delete the
-   `FLEET_ACTIVATION_WALLET_GATE_WAIVED=true` line from
-   `deploy/platform/staging-pairings.txt` (the push re-pairs). Then approve
-   the company and confirm it activates through the gate.
-3. **Dispatch 070**: name the operator and a separate reviewer and agree a
-   window in `docs/deployment/dispatch-070-transition-package.md` section 4
-   (image, inventory and preconditions 1-3 are ready). Optionally add a
-   staging required-reviewer rule with self-review prevention so the
-   approval is enforced by GitHub instead of recorded in the document.
+Kept for history; the list in 9.7.5 replaces it.
 
-Not owner actions, available on request: Referral and Pricing can now be
-deployed with their Go 1.26.11 images (their settings files are readable);
-they are outside Sections 5-20 and were left as they are.
+### 9.7 Second closure pass (2026-11-19, evening)
+
+Goal: remove the three blockers above without bypassing a control.
+
+#### 9.7.1 Authenticated testing (email OTP)
+
+- **Checked first.** Fleet sign-in is email OTP only. Fleet has no debug-code
+  mode (`FakeSender` cannot be selected from configuration). There is no mail
+  catcher, no test mailbox and no seeded test account on staging. Reading
+  codes from the Notification database would be extracting authentication
+  secrets, so it was not done.
+- **The authorized inbox.** Staging test accounts are plus-addresses of the
+  owner's Gmail (Fleet auth evidence run 42977917689 delivered an OTP there).
+  The execution environment has a Gmail connector, but it refused with
+  "needs to be connected in claude.ai". That is the only missing access. Once
+  it is connected, the agent signs in as the test owner itself and runs 9.4
+  items 2-7. No codes go into reports or CI.
+- **Admin is not an OTP sign-in.** The Admin backoffice is the private mTLS
+  bridge that only Cosmicforge HQ calls (`docs/admin-bridge/runbook.md`). It
+  is switched off on staging (`check-admin-disabled.py`), and no operator is
+  enrolled: there is no `trust.json`, no HQ certificate and no staff grants.
+  `APPROVE_ORGANIZATION` requires a second staff approver, and grants cannot
+  be self-issued. So a real company decision needs HQ to enrol two staging
+  operators. It was not simulated.
+
+#### 9.7.2 Security defect found and fixed: a company could be decided by its submitter
+
+- **The defect.** Verification's organization routes used one caller list for
+  submit, read and decide. The fix earlier today added Fleet to that list on
+  staging, which also let Fleet record the decision on its own submission. The
+  integration test did exactly that.
+- **The fix** (`b2830b75`): decisions need
+  `VERIFICATION_COMPLIANCE_ORGANIZATION_DECISION_CALLERS` (default
+  `admin-backoffice-service`), checked before the nonce is consumed. Config
+  refuses `fleet-partner-service` in it.
+- **Tests:** a Fleet decision returns 403 (unit test and Postgres integration
+  test), and the config tests cover the refusal. It deploys through the
+  automatic staging deploy.
+
+#### 9.7.3 Dispatch 070: reviewed execution path built and requested
+
+- **Corrected inventory.** `migrate.sh` has recorded 000001-000068 as
+  baseline and 000069 as applied, so exactly **000070-000079** are pending.
+  The package said 000069-000079.
+- **New dedicated environment** `dispatch-070-transition`: required reviewers
+  ainzkoji and davidodimayo7, self-review prevented, no admin bypass, staging
+  branch only. The shared `staging` environment is unchanged, so automatic
+  deploys are not blocked.
+- **New workflow** `dispatch-070-transition.yml` and script
+  `scripts/platform/dispatch-070-transition.sh`. They implement the procedure
+  and hold, never roll back, after migration. Tests in
+  `scripts/release/test_dispatch_070_transition.py` run the real script
+  against a simulated server: 107/107 release tests pass. Details are in
+  package section 6.
+- **Requested** (`eadb276a`). Run 44605516932 passed its plan job and is
+  waiting at the review gate. GitHub reports that the operator account cannot
+  approve it.
+
+#### 9.7.4 CI on the final revisions
+
+- **`eadb276a`:** every workflow passed. Section 31 and the four Admin and
+  Customer suites were superseded by the next push and re-ran on `b2830b75`.
+  The Dispatch 070 run is waiting for review, by design.
+- **`b2830b75`:** every mandatory workflow passed, including the automatic
+  deploy of the Verification fix.
+  - Admin 16-38 and Customer V4 ran the Verification Postgres integration
+    test, including the Fleet-decision 403.
+  - Section 31 failed once, on notification-service
+    `TestConsentWithdrawnAfterPlanningIsSuppressedAtSend`. That service has not
+    changed since `401e4992`, where it passed. Re-running the failed job
+    passed (run 44606253695), so this is a timing-sensitive test, recorded
+    here as a flake.
+
+#### 9.7.5 Remaining owner actions (complete list)
+
+1. **Connect the Gmail connector** in claude.ai connector settings, for the
+   account that receives the staging test plus-addresses. This unblocks owner
+   sign-in, the company wallet (`wallet-provisioning/retry` works while the
+   company is UNDER_REVIEW) and the waiver removal. It also unblocks 9.4 items
+   3-7 except the parts that need an approved company or provider-app
+   sign-in.
+2. **Dispatch 070 approval:** ainzkoji or davidodimayo7 approves run
+   44605516932 between 2026-11-20 08:00 and 2026-11-27 18:00 UTC. The run then
+   executes and verifies itself. Fleet-Dispatch pairing follows the run.
+3. **Company decision:** HQ enrols two staging Admin bridge operators (one
+   requests, the other approves `APPROVE_ORGANIZATION`). Until then the company
+   stays UNDER_REVIEW. Company activation and the journeys that need an active
+   company cannot be certified, and nobody else may make that decision.
+
+Not done, by design: no OTP bypass or debug mode, no reading codes from a
+database, no decision recorded by a service identity, no self-approval of the
+Dispatch run, and no change to main or production.
