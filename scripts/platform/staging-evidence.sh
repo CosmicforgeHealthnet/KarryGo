@@ -203,6 +203,15 @@ BEGIN
   RAISE NOTICE 'DISPATCH_RELAY readback_audit_table=%', CASE WHEN to_regclass('public.dispatch_fleet_relay_readback_audit') IS NULL THEN 'absent' ELSE 'present' END;
 END
 $relay$;
+DO $files$
+BEGIN
+  -- The files migrate.sh has recorded (names only), so the transition knows
+  -- exactly which files it would apply before anyone approves it.
+  IF to_regclass('public.karrygo_deploy_migrations') IS NOT NULL THEN
+    RAISE NOTICE 'DISPATCH_MIGRATIONS recorded=%', (SELECT string_agg(filename || ':' || how, ' ' ORDER BY filename) FROM karrygo_deploy_migrations);
+  END IF;
+END
+$files$;
 SQL
       # Every process that could act as a Dispatch relay consumer: any
       # container (any state) running a Dispatch image, and its restart policy.
