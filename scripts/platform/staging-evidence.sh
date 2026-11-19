@@ -56,6 +56,16 @@ for key in "${services[@]}"; do
     [ "$state" = running ] || continue
     authfail=$(docker logs --since 2h "$c" 2>&1 | grep -ciE 'Service authentication (is required|is invalid|has expired)|Service is not allowed to call|invalid signature|replayed nonce')
     echo "AUTH_LOG container=$c window=2h service_auth_lines=${authfail:-0}"
+    # Signed internal calls this container RECEIVED in the last two hours, by
+    # method, route template and HTTP status (the structured access log never
+    # carries path parameters, query strings or identifiers). 401/403 here is
+    # a refused service signature or caller.
+    docker logs --since 2h "$c" 2>&1 | perl -ne '
+      next unless /"event":"http_request"/;
+      my ($m) = /"method":"([A-Z]+)"/; my ($r) = /"route":"([^"]*)"/; my ($s) = /"status":(\d+)/;
+      next unless defined $r && $r =~ m{/internal/};
+      print "$m $r $s\n"' 2>/dev/null | sort | uniq -c | sort -rn | head -20 |
+      while read -r n m r s; do echo "INTERNAL_HTTP container=$c method=$m route=$r status=$s count=$n"; done
   done
   # Media only: private-object encryption at rest (FLEET-7h.c). Reports the
   # backend, whether keys are configured (yes/no, never the value) and, for
