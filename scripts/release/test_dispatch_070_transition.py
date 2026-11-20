@@ -6,9 +6,10 @@ state, relay rows) and records every mutating call. The tests prove the
 ordering the procedure requires and that every failure either changes nothing
 or holds without restarting the old image.
 
-The workflow and request file are checked statically: the run is gated by a
-separate reviewer in its own environment, refuses outside its window, and
-carries the image by digest.
+The workflow and request file are checked statically: the one-time staging
+owner authorization is explicit and actor-bound; execution refuses outside its
+bounded window and carries the image by immutable digest. The existing
+stop/backup/restore/migration/HOLD protections are unchanged.
 """
 
 import json
@@ -323,21 +324,23 @@ class Dispatch070WorkflowTest(unittest.TestCase):
         self.assertEqual(self.data["on"]["push"]["paths"], ["deploy/platform/dispatch-070-request.txt"])
         self.assertEqual(self.data["permissions"], {"contents": "read"})
 
-    def test_separate_reviewer_gates_the_server_job(self):
+    def test_owner_authorization_gates_the_server_job_without_review(self):
         jobs = self.data["jobs"]
+        self.assertEqual(set(jobs), {"plan", "transition"})
         self.assertNotIn("environment", jobs["plan"])
-        self.assertEqual(jobs["review"]["environment"], "dispatch-070-transition")
-        self.assertEqual(jobs["review"]["needs"], "plan")
-        self.assertNotIn("secrets.", json.dumps(jobs["plan"]) + json.dumps(jobs["review"]))
         t = jobs["transition"]
-        self.assertEqual(t["needs"], ["plan", "review"])
+        self.assertEqual(t["needs"], "plan")
         self.assertEqual(t["environment"], "staging")
         self.assertEqual(t["concurrency"]["group"], "staging-release-runtime")
         body = json.dumps(t)
-        self.assertIn("/approvals", body)
-        self.assertIn("dispatch-070-transition", body)
+        self.assertNotIn("/approvals", body)
         self.assertIn("STAGING_RELEASE_INITIATORS", body)
+        self.assertIn("OWNER_APPROVED_STAGING_DISPATCH_070", body)
+        self.assertIn("CosmicforgeHealthnet", body)
+        self.assertIn("WINDOW_START", body)
+        self.assertIn("WINDOW_END", body)
         self.assertIn("dispatch-070-transition.sh", body)
+        self.assertNotIn("secrets.", json.dumps(jobs["plan"]))
         for job in jobs.values():
             self.assertIn("refs/heads/staging", job["if"])
 
@@ -350,9 +353,9 @@ class Dispatch070WorkflowTest(unittest.TestCase):
         self.assertRegex(r["DIGEST"], r"^sha256:[0-9a-f]{64}$")
         self.assertRegex(r["REVISION"], r"^[0-9a-f]{40}$")
         self.assertIn(r["DIGEST"], PACKAGE.read_text(), "the requested digest must be the one recorded in the package")
-        reviewers = r["REVIEWERS"].split(",")
-        self.assertTrue(reviewers)
-        self.assertNotIn(r["OPERATOR"], reviewers, "the operator cannot review their own transition")
+        self.assertEqual(r["OPERATOR"], "CosmicforgeHealthnet")
+        self.assertEqual(r["AUTHORIZATION"], "OWNER_APPROVED_STAGING_DISPATCH_070")
+        self.assertNotIn("REVIEWERS", r)
         self.assertRegex(r["WINDOW_START"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
         self.assertRegex(r["WINDOW_END"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
         self.assertLess(r["WINDOW_START"], r["WINDOW_END"])
