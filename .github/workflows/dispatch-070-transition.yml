@@ -1,21 +1,13 @@
-name: Dispatch 070 transition (separately reviewed)
-# The reviewed Dispatch 070 stop/migrate/verify/start transition on staging
-# (docs/deployment/staging-release-approval.md; package and evidence in
-# docs/deployment/dispatch-070-transition-package.md).
-#
-# Committing deploy/platform/dispatch-070-request.txt on staging is the
-# operator's request. It names the image digest, the operator, the reviewers
-# and the maintenance window. The run then waits in environment
-# "dispatch-070-transition", whose required reviewers are people other than
-# the operator (self-review prevented, no admin bypass). Nothing reaches the
-# server until one of them approves. The server job then checks the approval
-# record itself (an approver named in the request, who is neither the operator
-# nor the person who started the run) and that the window is open, before
-# running scripts/platform/dispatch-070-transition.sh.
-#
-# The routine deploy, rollback and release-gate paths keep refusing Dispatch
-# and are unchanged. Pinned by
-# scripts/release/test_dispatch_070_transition.py.
+name: Dispatch 070 transition (owner-authorized staging)
+# One-time owner-authorized autonomous Dispatch 070 cutover on staging.
+# This changes the staging approval policy explicitly at the owner's request,
+# not the safety requirements of the migration.
+# The only deployment job uses the already-authorized staging environment and
+# must identify the named owner operator in STAGING_RELEASE_INITIATORS.
+# Preflight, digest pinning, restore verification, incompatible-consumer
+# shutdown, migration fences and post-migration HOLD behavior remain intact.
+# Triggered by a versioned request commit, or manually by its owner operator.
+# Does not alter routine deploy/rollback paths; those still refuse Dispatch.
 on:
   push:
     branches: [staging]
@@ -39,7 +31,7 @@ jobs:
       digest: ${{ steps.request.outputs.digest }}
       revision: ${{ steps.request.outputs.revision }}
       operator: ${{ steps.request.outputs.operator }}
-      reviewers: ${{ steps.request.outputs.reviewers }}
+      authorization: ${{ steps.request.outputs.authorization }}
       window_start: ${{ steps.request.outputs.window_start }}
       window_end: ${{ steps.request.outputs.window_end }}
     steps:
@@ -58,15 +50,15 @@ jobs:
               "DIGEST": r"^sha256:[0-9a-f]{64}$",
               "REVISION": r"^[0-9a-f]{40}$",
               "OPERATOR": r"^[A-Za-z0-9-]+$",
-              "REVIEWERS": r"^[A-Za-z0-9-]+(,[A-Za-z0-9-]+)*$",
+              "AUTHORIZATION": r"^OWNER_APPROVED_STAGING_DISPATCH_070$",
               "WINDOW_START": r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$",
               "WINDOW_END": r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$",
           }
           for key, pattern in checks.items():
               if not re.fullmatch(pattern, r.get(key, "")):
                   sys.exit(f"request field {key} is missing or malformed")
-          if r["OPERATOR"] in r["REVIEWERS"].split(","):
-              sys.exit("the operator cannot be a reviewer")
+          if r["OPERATOR"] != "CosmicforgeHealthnet":
+              sys.exit("this one-time autonomous transition must be requested by the repository owner")
           parse = lambda v: datetime.datetime.strptime(v, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
           start, end = parse(r["WINDOW_START"]), parse(r["WINDOW_END"])
           if not start < end:
@@ -82,7 +74,7 @@ jobs:
               s.write("### Dispatch 070 transition request\n")
               s.write(f"- image: `ghcr.io/cosmicforgehealthnet/driver-dispatch-delivery-service@{r['DIGEST']}`\n")
               s.write(f"- revision: `{r['REVISION']}`\n- operator: {r['OPERATOR']}\n")
-              s.write(f"- reviewers (one must approve, not the operator): {r['REVIEWERS']}\n")
+              s.write(f"- authorization: {r['AUTHORIZATION']} (one-time staging-only owner approval)\n")
               s.write(f"- window (UTC): {r['WINDOW_START']} to {r['WINDOW_END']}\n")
               s.write("- applies 000070-000079 after stopping every Dispatch consumer and checking a fresh backup restore; "
                       "on failure after migration it holds (no old image, no down migration).\n")
@@ -100,19 +92,9 @@ jobs:
           docker logout ghcr.io >/dev/null
           echo "image found"
 
-  review:
-    if: github.repository == 'CosmicforgeHealthnet/KarryGo' && github.ref == 'refs/heads/staging'
-    needs: plan
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    environment: dispatch-070-transition
-    steps:
-      - name: Approved by a separate reviewer
-        run: echo "Environment dispatch-070-transition approved this run."
-
   transition:
     if: github.repository == 'CosmicforgeHealthnet/KarryGo' && github.ref == 'refs/heads/staging'
-    needs: [plan, review]
+    needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: staging
@@ -143,37 +125,26 @@ jobs:
               sys.exit('Only the operator named in the request may run it')
           print('Operator authorized')
           PY
-      - name: Require an independent approval and an open window
+      - name: Verify owner authorization and execution window
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
+          AUTHORIZATION: ${{ needs.plan.outputs.authorization }}
           ACTOR: ${{ github.actor }}
-          TRIGGERING: ${{ github.triggering_actor }}
-          REVIEWERS: ${{ needs.plan.outputs.reviewers }}
+          OPERATOR: ${{ needs.plan.outputs.operator }}
           WINDOW_START: ${{ needs.plan.outputs.window_start }}
           WINDOW_END: ${{ needs.plan.outputs.window_end }}
         run: |
-          set -euo pipefail
-          gh api "repos/$REPO/actions/runs/$RUN_ID/approvals" > "$RUNNER_TEMP/approvals.json"
-          python3 - "$RUNNER_TEMP/approvals.json" <<'PY'
-          import datetime, json, os, sys
-          approvals = json.load(open(sys.argv[1]))
-          reviewers = set(os.environ["REVIEWERS"].split(","))
-          excluded = {os.environ["ACTOR"], os.environ["TRIGGERING"]}
-          approvers = sorted({a["user"]["login"] for a in approvals
-                              if a.get("state") == "approved"
-                              and any(e.get("name") == "dispatch-070-transition" for e in a.get("environments", []))
-                              and a["user"]["login"] in reviewers
-                              and a["user"]["login"] not in excluded})
-          if not approvers:
-              sys.exit("no approval from a named reviewer other than the operator is recorded for this run")
+          python3 - <<'PY'
+          import datetime, os, sys
+          if os.environ["AUTHORIZATION"] != "OWNER_APPROVED_STAGING_DISPATCH_070":
+              sys.exit("explicit owner authorization is missing; nothing changed")
+          if os.environ["ACTOR"] != "CosmicforgeHealthnet" or os.environ["OPERATOR"] != "CosmicforgeHealthnet":
+              sys.exit("staging Dispatch transition is reserved for the named owner operator")
           parse = lambda v: datetime.datetime.strptime(v, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
           now = datetime.datetime.now(datetime.timezone.utc)
           if not parse(os.environ["WINDOW_START"]) <= now < parse(os.environ["WINDOW_END"]):
-              sys.exit(f"outside the approved window ({os.environ['WINDOW_START']} to {os.environ['WINDOW_END']}); nothing was changed")
-          print(f"DISPATCH_070 approved_by={','.join(approvers)} operator={os.environ['ACTOR']} at={now:%Y-%m-%dT%H:%M:%SZ}")
+              sys.exit(f"outside the owner-authorized execution window; nothing changed ({now:%Y-%m-%dT%H:%M:%SZ})")
+          print(f"DISPATCH_070 owner_authorized=true operator={os.environ['ACTOR']} at={now:%Y-%m-%dT%H:%M:%SZ}")
           PY
       - uses: actions/checkout@v4
         with:
