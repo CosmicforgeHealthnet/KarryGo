@@ -216,6 +216,36 @@ expired/changed proof, missing approval or failed acceptance blocks the release.
 
 ## Dispatch 070 stop/migrate/verify/start and recovery hold
 
+### One-time owner-authorized staging-only automation (20 November 2026)
+
+The repository owner has explicitly authorized a **single automated staging
+transition** of Dispatch migrations 000070-000079 without requiring another
+independent human review or an arbitrary delayed start. This replaces only the
+human-review step for the dedicated `.github/workflows/dispatch-070-transition.yml`
+staging cutover. It does not authorize any production action, change the
+review requirements of other release workflows, unprotect a GitHub environment,
+or permit routine Dispatch deployments.
+
+The versioned `deploy/platform/dispatch-070-request.txt` must identify the
+repository owner as operator, contain an explicit
+`OWNER_APPROVED_STAGING_DISPATCH_070` authorization, exact image digest,
+revision and a bounded execution window. The run must originate from the
+named owner account in `STAGING_RELEASE_INITIATORS`, use the existing
+`staging` deployment identity, and take the existing staging release lock.
+The existing script must still prove a safe inventory, zero incompatible
+consumers and relay uncertainty, a fresh verified and isolated restore,
+exactly the approved migration set, immutable receipts and a verified new
+healthy revision. On any unexpected preflight condition it must refuse; on
+failure after migration it must HOLD without restarting old binaries or
+running destructive rollback. After a successful transition, reruns refuse
+because the expected pending migration set is no longer present.
+
+The dedicated protected `dispatch-070-transition` review environment is
+left untouched and unused by this narrowly scoped autonomous cutover.
+The operator's explicit authorization and the CI/run outcome are recorded
+as repository and GitHub Actions evidence.
+
+
 No automated Dispatch transition is implemented. The gate, service script and
 rollback script all block it. Before any separately approved transition:
 
