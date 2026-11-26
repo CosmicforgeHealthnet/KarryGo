@@ -11,7 +11,6 @@ import (
 	"cosmicforge/logistics/shared/go/logging"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/features/automation"
 	mktusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/marketplace/usecases"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/retention"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/jobs"
@@ -19,20 +18,20 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 )
 
-// RegisterAutomationRunner attaches the Section 27 automation-runner
-// registration boundary (see internal/features/automation) to the shared
-// durable queue when AUTOMATION_RUNNER_WORKER_ENABLED is set. Off by
-// default, matching every other Section 27 worker flag; there is no
-// automation domain to execute yet (Section 24 is not implemented), so
-// enabling this only changes whether AUTOMATION_RULE_EXECUTE fails as
-// "no handler registered" (disabled) or as a classified, dead-lettered
-// "automation domain not implemented" (enabled) -- neither path performs
-// any AI decision-making or arbitrary code execution.
-func RegisterAutomationRunner(cfg config.Config, worker *jobs.Worker) {
-	if !cfg.AutomationRunnerWorkerEnabled || worker == nil {
+// RegisterAutomationRunner attaches the Section 24/54 analytics handlers --
+// report generation, automation evaluation, the reserved
+// AUTOMATION_RULE_EXECUTE executor and housekeeping -- to the shared durable
+// queue when AUTOMATION_RUNNER_WORKER_ENABLED or SECTION24_WORKERS_ENABLED is
+// set (both default off). Automation executes only actions from the approved,
+// non-protected catalogue in features/analytics/models.
+func RegisterAutomationRunner(cfg config.Config, c *Components, worker *jobs.Worker) {
+	if worker == nil || c == nil || c.Analytics == nil || cfg.IntegrationsKillSwitch {
 		return
 	}
-	automation.RegisterWorkers(worker)
+	if !cfg.AutomationRunnerWorkerEnabled && !cfg.Section24WorkersEnabled {
+		return
+	}
+	c.Analytics.RegisterWorkers(worker)
 }
 
 // StartDataRetentionWorker runs the Section 27 "data retention" required

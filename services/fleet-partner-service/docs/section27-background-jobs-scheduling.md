@@ -167,7 +167,8 @@ double-enqueues.
 | Bulk import processor | `bulkimports` (pre-existing) | Unchanged. |
 | Export generator | `exports` (pre-existing) | Unchanged. |
 | SLA evaluator | `engagement.Service.handleSLAGenerate` | Already wired via the same `ScheduleMaintenance` fan-out; unchanged. |
-| Automation runner | *none — Section 24 not implemented* | Infrastructure/registration-boundary only: `internal/features/automation` registers `AUTOMATION_RULE_EXECUTE`, whose handler always returns a classified `PERMANENT` "automation domain not implemented" failure so a stray enqueue dead-letters loudly instead of retry-looping or vanishing. Gated `AUTOMATION_RUNNER_WORKER_ENABLED` (default false). No rule execution capability exists to gate a GO on. |
+| Automation runner | `analytics.Service` (`AUTOMATION_EVALUATE`, `AUTOMATION_RULE_EXECUTE`) | Implemented by the Sections 21-33 campaign in `internal/features/analytics`. The evaluator tails each organization's committed outbox from a durable cursor and records one execution per (rule, event) — unique, so a replay never runs a rule twice; matching executions are run by the reserved `AUTOMATION_RULE_EXECUTE` job, which re-checks every action against the approved, non-protected catalogue. Registered when `AUTOMATION_RUNNER_WORKER_ENABLED` or `SECTION24_WORKERS_ENABLED` is set (both default false); rule activation additionally needs `FEATURE_AUTOMATION`. |
+| Report generator and analytics housekeeping | `analytics.Service` (`REPORT_RUN_GENERATE`, `ANALYTICS_HOUSEKEEPING`) | New: scheduled report definitions are queued per due cron slot (slot-unique), runs generate from their captured permission snapshot, results expire, and the rule-based recommendation models refresh hourly. `app.StartSection24Workers`, gated `SECTION24_WORKERS_ENABLED`. |
 | Data retention | `internal/features/retention` (new) | Report-only, scoped to Section 27's own operational tables (see "Data retention scope" below). Gated `DATA_RETENTION_WORKER_ENABLED` (default false). |
 
 ### Reassignment coordinator scope
@@ -367,10 +368,11 @@ status, counts).
    tables are deliberately DB-trigger-immutable; only Section 27's own
    operational tables are covered, permanently report-only (see "Data
    retention scope" above).
-2. **Automation rule execution** — Section 24 is not implemented; only the
-   registration boundary exists (see above). The moment Section 24 ships a
-   real rule-execution capability, `internal/features/automation`'s
-   handler is the one place to replace.
+2. **Automation rule execution** — implemented in
+   `internal/features/analytics` (Sections 21-33 campaign); see the
+   workers table above. The automation action catalogue is deliberately
+   limited to non-protected actions (raise an operational exception, queue
+   a notification intent).
 
 Both `worker_operations.*` platform routes and automatic reassignment
 candidate selection — previously listed here as gaps — are now implemented

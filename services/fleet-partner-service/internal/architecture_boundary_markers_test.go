@@ -17,7 +17,8 @@ var boundaryMarkers = map[string][]string{
 	"contracts":   {"crm"},
 	"customers":   {"crm"},
 	"wallets":     {"companywallet"},
-	"reports":     {"exports", "dashboard"},
+	"reports":     {"exports", "dashboard", "analytics"},
+	"automation":  {"analytics"},
 }
 
 var featureRef = regexp.MustCompile(`features/([a-z0-9_]+)`)

@@ -296,23 +296,35 @@ var declared = map[string][]string{
 	"/support/cases":                             {},
 
 	// Section 51 warehouse operations.
-	"/warehouse-receipts": {},
-	"/putaway-tasks": {},
-	"/pick-waves": {},
-	"/pick-tasks": {},
-	"/packing-units": {},
+	"/warehouse-receipts":                   {},
+	"/putaway-tasks":                        {},
+	"/pick-waves":                           {},
+	"/pick-tasks":                           {},
+	"/packing-units":                        {},
 	"/yard-visits/:yardVisitId/gate-events": {},
 
 	// Section 22/52 analytical finance.
-	"/receivables/ageing": {},
-	"/profitability": {"dimension", "from", "to"},
+	"/receivables/ageing":      {},
+	"/profitability":           {"dimension", "from", "to"},
 	"/profitability/snapshots": {},
-	"/cost-allocations": {},
+	"/cost-allocations":        {},
 
 	// Section 53 exceptions and preferences.
-	"/exceptions": {},
-	"/sla-breaches": {},
+	"/exceptions":               {},
+	"/sla-breaches":             {},
 	"/notification-preferences": {},
+
+	// Section 24/54 analytics.
+	"/reports":               {},
+	"/report-runs":           {},
+	"/recommendations":       {},
+	"/model-versions":        {},
+	"/automation-rules":      {},
+	"/automation-executions": {},
+
+	// Section 28/56 governance.
+	"/security-events":  {},
+	"/privacy-requests": {},
 }
 
 var schemas = buildSchemas()

@@ -149,6 +149,8 @@ var catalogueSeedTables = []string{
 	"fleet_partner_eligibility_reason_codes",
 	"fleet_partner_eligibility_policies",
 	"fleet_partner_role_permissions",
+	// Section 24 platform registry of the models behind recommendations.
+	"fleet_partner_model_versions",
 }
 
 func restoreCatalogueFromMigrations(ctx context.Context, pool *pgxpool.Pool) error {

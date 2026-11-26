@@ -186,7 +186,7 @@ func main() {
 	app.RegisterSections19To21Workers(cfg, components, jobWorker)
 	app.RegisterSections22And23Workers(cfg, components, jobWorker)
 	app.RegisterManagedSettlementDelivery(cfg, components, jobWorker)
-	app.RegisterAutomationRunner(cfg, jobWorker)
+	app.RegisterAutomationRunner(cfg, components, jobWorker)
 	app.StartDataRetentionWorker(ctx, cfg, pool, jobQueue, jobWorker, metrics, &workers)
 	app.StartCompanyWalletWorkers(ctx, cfg, pool, metrics, &workers, components.CompanyWallet)
 	// Section 14 quotation expiry, contract expiry and renewal sweeps, SLA
@@ -199,6 +199,7 @@ func main() {
 	app.StartSection17And18Workers(ctx, cfg, components, &workers)
 	app.StartSections19To21Workers(ctx, cfg, components, &workers)
 	app.StartSections22And23Workers(ctx, cfg, components, &workers)
+	app.StartSection24Workers(ctx, cfg, components, &workers)
 	app.StartManagedSettlementSweep(ctx, cfg, components, &workers)
 	app.StartSection25Workers(ctx, cfg, components, &workers)
 	app.StartSection26Workers(ctx, cfg, components, redisClient, metrics, &workers)

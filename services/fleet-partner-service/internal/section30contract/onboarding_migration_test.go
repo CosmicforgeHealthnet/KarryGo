@@ -9,6 +9,11 @@ import (
 // The latest migrations, newest first. Each down file is exercised in
 // reverse order and must remove exactly what its up file added; re-applying
 // must restore it:
+//   - 000104 privacy requests (Sections 28.5/56)
+//   - 000103 report runs, recommendations, model registry and automation
+//   - 000102 operational exceptions and notification preferences
+//   - 000101 payroll calculation hash, cost allocations, profitability snapshots
+//   - 000100 warehouse receipts, leased tasks, waves, packing, gate events
 //   - 000099 owner grants for the operating-mode permissions
 //   - 000098 TAXI as a restriction propagation authority
 //   - 000097 payment source reference on completed work and settlement
@@ -28,7 +33,7 @@ import (
 //     one; rolling it back keeps the branches (other records may reference
 //     them) and re-applying it never duplicates them.
 func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
-	if replayMigrationTip(t) != "000099_operating_mode_owner_grants" {
+	if replayMigrationTip(t) != "000104_privacy_requests" {
 		t.Fatal("review latest migration retention assertions")
 	}
 	pool := isolatedTestDatabase(t, "fleet_partner_onboarding_tip")
@@ -42,6 +47,11 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 	// role-permission table for the failure message).
 	type marker struct{ migration, table, column, check, grant string }
 	markers := []marker{
+		{"000104", "fleet_partner_privacy_requests", "", "", ""},
+		{"000103", "fleet_partner_automation_executions", "", "", ""},
+		{"000102", "fleet_partner_operational_exceptions", "", "", ""},
+		{"000101", "fleet_partner_payroll_periods", "calculation_hash", "", ""},
+		{"000100", "fleet_partner_warehouse_receipts", "", "", ""},
 		{"000099", "fleet_partner_role_permissions", "", "", "fleet_partner_foundation.manage"},
 		{"000098", "fleet_partner_restriction_operations", "", "TAXI", ""},
 		{"000097", "fleet_partner_managed_work_settlement_instructions", "payment_source_reference", "", ""},

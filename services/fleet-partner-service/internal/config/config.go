@@ -448,7 +448,14 @@ type Config struct {
 	// OperationalExceptionsEnabled and NotificationPreferencesEnabled gate the
 	// Section 53 operational exceptions and notification preferences.
 	OperationalExceptionsEnabled, NotificationPreferencesEnabled bool
-	Section22WorkersEnabled, Section23WorkersEnabled             bool
+	// Section 24/54 analytics: reports and dashboards, rule-based
+	// recommendations (FEATURE_AI_RECOMMENDATIONS, spec 67.9), automation
+	// (FEATURE_AUTOMATION) and their workers. All default off.
+	AnalyticsReportsEnabled, RecommendationsEnabled, AutomationEnabled, Section24WorkersEnabled bool
+	// Section 28/56 privacy requests and the organization security-event
+	// read model. Both default off.
+	PrivacyRequestsEnabled, SecurityEventsEnabled    bool
+	Section22WorkersEnabled, Section23WorkersEnabled bool
 
 	// Sections 6-7 Fleet partner foundations. Security and membership
 	// verification do not have rollout bypasses; these flags only gate new
@@ -884,6 +891,12 @@ func Load() (Config, error) {
 		EscalationsEnabled:                   getEnvBool("ESCALATIONS_ENABLED", false),
 		OperationalExceptionsEnabled:         getEnvBool("OPERATIONAL_EXCEPTIONS_ENABLED", false),
 		NotificationPreferencesEnabled:       getEnvBool("NOTIFICATION_PREFERENCES_ENABLED", false),
+		AnalyticsReportsEnabled:              getEnvBool("ANALYTICS_REPORTS_ENABLED", false),
+		RecommendationsEnabled:               getEnvBool("FEATURE_AI_RECOMMENDATIONS", false),
+		AutomationEnabled:                    getEnvBool("FEATURE_AUTOMATION", false),
+		Section24WorkersEnabled:              getEnvBool("SECTION24_WORKERS_ENABLED", false),
+		PrivacyRequestsEnabled:               getEnvBool("PRIVACY_REQUESTS_ENABLED", false),
+		SecurityEventsEnabled:                getEnvBool("SECURITY_EVENTS_ENABLED", false),
 		Section22WorkersEnabled:              getEnvBool("SECTION22_WORKERS_ENABLED", false),
 		Section23WorkersEnabled:              getEnvBool("SECTION23_WORKERS_ENABLED", false),
 		FleetOperatingModeEnforcementEnabled: getEnvBool("FLEET_OPERATING_MODE_ENFORCEMENT_ENABLED", true),

@@ -1,8 +1,5 @@
-// Package automation is the reserved feature boundary for organization automation rules.
-//
-// Not implemented in the foundation work package (Sections 3-7). Future
-// implementations must follow the feature layout (models, repositories,
-// usecases, http, clients), depend only on interfaces of other features,
-// enforce tenant scoping in repositories, and respect the platform
-// source-of-truth boundaries in docs/platform-boundaries.md.
+// Package automation names the Section 24/54 automation boundary. Rules,
+// versions, approval, evaluation and execution (including the reserved
+// AUTOMATION_RULE_EXECUTE job type) are implemented in features/analytics,
+// next to the reports and recommendations they share workers with.
 package automation

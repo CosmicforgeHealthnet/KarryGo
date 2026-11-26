@@ -24,6 +24,7 @@ import (
 	"sort"
 	"testing"
 
+	analyticshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/analytics/http"
 	assetshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/assets/http"
 	audithttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/audit/http"
 	auditrepositories "cosmicforge/logistics/services/fleet-partner-service/internal/features/audit/repositories"
@@ -38,6 +39,7 @@ import (
 	exportshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/exports/http"
 	financeopshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/http"
 	fuelhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/fuel/http"
+	governancehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/governance/http"
 	inspectionshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/inspections/http"
 	legalholdhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/http"
 	maintenancehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/maintenance/http"
@@ -294,6 +296,16 @@ func enumerateManifestBackedRoutes(t *testing.T) []liveRoute {
 
 	engagementH := engagementhttp.NewHandler(nil, nil, nil)
 	for _, r := range engagementH.TenantRoutes() {
+		add(tenantPrefix, r.Path, r.Method, r.Permission)
+	}
+
+	analyticsH := analyticshttp.NewHandler(nil, nil, nil)
+	for _, r := range analyticsH.TenantRoutes() {
+		add(tenantPrefix, r.Path, r.Method, r.Permission)
+	}
+
+	governanceH := governancehttp.NewHandler(nil, nil, nil)
+	for _, r := range governanceH.TenantRoutes() {
 		add(tenantPrefix, r.Path, r.Method, r.Permission)
 	}
 

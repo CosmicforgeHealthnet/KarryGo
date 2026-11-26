@@ -16,6 +16,8 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
+	analyticshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/analytics/http"
+	analyticsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/analytics/usecases"
 	approvalhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/approvals/http"
 	approvalrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/approvals/repositories"
 	approvalusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/approvals/usecases"
@@ -66,6 +68,8 @@ import (
 	fleetpartnerusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/fleetpartner/usecases"
 	fuelhttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/fuel/http"
 	fuelusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/fuel/usecases"
+	governancehttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/governance/http"
+	governanceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/governance/usecases"
 	inspectionshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/inspections/http"
 	inspectionsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/inspections/usecases"
 	integrationshttp "cosmicforge/logistics/services/fleet-partner-service/internal/features/integrations/http"
@@ -217,6 +221,8 @@ type Components struct {
 	Warehouse         *warehouseusecases.Service
 	FinanceOperations *financeopsusecases.Service
 	Engagement        *engagementusecases.Service
+	Analytics         *analyticsusecases.Service
+	Governance        *governanceusecases.Service
 	Communications    *communicationsusecases.Service
 	Marketplace       *mktusecases.Service
 	FleetPartner      *fleetpartnerusecases.Service
@@ -558,6 +564,8 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 		Warehouse:         warehouseService,
 		FinanceOperations: financeOperations,
 		Engagement:        engagementService,
+		Analytics:         NewAnalyticsService(cfg, pool, publisher, engagementService, communicationsService),
+		Governance:        NewGovernanceService(cfg, pool, publisher),
 		Communications:    communicationsService,
 		Marketplace:       BuildMarketplaceService(cfg, pool, metrics),
 		FleetPartner:      fleetPartnerService,
@@ -733,6 +741,8 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 	financeOperationsHandler := financeopshttp.NewHandler(c.FinanceOperations, c.Authorizer, c.Idempotency)
 	engagementHandler := engagementhttp.NewHandler(c.Engagement, c.Authorizer, c.Idempotency)
 	communicationsHandler := communicationshttp.NewHandler(c.Communications, c.Authorizer, c.Idempotency)
+	analyticsHandler := analyticshttp.NewHandler(c.Analytics, c.Authorizer, c.Idempotency)
+	governanceHandler := governancehttp.NewHandler(c.Governance, c.Authorizer, c.Idempotency)
 	searchHandler := searchhttp.NewHandler(c.Search, c.Authorizer)
 	exportsHandler := exportshttp.NewHandler(c.Exports, c.Authorizer, c.Idempotency)
 	synchronizationHandler := synchronization.NewHandler(c.Synchronization, c.Authorizer)
@@ -929,6 +939,8 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 		financeOperationsHandler.RegisterTenantRoutes(group)
 		engagementHandler.RegisterTenantRoutes(group)
 		communicationsHandler.RegisterTenantRoutes(group)
+		analyticsHandler.RegisterTenantRoutes(group)
+		governanceHandler.RegisterTenantRoutes(group)
 		searchHandler.RegisterTenantRoutes(group)
 		exportsHandler.RegisterTenantRoutes(group)
 		synchronizationHandler.RegisterTenantRoutes(group)

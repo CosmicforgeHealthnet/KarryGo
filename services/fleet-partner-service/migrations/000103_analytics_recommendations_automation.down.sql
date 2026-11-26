@@ -1,0 +1,12 @@
+DELETE FROM fleet_partner_role_permissions WHERE permission_code IN('reports.read','reports.create','analytics.read','recommendations.read','recommendations.decide','recommendations.generate','automation.read','automation.manage','automation.approve');
+UPDATE fleet_partner_permissions SET category='reports',description='Read corporate reports',is_active=false WHERE code='reports.read';
+DELETE FROM fleet_partner_permissions WHERE code IN('reports.create','analytics.read','recommendations.read','recommendations.decide','recommendations.generate','automation.read','automation.manage','automation.approve');
+DROP TABLE IF EXISTS fleet_partner_automation_cursors;
+DROP TABLE IF EXISTS fleet_partner_automation_executions;
+DROP TRIGGER IF EXISTS trg_fleet_automation_rule_versions_append_only ON fleet_partner_automation_rule_versions;
+DROP TABLE IF EXISTS fleet_partner_automation_rule_versions;
+DROP TABLE IF EXISTS fleet_partner_automation_rules;
+DROP TABLE IF EXISTS fleet_partner_recommendations;
+DROP TABLE IF EXISTS fleet_partner_model_versions;
+DROP TABLE IF EXISTS fleet_partner_report_runs;
+DROP TABLE IF EXISTS fleet_partner_report_definitions;

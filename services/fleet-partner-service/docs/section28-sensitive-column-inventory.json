@@ -252,6 +252,15 @@
     "justification": "already stored as a one-way hash (HMAC or equivalent); the plaintext value is never persisted, so there is nothing to encrypt or tokenize -- only equality comparison is ever needed."
   },
   {
+    "table": "fleet_partner_cost_allocations",
+    "column": "amount_minor",
+    "category": "FINANCIAL",
+    "sourceFile": "000101_finance_analysis_cost_allocation.up.sql",
+    "auditRedacted": false,
+    "disposition": "APPROVED_PLAINTEXT",
+    "justification": "an operational monetary amount (order/invoice/budget/threshold value, stored as a minor-unit integer) the business must read, sum and display directly in its own domain logic -- not a payment credential, bank detail or card number. Those are owned exclusively by payment-wallet-service and are never stored in this table."
+  },
+  {
     "table": "fleet_partner_credit_notes",
     "column": "amount_minor",
     "category": "FINANCIAL",
