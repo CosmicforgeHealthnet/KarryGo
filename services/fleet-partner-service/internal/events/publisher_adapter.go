@@ -29,5 +29,23 @@ func (p *DomainPublisher) Publish(ctx context.Context, tx pgx.Tx, eventType stri
 	if err != nil {
 		return err
 	}
-	return p.outbox.Append(ctx, tx, envelope)
+	if err = p.outbox.Append(ctx, tx, envelope); err != nil {
+		return err
+	}
+	// Section 26.2 core events are derived in the same transaction. Their
+	// payload is the minimized contract: subject, version and status only.
+	if organizationID == "" {
+		return nil
+	}
+	for _, alias := range CanonicalAliases(eventType) {
+		canonical, err := NewEnvelope(alias.EventType, 1, alias.AggregateType, aggregateID, aggregateVersion,
+			organizationID, correlationID, ContractPayload{SubjectReference: aggregateID, SourceVersion: aggregateVersion, Status: alias.Status}, false)
+		if err != nil {
+			return err
+		}
+		if err = p.outbox.Append(ctx, tx, canonical); err != nil {
+			return err
+		}
+	}
+	return nil
 }
