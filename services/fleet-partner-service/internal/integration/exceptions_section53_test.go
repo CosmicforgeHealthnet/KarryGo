@@ -52,7 +52,7 @@ func TestSection53ExceptionEscalationJourney(t *testing.T) {
 		Flags: communicationsmodels.Flags{Communications: true, NotificationRules: true, Preferences: true, Workers: true}})
 	svc := engagementusecases.NewService(engagementusecases.Options{Store: engagementrepos.NewRepository(pool), Events: publisher, Queue: queue,
 		Notifications: app.EscalationNotices(comms),
-		Flags: engagementmodels.Flags{Support: true, Quality: true, SLA: true, Escalations: true, Exceptions: true, Workers: true}})
+		Flags:         engagementmodels.Flags{Support: true, Quality: true, SLA: true, Escalations: true, Exceptions: true, Workers: true}})
 
 	in := engagementmodels.ExceptionInput{BranchID: branch, ExceptionType: "delay", Severity: "high", SourceType: "SHIPMENT", SourceReference: "shp-" + ids.New("x"), Summary: "Truck stuck at checkpoint"}
 	first, err := svc.RaiseException(ctx, scope, in)

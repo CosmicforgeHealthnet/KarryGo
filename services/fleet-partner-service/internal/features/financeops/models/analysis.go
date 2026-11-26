@@ -11,17 +11,17 @@ import (
 
 // AgeingBucket is the outstanding receivable amount in one age band.
 type AgeingBucket struct {
-	Bucket            string `json:"bucket"`
-	OutstandingMinor  int64  `json:"outstandingMinor"`
-	ReceivableCount   int64  `json:"receivableCount"`
+	Bucket           string `json:"bucket"`
+	OutstandingMinor int64  `json:"outstandingMinor"`
+	ReceivableCount  int64  `json:"receivableCount"`
 }
 
 // CurrencyAgeing is the ageing of one currency's receivables.
 type CurrencyAgeing struct {
-	Currency         string            `json:"currency"`
-	OutstandingMinor int64             `json:"outstandingMinor"`
-	Buckets          []AgeingBucket    `json:"buckets"`
-	Customers        []CustomerAgeing  `json:"customers"`
+	Currency         string           `json:"currency"`
+	OutstandingMinor int64            `json:"outstandingMinor"`
+	Buckets          []AgeingBucket   `json:"buckets"`
+	Customers        []CustomerAgeing `json:"customers"`
 }
 
 // CustomerAgeing is one customer's outstanding amount per band.
@@ -119,26 +119,26 @@ const ProfitabilityModelVersion = "profitability-v1"
 
 // ProfitabilityLine is one dimension value in one currency.
 type ProfitabilityLine struct {
-	DimensionID       string `json:"dimensionId"`
-	Currency          string `json:"currency"`
-	RevenueMinor      int64  `json:"revenueMinor"`
-	DirectCostMinor   int64  `json:"directCostMinor"`
-	AllocatedCostMinor int64 `json:"allocatedCostMinor"`
-	MarginMinor       int64  `json:"marginMinor"`
-	RevenueSources    int64  `json:"revenueSources"`
-	CostSources       int64  `json:"costSources"`
-	AllocationSources int64  `json:"allocationSources"`
+	DimensionID        string `json:"dimensionId"`
+	Currency           string `json:"currency"`
+	RevenueMinor       int64  `json:"revenueMinor"`
+	DirectCostMinor    int64  `json:"directCostMinor"`
+	AllocatedCostMinor int64  `json:"allocatedCostMinor"`
+	MarginMinor        int64  `json:"marginMinor"`
+	RevenueSources     int64  `json:"revenueSources"`
+	CostSources        int64  `json:"costSources"`
+	AllocationSources  int64  `json:"allocationSources"`
 }
 
 // ProfitabilityReport is the analysis for one dimension and period.
 type ProfitabilityReport struct {
-	Dimension    string              `json:"dimension"`
-	PeriodStart  string              `json:"periodStart"`
-	PeriodEnd    string              `json:"periodEnd"`
-	ModelVersion string              `json:"modelVersion"`
-	Method       string              `json:"method"`
-	Lines        []ProfitabilityLine `json:"lines"`
-	SnapshotSetID string             `json:"snapshotSetId,omitempty"`
+	Dimension     string              `json:"dimension"`
+	PeriodStart   string              `json:"periodStart"`
+	PeriodEnd     string              `json:"periodEnd"`
+	ModelVersion  string              `json:"modelVersion"`
+	Method        string              `json:"method"`
+	Lines         []ProfitabilityLine `json:"lines"`
+	SnapshotSetID string              `json:"snapshotSetId,omitempty"`
 }
 
 // ProfitabilityInput selects the dimension and period.
