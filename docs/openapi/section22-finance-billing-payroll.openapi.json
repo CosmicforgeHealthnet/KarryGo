@@ -1107,6 +1107,114 @@
         "x-permission": "compensation.manage"
       }
     },
+    "/fleet-partner/v1/cost-allocations": {
+      "get": {
+        "operationId": "listCostAllocations",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            },
+            "description": "Successful operation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Idempotency or version conflict"
+          }
+        },
+        "security": [
+          {
+            "CorporateBearer": []
+          }
+        ],
+        "x-auth-class": "corporate",
+        "x-expected-version-required": false,
+        "x-feature-flag": "EXPENSES_ENABLED",
+        "x-idempotency-required": false,
+        "x-permission": "cost_allocations.read"
+      },
+      "post": {
+        "operationId": "createCostAllocation",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            },
+            "description": "Successful operation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Idempotency or version conflict"
+          }
+        },
+        "security": [
+          {
+            "CorporateBearer": []
+          }
+        ],
+        "x-auth-class": "corporate",
+        "x-expected-version-required": false,
+        "x-feature-flag": "EXPENSES_ENABLED",
+        "x-idempotency-required": true,
+        "x-permission": "cost_allocations.manage"
+      }
+    },
     "/fleet-partner/v1/expenses": {
       "get": {
         "operationId": "listExpenses",
@@ -2175,6 +2283,80 @@
         "x-permission": "invoices.issue"
       }
     },
+    "/fleet-partner/v1/invoices/{invoiceId}/submit": {
+      "post": {
+        "operationId": "submitInvoice",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invoiceId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            },
+            "description": "Successful operation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Idempotency or version conflict"
+          }
+        },
+        "security": [
+          {
+            "CorporateBearer": []
+          }
+        ],
+        "x-auth-class": "corporate",
+        "x-expected-version-required": true,
+        "x-feature-flag": "INVOICES_ENABLED",
+        "x-idempotency-required": true,
+        "x-permission": "invoices.manage"
+      }
+    },
     "/fleet-partner/v1/payroll-periods": {
       "get": {
         "operationId": "listPayrollPeriods",
@@ -2637,6 +2819,162 @@
         "x-permission": "payroll.reverse"
       }
     },
+    "/fleet-partner/v1/profitability": {
+      "get": {
+        "operationId": "getProfitability",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            },
+            "description": "Successful operation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Idempotency or version conflict"
+          }
+        },
+        "security": [
+          {
+            "CorporateBearer": []
+          }
+        ],
+        "x-auth-class": "corporate",
+        "x-expected-version-required": false,
+        "x-feature-flag": "EXPENSES_ENABLED",
+        "x-idempotency-required": false,
+        "x-permission": "profitability.read"
+      }
+    },
+    "/fleet-partner/v1/profitability/snapshots": {
+      "get": {
+        "operationId": "listProfitabilitySnapshots",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            },
+            "description": "Successful operation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Idempotency or version conflict"
+          }
+        },
+        "security": [
+          {
+            "CorporateBearer": []
+          }
+        ],
+        "x-auth-class": "corporate",
+        "x-expected-version-required": false,
+        "x-feature-flag": "EXPENSES_ENABLED",
+        "x-idempotency-required": false,
+        "x-permission": "profitability.read"
+      },
+      "post": {
+        "operationId": "createProfitabilitySnapshot",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            },
+            "description": "Successful operation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Idempotency or version conflict"
+          }
+        },
+        "security": [
+          {
+            "CorporateBearer": []
+          }
+        ],
+        "x-auth-class": "corporate",
+        "x-expected-version-required": false,
+        "x-feature-flag": "EXPENSES_ENABLED",
+        "x-idempotency-required": true,
+        "x-permission": "profitability.snapshot"
+      }
+    },
     "/fleet-partner/v1/providers/{membershipId}/statements": {
       "get": {
         "operationId": "providerStatements",
@@ -2698,6 +3036,54 @@
     "/fleet-partner/v1/receivables": {
       "get": {
         "operationId": "listReceivables",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            },
+            "description": "Successful operation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Idempotency or version conflict"
+          }
+        },
+        "security": [
+          {
+            "CorporateBearer": []
+          }
+        ],
+        "x-auth-class": "corporate",
+        "x-expected-version-required": false,
+        "x-feature-flag": "RECEIVABLES_ENABLED",
+        "x-idempotency-required": false,
+        "x-permission": "receivables.read"
+      }
+    },
+    "/fleet-partner/v1/receivables/ageing": {
+      "get": {
+        "operationId": "getReceivablesAgeing",
         "parameters": [],
         "responses": {
           "200": {

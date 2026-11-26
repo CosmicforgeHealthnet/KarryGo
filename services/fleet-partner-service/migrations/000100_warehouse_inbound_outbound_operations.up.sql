@@ -148,4 +148,4 @@ INSERT INTO fleet_partner_permissions(code,category,description,is_active) VALUE
 ON CONFLICT(code) DO UPDATE SET category=excluded.category,description=excluded.description,is_active=true;
 INSERT INTO fleet_partner_role_permissions(role_id,permission_code)
 SELECT r.id,p.code FROM fleet_partner_roles r JOIN fleet_partner_permissions p ON p.code IN('warehouse_receipts.read','warehouse_receipts.manage','warehouse_tasks.read','warehouse_tasks.execute','pick_waves.manage','packing.manage','yard.gate')
-WHERE r.id IN('rol_system_owner','rol_system_operations') ON CONFLICT DO NOTHING;
+WHERE r.id IN('rol_system_owner','rol_system_operations','rol_system_warehouse') ON CONFLICT DO NOTHING;

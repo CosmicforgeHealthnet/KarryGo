@@ -170,12 +170,17 @@ func (s *Service) invoiceCommand(ctx context.Context, t tenant.Context, id, comm
 				return err
 			}
 		}
-		return s.record(ctx, tx, t, "invoice."+command+"d.v1", "invoice", id, newVersion, map[string]any{"invoiceId": id, "status": newStatus, "currency": state.Currency, "totalMinor": state.Total})
+		return s.record(ctx, tx, t, models.InvoiceCommandEvent(command), "invoice", id, newVersion, map[string]any{"invoiceId": id, "status": newStatus, "currency": state.Currency, "totalMinor": state.Total})
 	})
 	if err != nil {
 		return nil, err
 	}
 	return s.GetInvoice(ctx, t, id)
+}
+
+// SubmitInvoice moves a draft invoice to PENDING_APPROVAL (spec 58.9).
+func (s *Service) SubmitInvoice(ctx context.Context, t tenant.Context, id string, v int64) (map[string]any, error) {
+	return s.invoiceCommand(ctx, t, id, "submit", v)
 }
 
 // ApproveInvoice approves a draft invoice.

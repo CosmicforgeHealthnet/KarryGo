@@ -302,6 +302,12 @@ var declared = map[string][]string{
 	"/pick-tasks": {},
 	"/packing-units": {},
 	"/yard-visits/:yardVisitId/gate-events": {},
+
+	// Section 22/52 analytical finance.
+	"/receivables/ageing": {},
+	"/profitability": {"dimension", "from", "to"},
+	"/profitability/snapshots": {},
+	"/cost-allocations": {},
 }
 
 var schemas = buildSchemas()

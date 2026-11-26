@@ -1078,6 +1078,14 @@ var overrides = []Entry{
 	{Method: "POST", Path: "/fleet-partner/v1/integrations/webhook-deliveries/:id/replay", RiskClass: ratelimit.RiskHighRisk},
 	{Method: "GET", Path: "/fleet-partner/integrations/v1/context", RiskClass: ratelimit.RiskSensitive},
 	// --- sections 21-33 additions ---
+	// Section 22/52 invoice submission, receivables ageing, profitability and cost allocation.
+	{Method: "POST", Path: "/fleet-partner/v1/invoices/:invoiceId/submit", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/receivables/ageing", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/profitability", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/profitability/snapshots", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/profitability/snapshots", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/cost-allocations", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/cost-allocations", RiskClass: ratelimit.RiskSensitive},
 	// Section 51 warehouse receipts, leased tasks, waves, packing and gate events.
 	{Method: "GET", Path: "/fleet-partner/v1/warehouse-receipts", RiskClass: ratelimit.RiskStandard},
 	{Method: "POST", Path: "/fleet-partner/v1/warehouse-receipts", RiskClass: ratelimit.RiskSensitive},

@@ -103,6 +103,11 @@ type InvoiceState struct {
 // NextInvoiceStatus validates an approve, issue or cancel command.
 func NextInvoiceStatus(status, command string) (string, error) {
 	switch command {
+	case "submit":
+		if status != "DRAFT" {
+			return "", apperrors.Conflict("Only a draft invoice can be submitted for approval.", nil)
+		}
+		return "PENDING_APPROVAL", nil
 	case "approve":
 		if status != "DRAFT" && status != "PENDING_APPROVAL" {
 			return "", apperrors.Conflict("Invoice cannot be approved from its current state.", nil)
@@ -120,6 +125,22 @@ func NextInvoiceStatus(status, command string) (string, error) {
 		return "CANCELLED", nil
 	}
 	return "", apperrors.Validation("Unsupported invoice command.", nil)
+}
+
+// InvoiceCommandEvent is the outbox event a successful invoice command
+// emits (Section 61.8 vocabulary).
+func InvoiceCommandEvent(command string) string {
+	switch command {
+	case "submit":
+		return "invoice.pending_approval.v1"
+	case "approve":
+		return "invoice.approved.v1"
+	case "issue":
+		return "invoice.issued.v1"
+	case "cancel":
+		return "invoice.cancelled.v1"
+	}
+	return "invoice." + command + ".v1"
 }
 
 // ReceivableState is the locked state of an invoice's receivable.

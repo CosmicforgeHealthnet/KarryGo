@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -199,91 +200,28 @@ func (s *Service) CalculatePayroll(ctx context.Context, t tenant.Context, id str
 			return apperrors.Conflict("Approved payroll periods are immutable.", nil)
 		}
 		calcVersion := period.CalculationVersion + 1
-		active, err := s.o.Store.ActiveCompensationRules(ctx, tx, t.OrganizationID, period.Currency, period.Start, period.End)
+		items, err := s.computePayrollItems(ctx, tx, t.OrganizationID, id, period, calcVersion)
 		if err != nil {
 			return err
-		}
-		// CMP-027. Components already paid with a completed job's own money
-		// must not be paid a second time here. The two sides of that check are
-		// computed by different code from different tables, so payroll reads
-		// the durable record of what work settlement already paid and skips
-		// exactly those components.
-		//
-		// The completed assignments and the exclusions are read once rather
-		// than per rule: the query does not depend on the rule, and re-reading
-		// it per rule only multiplies the work.
-		var jobSources []models.SourceAssignment
-		var workSettled map[string]bool
-		jobSourcesLoaded := false
-		loadJobSources := func() error {
-			if jobSourcesLoaded {
-				return nil
-			}
-			jobSources, err = s.o.Store.CompletedAssignments(ctx, tx, t.OrganizationID, period.Branch, period.Start, period.End)
-			if err != nil {
-				return err
-			}
-			assignmentIDs := make([]string, 0, len(jobSources))
-			for _, item := range jobSources {
-				assignmentIDs = append(assignmentIDs, item.Source)
-			}
-			// Matched on the assignment rather than a time window: a job
-			// completed inside the period can be settled moments after the
-			// period ends, and a windowed read would miss it and pay it again.
-			workSettled, err = s.o.Store.WorkSettledComponents(ctx, tx, t.OrganizationID, assignmentIDs)
-			if err != nil {
-				return err
-			}
-			jobSourcesLoaded = true
-			return nil
 		}
 		count := 0
-		for _, rule := range active {
-			if rule.Skipped() {
-				continue
-			}
-			explanation := "Deterministic " + rule.Type + " rule version " + fmt.Sprint(rule.Version)
-			if rule.JobLevel() {
-				if err := loadJobSources(); err != nil {
-					return err
-				}
-				for _, item := range jobSources {
-					// Already paid with this job's own money. Paying it here
-					// as well is the double payment CMP-027 exists to stop.
-					if workSettled[item.Source+":"+rule.ID] {
-						continue
-					}
-					inputs, _ := json.Marshal(map[string]any{"assignmentId": item.Source, "assignmentVersion": item.Version, "ruleVersion": rule.Version})
-					n, err := s.o.Store.InsertCompensationItem(ctx, tx, models.CompensationItem{OrganizationID: t.OrganizationID, PeriodID: id, MembershipID: item.Member, SourceType: "COMPLETED_ASSIGNMENT", SourceReference: item.Source, RuleID: rule.ID, RuleVersion: rule.Version, CalculationVersion: calcVersion, AmountMinor: rule.Config.AmountMinor, Currency: period.Currency, ReasonCode: rule.Type, Explanation: explanation, SourceInputs: inputs})
-					if err != nil {
-						return err
-					}
-					count += int(n)
-				}
-				continue
-			}
-			memberIDs, err := s.o.Store.ActiveMemberships(ctx, tx, t.OrganizationID)
+		for _, item := range items {
+			n, err := s.o.Store.InsertCompensationItem(ctx, tx, item)
 			if err != nil {
 				return err
 			}
-			for _, member := range memberIDs {
-				inputs, _ := json.Marshal(map[string]any{"periodStart": period.Start, "periodEnd": period.End, "ruleVersion": rule.Version})
-				n, err := s.o.Store.InsertCompensationItem(ctx, tx, models.CompensationItem{OrganizationID: t.OrganizationID, PeriodID: id, MembershipID: member, SourceType: "PAYROLL_PERIOD", SourceReference: id, RuleID: rule.ID, RuleVersion: rule.Version, CalculationVersion: calcVersion, AmountMinor: rule.Config.AmountMinor, Currency: period.Currency, ReasonCode: rule.Type, Explanation: explanation, SourceInputs: inputs})
-				if err != nil {
-					return err
-				}
-				count += int(n)
-			}
+			count += int(n)
 		}
-		nv, err := s.o.Store.MarkPayrollCalculated(ctx, tx, t.OrganizationID, id, calcVersion)
+		hash := models.PayrollCalculationHash(items)
+		nv, err := s.o.Store.MarkPayrollCalculated(ctx, tx, t.OrganizationID, id, calcVersion, hash)
 		if err != nil {
 			return err
 		}
-		snapshot, _ := json.Marshal(map[string]any{"payrollPeriodId": id, "status": "CALCULATED", "calculationVersion": calcVersion, "itemCount": count})
+		snapshot, _ := json.Marshal(map[string]any{"payrollPeriodId": id, "status": "CALCULATED", "calculationVersion": calcVersion, "itemCount": count, "calculationHash": hash})
 		if err := s.o.Store.InsertPayrollHistory(ctx, tx, t.OrganizationID, id, period.Status, "CALCULATED", calcVersion, snapshot, t.ActorID, ""); err != nil {
 			return err
 		}
-		return s.record(ctx, tx, t, "payroll_period.calculated.v1", "payroll_period", id, nv, map[string]any{"payrollPeriodId": id, "calculationVersion": calcVersion, "itemCount": count, "currency": period.Currency})
+		return s.record(ctx, tx, t, "payroll_period.calculated.v1", "payroll_period", id, nv, map[string]any{"payrollPeriodId": id, "calculationVersion": calcVersion, "itemCount": count, "currency": period.Currency, "calculationHash": hash})
 	})
 	if err != nil {
 		return nil, err
@@ -309,6 +247,21 @@ func (s *Service) ApprovePayroll(ctx context.Context, t tenant.Context, id strin
 		}
 		if period.Creator == t.ActorID {
 			return apperrors.Forbidden("Payroll creator cannot approve the same period.", nil)
+		}
+		// FIN-003: approval binds to the inputs the calculation saw. The
+		// items are recomputed from the current rules, memberships and
+		// completed work; any difference from the stored calculation hash
+		// means a source changed and the period must be recalculated.
+		stored, err := s.o.Store.PayrollCalculationHash(ctx, tx, t.OrganizationID, id)
+		if err != nil {
+			return err
+		}
+		current, err := s.computePayrollItems(ctx, tx, t.OrganizationID, id, period, period.CalculationVersion)
+		if err != nil {
+			return err
+		}
+		if stored == "" || models.PayrollCalculationHash(current) != stored {
+			return apperrors.New(http.StatusConflict, "payroll_inputs_changed", "Payroll inputs changed after calculation; recalculate before approval.", nil)
 		}
 		nv, err := s.o.Store.ApprovePayrollPeriod(ctx, tx, t.OrganizationID, id, t.ActorID)
 		if err != nil {
@@ -663,4 +616,83 @@ func (s *Service) SettlementCommand(ctx context.Context, t tenant.Context, id, c
 		return nil, err
 	}
 	return s.GetSettlement(ctx, t, id)
+}
+
+// computePayrollItems derives the compensation items of one calculation
+// without writing them, so calculation and approval evaluate identical
+// inputs. It is deterministic for the same rules, memberships and completed
+// work.
+func (s *Service) computePayrollItems(ctx context.Context, tx pgx.Tx, organizationID, id string, period models.PayrollState, calcVersion int64) ([]models.CompensationItem, error) {
+	active, err := s.o.Store.ActiveCompensationRules(ctx, tx, organizationID, period.Currency, period.Start, period.End)
+	if err != nil {
+		return nil, err
+	}
+	// CMP-027. Components already paid with a completed job's own money
+	// must not be paid a second time here. The two sides of that check are
+	// computed by different code from different tables, so payroll reads
+	// the durable record of what work settlement already paid and skips
+	// exactly those components.
+	//
+	// The completed assignments and the exclusions are read once rather
+	// than per rule: the query does not depend on the rule.
+	var jobSources []models.SourceAssignment
+	var workSettled map[string]bool
+	jobSourcesLoaded := false
+	loadJobSources := func() error {
+		if jobSourcesLoaded {
+			return nil
+		}
+		jobSources, err = s.o.Store.CompletedAssignments(ctx, tx, organizationID, period.Branch, period.Start, period.End)
+		if err != nil {
+			return err
+		}
+		assignmentIDs := make([]string, 0, len(jobSources))
+		for _, item := range jobSources {
+			assignmentIDs = append(assignmentIDs, item.Source)
+		}
+		// Matched on the assignment rather than a time window: a job
+		// completed inside the period can be settled moments after the
+		// period ends, and a windowed read would miss it and pay it again.
+		workSettled, err = s.o.Store.WorkSettledComponents(ctx, tx, organizationID, assignmentIDs)
+		if err != nil {
+			return err
+		}
+		jobSourcesLoaded = true
+		return nil
+	}
+	var items []models.CompensationItem
+	var members []string
+	membersLoaded := false
+	for _, rule := range active {
+		if rule.Skipped() {
+			continue
+		}
+		explanation := "Deterministic " + rule.Type + " rule version " + fmt.Sprint(rule.Version)
+		if rule.JobLevel() {
+			if err := loadJobSources(); err != nil {
+				return nil, err
+			}
+			for _, item := range jobSources {
+				// Already paid with this job's own money. Paying it here as
+				// well is the double payment CMP-027 exists to stop.
+				if workSettled[item.Source+":"+rule.ID] {
+					continue
+				}
+				inputs, _ := json.Marshal(map[string]any{"assignmentId": item.Source, "assignmentVersion": item.Version, "ruleVersion": rule.Version})
+				items = append(items, models.CompensationItem{OrganizationID: organizationID, PeriodID: id, MembershipID: item.Member, SourceType: "COMPLETED_ASSIGNMENT", SourceReference: item.Source, RuleID: rule.ID, RuleVersion: rule.Version, CalculationVersion: calcVersion, AmountMinor: rule.Config.AmountMinor, Currency: period.Currency, ReasonCode: rule.Type, Explanation: explanation, SourceInputs: inputs})
+			}
+			continue
+		}
+		if !membersLoaded {
+			if members, err = s.o.Store.ActiveMemberships(ctx, tx, organizationID); err != nil {
+				return nil, err
+			}
+			membersLoaded = true
+		}
+		for _, member := range members {
+			inputs, _ := json.Marshal(map[string]any{"periodStart": period.Start, "periodEnd": period.End, "ruleVersion": rule.Version})
+			items = append(items, models.CompensationItem{OrganizationID: organizationID, PeriodID: id, MembershipID: member, SourceType: "PAYROLL_PERIOD", SourceReference: id, RuleID: rule.ID, RuleVersion: rule.Version, CalculationVersion: calcVersion, AmountMinor: rule.Config.AmountMinor, Currency: period.Currency, ReasonCode: rule.Type, Explanation: explanation, SourceInputs: inputs})
+		}
+	}
+	return items, nil
 }

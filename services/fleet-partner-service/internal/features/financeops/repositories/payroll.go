@@ -186,10 +186,17 @@ func (r *Repository) InsertCompensationItem(ctx context.Context, q database.Quer
 }
 
 // MarkPayrollCalculated records a calculation and returns the version.
-func (r *Repository) MarkPayrollCalculated(ctx context.Context, q database.Querier, organizationID, id string, calculationVersion int64) (int64, error) {
+func (r *Repository) MarkPayrollCalculated(ctx context.Context, q database.Querier, organizationID, id string, calculationVersion int64, calculationHash string) (int64, error) {
 	var nv int64
-	err := r.q(q).QueryRow(ctx, `UPDATE fleet_partner_payroll_periods SET status='CALCULATED',calculation_version=$3,calculated_at=now(),version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING version`, organizationID, id, calculationVersion).Scan(&nv)
+	err := r.q(q).QueryRow(ctx, `UPDATE fleet_partner_payroll_periods SET status='CALCULATED',calculation_version=$3,calculation_hash=$4,calculated_at=now(),version=version+1,updated_at=now() WHERE organization_id=$1 AND id=$2 RETURNING version`, organizationID, id, calculationVersion, calculationHash).Scan(&nv)
 	return nv, err
+}
+
+// PayrollCalculationHash reads the hash of the current calculation.
+func (r *Repository) PayrollCalculationHash(ctx context.Context, q database.Querier, organizationID, id string) (string, error) {
+	var hash string
+	err := r.q(q).QueryRow(ctx, `SELECT calculation_hash FROM fleet_partner_payroll_periods WHERE organization_id=$1 AND id=$2`, organizationID, id).Scan(&hash)
+	return hash, err
 }
 
 // InsertPayrollHistory appends a payroll transition.

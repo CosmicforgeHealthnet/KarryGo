@@ -23,6 +23,10 @@ type Route struct {
 }
 
 func TenantRoutes() []Route {
+	return append(coreRoutes(), analysisRoutes()...)
+}
+
+func coreRoutes() []Route {
 	return []Route{
 		{"GET", "/invoices", "listInvoices", "invoices.read", "INVOICES_ENABLED", "corporate", false, false}, {"POST", "/invoices", "createInvoice", "invoices.manage", "INVOICES_ENABLED", "corporate", true, false}, {"GET", "/invoices/:invoiceId", "getInvoice", "invoices.read", "INVOICES_ENABLED", "corporate", false, false}, {"PATCH", "/invoices/:invoiceId", "updateInvoice", "invoices.manage", "INVOICES_ENABLED", "corporate", true, true}, {"POST", "/invoices/:invoiceId/approve", "approveInvoice", "invoices.approve", "INVOICES_ENABLED", "corporate", true, true}, {"POST", "/invoices/:invoiceId/issue", "issueInvoice", "invoices.issue", "INVOICES_ENABLED", "corporate", true, true}, {"POST", "/invoices/:invoiceId/credit-note", "creditInvoice", "invoices.credit", "INVOICES_ENABLED", "corporate", true, true}, {"POST", "/invoices/:invoiceId/cancel", "cancelInvoice", "invoices.manage", "INVOICES_ENABLED", "corporate", true, true},
 		{"GET", "/receivables", "listReceivables", "receivables.read", "RECEIVABLES_ENABLED", "corporate", false, false}, {"GET", "/receivables/:receivableId", "getReceivable", "receivables.read", "RECEIVABLES_ENABLED", "corporate", false, false},
@@ -66,6 +70,9 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		return
 	}
 	run := func(key string) (any, error) {
+		if v, err, handled := h.analysis(c, t, r); handled {
+			return v, err
+		}
 		switch r.OperationID {
 		case "listInvoices":
 			return h.s.ListInvoices(c, t)

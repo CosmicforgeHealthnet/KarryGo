@@ -89,7 +89,8 @@ type Store interface {
 	WorkSettledComponents(ctx context.Context, q database.Querier, organizationID string, assignmentIDs []string) (map[string]bool, error)
 	ActiveMemberships(ctx context.Context, q database.Querier, organizationID string) ([]string, error)
 	InsertCompensationItem(ctx context.Context, q database.Querier, item models.CompensationItem) (int64, error)
-	MarkPayrollCalculated(ctx context.Context, q database.Querier, organizationID, id string, calculationVersion int64) (int64, error)
+	MarkPayrollCalculated(ctx context.Context, q database.Querier, organizationID, id string, calculationVersion int64, calculationHash string) (int64, error)
+	PayrollCalculationHash(ctx context.Context, q database.Querier, organizationID, id string) (string, error)
 	InsertPayrollHistory(ctx context.Context, q database.Querier, organizationID, id, previous, next string, calculationVersion int64, snapshot []byte, actorID, reason string) error
 	ApprovePayrollPeriod(ctx context.Context, q database.Querier, organizationID, id, actorID string) (int64, error)
 	ApproveCompensationItems(ctx context.Context, q database.Querier, organizationID, periodID string, calculationVersion int64) error
