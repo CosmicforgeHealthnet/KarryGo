@@ -294,6 +294,14 @@ var declared = map[string][]string{
 	"/quality/cases":                             {},
 	"/sla/measurements":                          {},
 	"/support/cases":                             {},
+
+	// Section 51 warehouse operations.
+	"/warehouse-receipts": {},
+	"/putaway-tasks": {},
+	"/pick-waves": {},
+	"/pick-tasks": {},
+	"/packing-units": {},
+	"/yard-visits/:yardVisitId/gate-events": {},
 }
 
 var schemas = buildSchemas()

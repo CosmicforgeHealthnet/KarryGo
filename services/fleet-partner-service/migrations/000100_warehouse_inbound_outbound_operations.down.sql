@@ -1,0 +1,10 @@
+DELETE FROM fleet_partner_role_permissions WHERE permission_code IN('warehouse_receipts.read','warehouse_receipts.manage','warehouse_tasks.read','warehouse_tasks.execute','pick_waves.manage','packing.manage','yard.gate');
+DELETE FROM fleet_partner_permissions WHERE code IN('warehouse_receipts.read','warehouse_receipts.manage','warehouse_tasks.read','warehouse_tasks.execute','pick_waves.manage','packing.manage','yard.gate');
+DROP TRIGGER IF EXISTS trg_fleet_gate_events_append_only ON fleet_partner_gate_events;
+DROP TABLE IF EXISTS fleet_partner_gate_events;
+DROP TABLE IF EXISTS fleet_partner_packing_units;
+DROP TABLE IF EXISTS fleet_partner_pick_tasks;
+DROP TABLE IF EXISTS fleet_partner_pick_waves;
+DROP TABLE IF EXISTS fleet_partner_putaway_tasks;
+DROP TABLE IF EXISTS fleet_partner_warehouse_receipt_lines;
+DROP TABLE IF EXISTS fleet_partner_warehouse_receipts;

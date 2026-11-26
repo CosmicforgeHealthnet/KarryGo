@@ -43,6 +43,9 @@ type Options struct {
 	Restrictions RestrictionGate
 	Flags        models.Flags
 	Now          func() time.Time
+	// TaskLease is how long a claimed put-away or pick task is held;
+	// zero means DefaultTaskLease.
+	TaskLease time.Duration
 }
 type Service struct {
 	o    Options

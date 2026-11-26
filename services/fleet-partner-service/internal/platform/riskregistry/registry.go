@@ -1077,6 +1077,32 @@ var overrides = []Entry{
 	{Method: "GET", Path: "/fleet-partner/v1/integrations/webhooks/:id/deliveries", RiskClass: ratelimit.RiskSensitive},
 	{Method: "POST", Path: "/fleet-partner/v1/integrations/webhook-deliveries/:id/replay", RiskClass: ratelimit.RiskHighRisk},
 	{Method: "GET", Path: "/fleet-partner/integrations/v1/context", RiskClass: ratelimit.RiskSensitive},
+	// --- sections 21-33 additions ---
+	// Section 51 warehouse receipts, leased tasks, waves, packing and gate events.
+	{Method: "GET", Path: "/fleet-partner/v1/warehouse-receipts", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/warehouse-receipts", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/warehouse-receipts/:receiptId", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/warehouse-receipts/:receiptId/arrive", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/warehouse-receipts/:receiptId/receive", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/warehouse-receipts/:receiptId/resolve-discrepancy", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/warehouse-receipts/:receiptId/complete", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/warehouse-receipts/:receiptId/cancel", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/putaway-tasks", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/putaway-tasks/:taskId", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/putaway-tasks/:taskId/claim", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/putaway-tasks/:taskId/complete", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/pick-waves", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/pick-waves", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/pick-waves/:waveId", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/pick-tasks", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/pick-tasks/:taskId", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/pick-tasks/:taskId/claim", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/pick-tasks/:taskId/complete", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/packing-units", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/packing-units", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/packing-units/:packingUnitId", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/yard-visits/:yardVisitId/gate-events", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/yard-visits/:yardVisitId/gate-events", RiskClass: ratelimit.RiskSensitive},
 }
 
 // index is built once from generated+overrides, keyed by "METHOD PATH".

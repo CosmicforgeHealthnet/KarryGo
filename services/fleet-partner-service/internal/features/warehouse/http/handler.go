@@ -25,6 +25,10 @@ type Route struct {
 }
 
 func TenantRoutes() []Route {
+	return append(coreRoutes(), operationsRoutes()...)
+}
+
+func coreRoutes() []Route {
 	return []Route{
 		{"GET", "/warehouses", "listWarehouses", "warehouses.read", "WAREHOUSES_ENABLED", "corporate", false, false}, {"POST", "/warehouses", "createWarehouse", "warehouses.manage", "WAREHOUSES_ENABLED", "corporate", true, false}, {"GET", "/warehouses/:warehouseId", "getWarehouse", "warehouses.read", "WAREHOUSES_ENABLED", "corporate", false, false}, {"PATCH", "/warehouses/:warehouseId", "updateWarehouse", "warehouses.manage", "WAREHOUSES_ENABLED", "corporate", false, true}, {"POST", "/warehouses/:warehouseId/archive", "archiveWarehouse", "warehouses.manage", "WAREHOUSES_ENABLED", "corporate", true, true},
 		{"GET", "/warehouses/:warehouseId/locations", "listStorageLocations", "warehouse_locations.read", "WAREHOUSES_ENABLED", "corporate", false, false}, {"POST", "/warehouses/:warehouseId/locations", "createStorageLocation", "warehouse_locations.manage", "WAREHOUSES_ENABLED", "corporate", true, false}, {"GET", "/warehouses/:warehouseId/locations/:locationId", "getStorageLocation", "warehouse_locations.read", "WAREHOUSES_ENABLED", "corporate", false, false}, {"PATCH", "/warehouses/:warehouseId/locations/:locationId", "updateStorageLocation", "warehouse_locations.manage", "WAREHOUSES_ENABLED", "corporate", false, true},
@@ -117,7 +121,7 @@ func (h *Handler) command(c *gin.Context, t tenant.Context, r Route, run func() 
 		return
 	}
 	status := http.StatusOK
-	if strings.HasPrefix(r.OperationID, "create") || strings.HasPrefix(r.OperationID, "receiveWarehouse") {
+	if strings.HasPrefix(r.OperationID, "create") || r.OperationID == "receiveWarehouseInventory" {
 		status = http.StatusCreated
 	}
 	var payload []byte
@@ -134,6 +138,8 @@ func (h *Handler) command(c *gin.Context, t tenant.Context, r Route, run func() 
 	}
 	c.Data(status, "application/json", payload)
 }
+
+var errBoundSentinel = errors.New("bound")
 
 type cmdBody struct {
 	ExpectedVersion   int64                   `json:"expectedVersion"`
@@ -152,6 +158,9 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		return
 	}
 	run := func() (any, error) {
+		if v, e, handled := h.operations(c, t, r); handled {
+			return v, e
+		}
 		switch r.OperationID {
 		case "listWarehouses":
 			return h.s.ListWarehouses(c, t)

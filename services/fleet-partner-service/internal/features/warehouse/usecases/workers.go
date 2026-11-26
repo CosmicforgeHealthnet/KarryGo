@@ -51,6 +51,11 @@ func (s *Service) handleSweep(ctx context.Context, j jobs.Job) error {
 		if e = s.repo.SweepStaleOperations(ctx, tx, p.OrganizationID); e != nil {
 			return e
 		}
+		if ops := s.ops(); ops != nil {
+			if e = ops.ReleaseExpiredTaskLeases(ctx, tx, p.OrganizationID); e != nil {
+				return e
+			}
+		}
 		for _, v := range expired {
 			s.repo.InsertReservationExpiryMovement(ctx, tx, p.OrganizationID, v)
 		}
