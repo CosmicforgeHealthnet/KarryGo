@@ -26,8 +26,12 @@ bundled migration is applied** (`database.MigrationsCurrent`). The container rep
 is at migration head `000104_privacy_requests`. This is inferred from the readiness gate; no direct SQL
 query was run against the staging database (no direct database access is used from here).
 
-A follow-up commit containing only formatting fixes and these reports redeploys the same code through the
-same workflow; its result is recorded in 09.
+## Redeployment of `dc1569ed` (formatting-only follow-up)
+
+Workflow run `45908256922`: **success**. Backup
+`/opt/karrygo/backups/predeploy/fleet-partner-service-20261126T231316Z.sql.gz`; api and worker both on revision
+`dc1569ed1fe5e115045a931a868b07afdefc417e` (sha256:6522ab0b...); API `healthy`. This is the revision running on
+staging at closure.
 
 ## Behaviour change on staging
 
