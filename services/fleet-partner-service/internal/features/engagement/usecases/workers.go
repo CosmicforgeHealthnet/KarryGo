@@ -30,6 +30,7 @@ func (s *Service) RegisterWorkers(w *jobs.Worker) {
 	w.Register(jobSLAGenerate, s.handleSLAGenerate)
 	w.Register(jobQualityFollowup, s.handleQualityFollowup)
 	w.Register(jobEscalationSchedule, s.handleEscalationSchedule)
+	w.Register(jobExceptionSLA, s.handleExceptionSLA)
 }
 
 func jobPayload(job jobs.Job) (map[string]string, error) {
@@ -54,7 +55,11 @@ func (s *Service) ScheduleMaintenance(ctx context.Context) error {
 	}
 	bucket := s.o.Now().UTC().Truncate(time.Minute).Format(time.RFC3339)
 	for _, org := range orgs {
-		for _, typ := range []string{jobSupportReconcile, jobSLAGenerate, jobQualityFollowup, jobEscalationSchedule} {
+		types := []string{jobSupportReconcile, jobSLAGenerate, jobQualityFollowup, jobEscalationSchedule}
+		if s.o.Flags.Exceptions {
+			types = append(types, jobExceptionSLA)
+		}
+		for _, typ := range types {
 			org, typ := org, typ
 			if err := s.o.Store.WithinTx(ctx, func(tx pgx.Tx) error {
 				_, err := s.o.Queue.Enqueue(ctx, tx, jobs.EnqueueRequest{OrganizationID: org, JobType: typ, DedupeKey: typ + ":" + bucket, Payload: map[string]string{"organizationId": org}, MaxAttempts: 8})

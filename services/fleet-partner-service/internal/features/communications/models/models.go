@@ -16,6 +16,7 @@ import (
 // Flags gates the communication capabilities.
 type Flags struct {
 	Communications, NotificationRules bool
+	Preferences                       bool
 	Workers, KillSwitch               bool
 }
 

@@ -1078,6 +1078,18 @@ var overrides = []Entry{
 	{Method: "POST", Path: "/fleet-partner/v1/integrations/webhook-deliveries/:id/replay", RiskClass: ratelimit.RiskHighRisk},
 	{Method: "GET", Path: "/fleet-partner/integrations/v1/context", RiskClass: ratelimit.RiskSensitive},
 	// --- sections 21-33 additions ---
+	// Section 53 operational exceptions, SLA breaches and notification preferences.
+	{Method: "GET", Path: "/fleet-partner/v1/exceptions", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/exceptions", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/exceptions/:exceptionId", RiskClass: ratelimit.RiskStandard},
+	{Method: "PATCH", Path: "/fleet-partner/v1/exceptions/:exceptionId", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/exceptions/:exceptionId/acknowledge", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/exceptions/:exceptionId/escalate", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/exceptions/:exceptionId/resolve", RiskClass: ratelimit.RiskSensitive},
+	{Method: "GET", Path: "/fleet-partner/v1/sla-breaches", RiskClass: ratelimit.RiskStandard},
+	{Method: "GET", Path: "/fleet-partner/v1/notification-preferences", RiskClass: ratelimit.RiskStandard},
+	{Method: "PATCH", Path: "/fleet-partner/v1/notification-preferences", RiskClass: ratelimit.RiskSensitive},
+	{Method: "PATCH", Path: "/fleet-partner/v1/notification-preferences/organization", RiskClass: ratelimit.RiskSensitive},
 	// Section 22/52 invoice submission, receivables ageing, profitability and cost allocation.
 	{Method: "POST", Path: "/fleet-partner/v1/invoices/:invoiceId/submit", RiskClass: ratelimit.RiskSensitive},
 	{Method: "GET", Path: "/fleet-partner/v1/receivables/ageing", RiskClass: ratelimit.RiskStandard},

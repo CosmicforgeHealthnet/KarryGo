@@ -289,3 +289,36 @@ func (r *Repository) RecordDeliveryAttempt(ctx context.Context, q database.Queri
 	_, e := r.q(q).Exec(ctx, `UPDATE fleet_partner_notification_intents SET status=$3,delivery_operation_reference=$4,attempts=attempts+1,last_error_code=$5,next_attempt_at=CASE WHEN $3 IN('FAILED','OUTCOME_UNKNOWN') THEN now()+interval '30 seconds' ELSE next_attempt_at END,updated_at=now() WHERE organization_id=$1 AND id=$2`, organizationID, intentID, status, reference, code)
 	return e
 }
+
+// UpsertPreference creates or, at the expected version, updates one
+// preference. It returns the new version; a stale version returns 0.
+func (r *Repository) UpsertPreference(ctx context.Context, q database.Querier, id, organizationID, subjectType, subjectID, eventType string, channels, quiet []byte, enabled bool, expected int64) (int64, error) {
+	var version int64
+	err := r.q(q).QueryRow(ctx, `INSERT INTO fleet_partner_notification_preferences(id,organization_id,subject_type,subject_id,event_type,channels,quiet_hours,enabled)VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+ ON CONFLICT(organization_id,subject_type,subject_id,event_type) DO UPDATE SET channels=excluded.channels,quiet_hours=excluded.quiet_hours,enabled=excluded.enabled,version=fleet_partner_notification_preferences.version+1,updated_at=now()
+ WHERE fleet_partner_notification_preferences.version=$9 RETURNING version`, id, organizationID, subjectType, subjectID, eventType, channels, quiet, enabled, expected).Scan(&version)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, nil
+	}
+	return version, err
+}
+
+// ListPreferences lists the organization defaults and the caller's own
+// preferences.
+func (r *Repository) ListPreferences(ctx context.Context, organizationID, userID string) ([]map[string]any, error) {
+	rows, err := r.pool.Query(ctx, `SELECT row_to_json(p) FROM fleet_partner_notification_preferences p WHERE organization_id=$1 AND (subject_type='ORGANIZATION' OR (subject_type='USER' AND subject_id=$2)) ORDER BY subject_type,event_type`, organizationID, userID)
+	if err != nil {
+		return nil, err
+	}
+	return jsonList(rows)
+}
+
+// PreferenceFor resolves the effective preference for a user recipient and
+// event: the user's own, else the organization default, else none.
+func (r *Repository) PreferenceFor(ctx context.Context, q database.Querier, organizationID, userID, eventType string) (channels []byte, enabled bool, found bool, err error) {
+	err = r.q(q).QueryRow(ctx, `SELECT channels,enabled FROM fleet_partner_notification_preferences WHERE organization_id=$1 AND event_type=$3 AND ((subject_type='USER' AND subject_id=$2) OR subject_type='ORGANIZATION') ORDER BY CASE subject_type WHEN 'USER' THEN 0 ELSE 1 END LIMIT 1`, organizationID, userID, eventType).Scan(&channels, &enabled)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, false, nil
+	}
+	return channels, enabled, err == nil, err
+}

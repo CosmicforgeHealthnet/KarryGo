@@ -790,6 +790,636 @@
         "x-permission": "escalations.resolve"
       }
     },
+    "/fleet-partner/v1/exceptions": {
+      "get": {
+        "operationId": "listExceptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            },
+            "description": "Successful operation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Idempotency or version conflict"
+          }
+        },
+        "security": [
+          {
+            "CorporateBearer": []
+          }
+        ],
+        "x-auth-class": "corporate",
+        "x-expected-version-required": false,
+        "x-feature-flag": "OPERATIONAL_EXCEPTIONS_ENABLED",
+        "x-idempotency-required": false,
+        "x-permission": "exceptions.read"
+      },
+      "post": {
+        "operationId": "createException",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            },
+            "description": "Successful operation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Idempotency or version conflict"
+          }
+        },
+        "security": [
+          {
+            "CorporateBearer": []
+          }
+        ],
+        "x-auth-class": "corporate",
+        "x-expected-version-required": false,
+        "x-feature-flag": "OPERATIONAL_EXCEPTIONS_ENABLED",
+        "x-idempotency-required": true,
+        "x-permission": "exceptions.manage"
+      }
+    },
+    "/fleet-partner/v1/exceptions/{exceptionId}": {
+      "get": {
+        "operationId": "getException",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "exceptionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            },
+            "description": "Successful operation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Idempotency or version conflict"
+          }
+        },
+        "security": [
+          {
+            "CorporateBearer": []
+          }
+        ],
+        "x-auth-class": "corporate",
+        "x-expected-version-required": false,
+        "x-feature-flag": "OPERATIONAL_EXCEPTIONS_ENABLED",
+        "x-idempotency-required": false,
+        "x-permission": "exceptions.read"
+      },
+      "patch": {
+        "operationId": "updateException",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "exceptionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            },
+            "description": "Successful operation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Idempotency or version conflict"
+          }
+        },
+        "security": [
+          {
+            "CorporateBearer": []
+          }
+        ],
+        "x-auth-class": "corporate",
+        "x-expected-version-required": true,
+        "x-feature-flag": "OPERATIONAL_EXCEPTIONS_ENABLED",
+        "x-idempotency-required": true,
+        "x-permission": "exceptions.manage"
+      }
+    },
+    "/fleet-partner/v1/exceptions/{exceptionId}/acknowledge": {
+      "post": {
+        "operationId": "acknowledgeException",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "exceptionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            },
+            "description": "Successful operation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Idempotency or version conflict"
+          }
+        },
+        "security": [
+          {
+            "CorporateBearer": []
+          }
+        ],
+        "x-auth-class": "corporate",
+        "x-expected-version-required": true,
+        "x-feature-flag": "OPERATIONAL_EXCEPTIONS_ENABLED",
+        "x-idempotency-required": true,
+        "x-permission": "exceptions.manage"
+      }
+    },
+    "/fleet-partner/v1/exceptions/{exceptionId}/escalate": {
+      "post": {
+        "operationId": "escalateException",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "exceptionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            },
+            "description": "Successful operation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Idempotency or version conflict"
+          }
+        },
+        "security": [
+          {
+            "CorporateBearer": []
+          }
+        ],
+        "x-auth-class": "corporate",
+        "x-expected-version-required": true,
+        "x-feature-flag": "OPERATIONAL_EXCEPTIONS_ENABLED",
+        "x-idempotency-required": true,
+        "x-permission": "exceptions.manage"
+      }
+    },
+    "/fleet-partner/v1/exceptions/{exceptionId}/resolve": {
+      "post": {
+        "operationId": "resolveException",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "exceptionId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            },
+            "description": "Successful operation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Idempotency or version conflict"
+          }
+        },
+        "security": [
+          {
+            "CorporateBearer": []
+          }
+        ],
+        "x-auth-class": "corporate",
+        "x-expected-version-required": true,
+        "x-feature-flag": "OPERATIONAL_EXCEPTIONS_ENABLED",
+        "x-idempotency-required": true,
+        "x-permission": "exceptions.resolve"
+      }
+    },
+    "/fleet-partner/v1/notification-preferences": {
+      "get": {
+        "operationId": "listNotificationPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            },
+            "description": "Successful operation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Idempotency or version conflict"
+          }
+        },
+        "security": [
+          {
+            "CorporateBearer": []
+          }
+        ],
+        "x-auth-class": "corporate",
+        "x-expected-version-required": false,
+        "x-feature-flag": "NOTIFICATION_PREFERENCES_ENABLED",
+        "x-idempotency-required": false,
+        "x-permission": "notification_preferences.manage"
+      },
+      "patch": {
+        "operationId": "saveNotificationPreference",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            },
+            "description": "Successful operation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Idempotency or version conflict"
+          }
+        },
+        "security": [
+          {
+            "CorporateBearer": []
+          }
+        ],
+        "x-auth-class": "corporate",
+        "x-expected-version-required": false,
+        "x-feature-flag": "NOTIFICATION_PREFERENCES_ENABLED",
+        "x-idempotency-required": true,
+        "x-permission": "notification_preferences.manage"
+      }
+    },
+    "/fleet-partner/v1/notification-preferences/organization": {
+      "patch": {
+        "operationId": "saveOrganizationNotificationPreference",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            },
+            "description": "Successful operation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Idempotency or version conflict"
+          }
+        },
+        "security": [
+          {
+            "CorporateBearer": []
+          }
+        ],
+        "x-auth-class": "corporate",
+        "x-expected-version-required": false,
+        "x-feature-flag": "NOTIFICATION_PREFERENCES_ENABLED",
+        "x-idempotency-required": true,
+        "x-permission": "notification_preferences.manage_organization"
+      }
+    },
     "/fleet-partner/v1/notification-rules": {
       "get": {
         "operationId": "listNotificationRules",
@@ -1211,6 +1841,54 @@
         "x-feature-flag": "QUALITY_CASES_ENABLED",
         "x-idempotency-required": true,
         "x-permission": "quality.resolve"
+      }
+    },
+    "/fleet-partner/v1/sla-breaches": {
+      "get": {
+        "operationId": "listSLABreaches",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            },
+            "description": "Successful operation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Idempotency or version conflict"
+          }
+        },
+        "security": [
+          {
+            "CorporateBearer": []
+          }
+        ],
+        "x-auth-class": "corporate",
+        "x-expected-version-required": false,
+        "x-feature-flag": "SLA_MEASUREMENTS_ENABLED",
+        "x-idempotency-required": false,
+        "x-permission": "sla.read"
       }
     },
     "/fleet-partner/v1/sla/measurements": {

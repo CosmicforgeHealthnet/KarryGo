@@ -24,6 +24,10 @@ type Route struct {
 
 // TenantRoutes lists the engagement tenant routes.
 func TenantRoutes() []Route {
+	return append(coreRoutes(), exceptionRoutes()...)
+}
+
+func coreRoutes() []Route {
 	return []Route{
 		{"GET", "/support/cases", "listSupportCases", "support.read", "SUPPORT_PROJECTIONS_ENABLED", "corporate", false, false}, {"POST", "/support/cases", "createSupportCase", "support.create", "SUPPORT_PROJECTIONS_ENABLED", "corporate", true, false}, {"GET", "/support/cases/:caseId", "getSupportCase", "support.read", "SUPPORT_PROJECTIONS_ENABLED", "corporate", false, false},
 		{"GET", "/quality/cases", "listQualityCases", "quality.read", "QUALITY_CASES_ENABLED", "corporate", false, false}, {"POST", "/quality/cases", "createQualityCase", "quality.manage", "QUALITY_CASES_ENABLED", "corporate", true, false}, {"GET", "/quality/cases/:qualityCaseId", "getQualityCase", "quality.read", "QUALITY_CASES_ENABLED", "corporate", false, false}, {"PATCH", "/quality/cases/:qualityCaseId", "updateQualityCase", "quality.manage", "QUALITY_CASES_ENABLED", "corporate", true, true}, {"POST", "/quality/cases/:qualityCaseId/resolve", "resolveQualityCase", "quality.resolve", "QUALITY_CASES_ENABLED", "corporate", true, true},
@@ -68,6 +72,9 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		return
 	}
 	run := func(key string) (any, error) {
+		if v, err, handled := h.exceptionOps(c, t, r); handled {
+			return v, err
+		}
 		switch r.OperationID {
 		case "listSupportCases":
 			return h.s.ListSupportCases(c, t)

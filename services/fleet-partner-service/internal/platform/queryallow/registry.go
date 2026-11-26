@@ -308,6 +308,11 @@ var declared = map[string][]string{
 	"/profitability": {"dimension", "from", "to"},
 	"/profitability/snapshots": {},
 	"/cost-allocations": {},
+
+	// Section 53 exceptions and preferences.
+	"/exceptions": {},
+	"/sla-breaches": {},
+	"/notification-preferences": {},
 }
 
 var schemas = buildSchemas()

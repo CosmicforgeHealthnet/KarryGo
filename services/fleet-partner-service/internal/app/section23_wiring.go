@@ -27,13 +27,13 @@ func newSection23Services(cfg config.Config, pool *pgxpool.Pool, publisher engag
 	communications := communicationsusecases.NewService(communicationsusecases.Options{
 		Store: communicationsrepos.NewRepository(pool), Events: publisher, Queue: queue, Media: media,
 		Notification: notification,
-		Flags: communicationsmodels.Flags{Communications: cfg.CommunicationsEnabled, NotificationRules: cfg.NotificationRulesEnabled,
+		Flags: communicationsmodels.Flags{Communications: cfg.CommunicationsEnabled, NotificationRules: cfg.NotificationRulesEnabled, Preferences: cfg.NotificationPreferencesEnabled,
 			Workers: cfg.Section23WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
 	engagement := engagementusecases.NewService(engagementusecases.Options{
 		Store: engagementrepos.NewRepository(pool), Events: publisher, Queue: queue, Support: support,
 		Notifications: EscalationNotices(communications),
 		Flags: engagementmodels.Flags{Support: cfg.SupportProjectionsEnabled, Quality: cfg.QualityCasesEnabled,
-			SLA: cfg.SLAMeasurementsEnabled, Escalations: cfg.EscalationsEnabled,
+			SLA: cfg.SLAMeasurementsEnabled, Escalations: cfg.EscalationsEnabled, Exceptions: cfg.OperationalExceptionsEnabled,
 			Workers: cfg.Section23WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
 	return communications, engagement
 }

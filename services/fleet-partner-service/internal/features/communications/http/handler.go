@@ -23,6 +23,10 @@ type Route struct {
 
 // TenantRoutes lists the communication tenant routes.
 func TenantRoutes() []Route {
+	return append(coreRoutes(), preferenceRoutes()...)
+}
+
+func coreRoutes() []Route {
 	return []Route{
 		{"GET", "/communications/threads", "listThreads", "communications.read", "COMMUNICATIONS_ENABLED", "corporate", false, false}, {"POST", "/communications/threads", "createThread", "communications.manage", "COMMUNICATIONS_ENABLED", "corporate", true, false}, {"GET", "/communications/threads/:threadId", "getThread", "communications.read", "COMMUNICATIONS_ENABLED", "corporate", false, false}, {"PATCH", "/communications/threads/:threadId", "updateThread", "communications.manage", "COMMUNICATIONS_ENABLED", "corporate", true, true}, {"GET", "/communications/threads/:threadId/messages", "listMessages", "communications.read", "COMMUNICATIONS_ENABLED", "corporate", false, false}, {"POST", "/communications/threads/:threadId/messages", "sendMessage", "communications.send", "COMMUNICATIONS_ENABLED", "corporate", true, false}, {"POST", "/communications/threads/:threadId/close", "closeThread", "communications.manage", "COMMUNICATIONS_ENABLED", "corporate", true, true},
 		{"GET", "/notification-rules", "listNotificationRules", "notification_rules.read", "NOTIFICATION_RULES_ENABLED", "corporate", false, false}, {"PUT", "/notification-rules", "saveNotificationRule", "notification_rules.manage", "NOTIFICATION_RULES_ENABLED", "corporate", true, true},
@@ -65,6 +69,9 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		return
 	}
 	run := func(key string) (any, error) {
+		if v, err, handled := h.preferenceOps(c, t, r); handled {
+			return v, err
+		}
 		switch r.OperationID {
 		case "listThreads":
 			return h.s.ListThreads(c, t)

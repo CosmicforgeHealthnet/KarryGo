@@ -17,6 +17,7 @@ import (
 // Flags gates the engagement capabilities.
 type Flags struct {
 	Support, Quality, SLA, Escalations bool
+	Exceptions                         bool
 	Workers, KillSwitch                bool
 }
 

@@ -243,6 +243,9 @@ func (s *Service) ListMessages(ctx context.Context, t tenant.Context, threadID s
 // the caller's transaction. It returns the intent ID.
 func (s *Service) QueueIntentTx(ctx context.Context, tx pgx.Tx, in models.IntentInput) (string, error) {
 	intentID := ids.New("nti")
+	if err := s.applyPreference(ctx, tx, &in); err != nil {
+		return "", err
+	}
 	if err := s.o.Store.InsertIntent(ctx, tx, intentID, in); err != nil {
 		return "", err
 	}
