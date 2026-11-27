@@ -126,3 +126,17 @@ was rebuilt; no new service, ledger, session store or audit history was introduc
 
 Not changed, recorded for the owners: notification-service has its own Dockerfile on the same `alpine:3.22`
 base (same OpenSSL), outside what was authorized.
+
+## Final closure, round 2 (2026-11-27, after the owner's product decisions)
+
+Starting commit `ba1959bd`. Commits: `9ad46a91` (Support/Dispute organization messages), `0102c77f`
+(Fleet privacy settings, support-case messages, bounded notification delivery), `283a7b24` (OpenSSL in
+the notification and vendor images), `73ab7ff9` (staging pairing, privacy switch, backlog evidence),
+`dd9f8681` (Section 22/23 workers on staging), `0cbe08e4` (gofmt of two new files).
+
+| Gap | What already existed (reused) | What was added |
+|---|---|---|
+| `GET/PATCH /privacy-settings` | Retention-policy store with platform minimums, retention executors, legal holds | Governance routes over that store through a port (no new table); only executor-enforced classes writable; version = sum of class row versions; strict merge patch; event `privacy_settings.updated.v1` |
+| `POST /support-cases/{id}/messages` | Fleet support-case projections and the signed Support/Dispute client; Support/Dispute chat messages with a per-case client-id index (009) | Support/Dispute organization-message create and read-back (migration 011); Fleet submission ledger without text (000106), media checks, read-back on unknown outcome, reconcile in the existing support job; event `support_message.created.v1` |
+| Notification retries without limit | Intent table already had `DEAD_LETTERED`; notification-service read-back by idempotency key | Attempt cap and maximum age in the delivery worker (read back before closing anything that may have been sent); notification-service templates for Fleet's three keys |
+| Fleet support on staging | `staging-pairings.txt` mechanism | Fleet -> Support/Dispute pair with a guard against replacing a built-in caller list |

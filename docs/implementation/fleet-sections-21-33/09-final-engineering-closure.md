@@ -1,85 +1,73 @@
 # Fleet Sections 21-33: final engineering closure
 
-Written 2026-11-27 after a read-only re-audit (01), targeted repairs (03), full verification (06),
-controlled staging activation (07) and a second read-only audit (below). This version replaces the
-closure written on 2026-11-26, whose verdicts are superseded.
+Written 2026-11-27, round 2. This version replaces the earlier 2026-11-27 closure (whose verdicts are
+superseded) after the owner decided the two open contracts, authorized the notification-backlog
+reconciliation, the remaining security deployments and authenticated testing with two staff accounts.
 
-## A. Baseline
+## A. Baseline and final commits
 
-- Starting commit: `59a2a00f` on `staging`, no concurrent work. Fleet ran `dc1569ed` on staging at
-  migration `000104`, with every Sections 21-33 switch off.
-- Two CI gates were red (Section 31 govulncheck, Admin Bridge Trivy), and a third blocker was hidden
-  behind the first.
-- The specification was reconciled route by route: 99 catalogue routes against 871 mounted routes.
+- Starting commit: `ba1959bd` on `staging`, no concurrent work. Fleet ran `d5409a21` at migration `000105`.
+- Commits this round: `9ad46a91`, `0102c77f`, `283a7b24`, `73ab7ff9`, `dd9f8681`, `0cbe08e4`, plus this
+  documentation commit. Final code commit: `0cbe08e4`.
 
-## B. Repair decisions
+## B. Audit findings and decisions (round 2)
 
-| Item | Specification | Finding | Decision | Code changed |
-|---|---|---|---|---|
-| Short pick | 51.2 | Replanning is not required; the order dead-ended and the order-level PICK re-recorded stock | Guard PICK; allow CANCEL from PICKING once no task is open, with a balancing RELEASE movement | Yes (`f38b8305`) |
-| `/security/sessions` (+ revoke) | 59.10 | Missing organization capability | Governance routes over the auth session store (port; no new store), `security.manage` | Yes (`f4fe0df9`) |
-| `/audit-events` | 56.3, 59.10 | `/audit-logs` is the same contract; the spec names it consistently | Thin alias, same handler | Yes (`f4fe0df9`) |
-| `POST /sessions/{id}/revoke` | 56.3 | Command form of the existing DELETE | Thin alias | Yes (`f4fe0df9`) |
-| AI recommendations | 24, 54.2 | Every required field present; rules-based is allowed | Keep | No |
-| Report events | 54.4 | `report.ready/failed` never emitted | Emit in the same transaction, once | Yes (`2b820123`) |
-| Legal-hold events | 56.4 | Audited only | Emit `legal_hold.applied/released` | Yes (`2b820123`) |
-| `audit.recorded`, `security.risk_detected` | 56.4 | The first would duplicate the audit history; no risk engine is defined | Not built; recorded | No |
-| `/privacy-settings` | 59.10 | No field definition anywhere (absent from the Section 57 schema) | Not built: would mean inventing the contract | No |
-| `/support-cases/{id}/messages` | 59.10 | Platform support belongs to support-dispute-service (23.1) | Not built: needs a cross-service contract | No |
-| About 45 path differences | 51.3-59.10 | The spec names the same routes differently in different sections; capabilities exist | Keep current paths | No |
-| Fleet image OpenSSL | 28.3, 33.2 | Same vulnerable base; no gate scanned it | Patch fleet's own Dockerfile | Yes (`ad478ab2`) |
-| Shared image OpenSSL | 33.2 | Admin Bridge gate | Patch, owner-authorized (9-service redeploy) | Yes (`c85fb5be`) |
-| Media OpenTelemetry | 31 | GO-2026-6974, hidden | Bump to released v1.47.0, owner-authorized | Yes (`b4f0c77a`) |
-| Dispatch/Hauling websocket | 31 | GO-2026-6278; not exploitable at runtime; only an untagged fix exists | Bump, owner-authorized; new Hauling socket test | Yes (`d5409a21`, `befb4c33`) |
-| Staging switches | 33.1 | All off | Enable Sections 21-28 groups; keep wallet-posting and notification-backlog workers off | Yes (`b92ecf79`) |
+| Item | Finding (verified, not taken from earlier reports) | Decision | Commit |
+|---|---|---|---|
+| `GET/PATCH /privacy-settings` | No contract in the spec; the retention-policy store, retention executors and legal holds already exist and are enforced | Owner decision: expose only enforced controls. A versioned view over the retention store (four executor-enforced classes writable, six protected classes read-only, platform minimums and legal holds unchanged) | `0102c77f` |
+| `POST /support-cases/{id}/messages` | Support/Dispute already owns organization cases and chat messages (with a per-case client-id index) but had no organization-scoped, idempotent message contract | Minimal contract in Support/Dispute (create + read-back by client id); Fleet keeps a text-free submission ledger | `9ad46a91`, `0102c77f` |
+| Notification backlog | Evidence run `45973177043`: **zero** intents, Section 22/23 jobs, posting operations and escalations. The earlier "backlog since 2026-11-13" was wrong. Real defects: failed intents retried every 30 s forever; notification-service lacked all three Fleet templates | Attempt cap, maximum age with read-back before closing, templates migration 012 | `0102c77f` |
+| Section 22 workers | Only wallet read-backs and Fleet-owned updates; expense posting needs an accounting service that does not exist | Enabled; no money can move | `dd9f8681` |
+| notification-service OpenSSL | Own image on `alpine:3.22` with 3.5.9-r0 | Patched; deployed `73ab7ff9`, 3.5.9-r2 in build log | `283a7b24` |
+| vendor-service OpenSSL | Same base, missed earlier | Patched; image build verified by Vendor CI. Deploy needs the gated vendor release (independent reviewer) | `283a7b24` |
+| Dispatch websocket | Still runs `8f992eee` (pre-fix). `deploy-service.sh` refuses every Dispatch deploy until a separately reviewed change lifts the 070 hold; the 070 transition script refuses to run again now that 070-079 are applied | Not deployed: no approved post-070 procedure exists | - |
+| Pairing safety | Pairing would have replaced a callee's built-in caller list | Guard added and tested; Support/Dispute lists callers explicitly, all kept | `73ab7ff9` |
 
-## C. Exact counts (re-derived from the repository)
+## C. Exact counts
 
 | Item | Count |
 |---|---|
-| Commits for Sections 21-33 on `staging` | 17 (`a1fc7371`, `0c1cbab2`, `421b70a2`, `19607d23`, `ae9c641e`, `dc1569ed`, `59a2a00f`, `f38b8305`, `2b820123`, `f4fe0df9`, `ad478ab2`, `c85fb5be`, `b4f0c77a`, `d5409a21`, `b92ecf79`, `befb4c33`, plus this documentation commit) |
-| New tenant routes | 72 (warehouse 24, finance 7, exceptions/SLA 8, preferences 3, analytics 20, governance 8, aliases 2) |
-| New migrations | 6 (`000100`-`000105`), all reversible; head `000105_security_session_management` |
-| New tables | 22 (no table added in final closure) |
-| New permissions | 29 (28 + `security.manage`) |
-| New durable job kinds | 5, plus the warehouse sweep |
-| Spec events newly produced | 7 core (26.2) + `report_run.ready/failed`, `legal_hold.applied/released`, `security.session_revoked` |
-| Services changed outside Fleet | 4 by owner-authorized dependency fixes only (shared image, media, Dispatch, Hauling); no business logic |
-| Full fleet suite (local and CI) | 100 packages, 0 failures |
+| New tenant routes (Sections 21-33) | 75 (72 + `GET/PATCH /privacy-settings` + support-case messages) |
+| Fleet migrations | `000100`-`000106`, all reversible; staging head `000106` |
+| Other migrations this round | Support/Dispute `011` (idempotent, down keeps messages); notification `012` (templates) |
+| Full Fleet suite (local, real PostgreSQL) | 100 packages, 0 failures |
+| govulncheck | every module in `go.work` scanned without stopping; 0 called vulnerabilities |
 
-## D. Second read-only audit (after all changes)
-
-1. **Scope**: of the 44 files changed since `59a2a00f`, 34 are Fleet. The rest are the authorized
-   dependency fixes (2 Dispatch, 3 Hauling incl. a test, 2 media, the shared Dockerfile), one staging
-   switch list and one repo-root OpenAPI file. No frontend file changed.
-2. **No duplication**: no new session store, audit history, ledger or table; the only migration in final
-   closure seeds one permission.
-3. **Earlier sections still compatible**: the full fleet suite, including the Section 5-20 contract and
-   integration suites, passes; the auth `DELETE /sessions/:id` and `/audit-logs` behave as before.
-4. **Contracts**: OpenAPI parity, route coverage, risk, query-allowlist, object-authorization and
-   pre-activation registries all pass with the new routes.
-5. **Migrations**: replay, rollback and reapply through `000105` pass; staging reports head `000105`.
-6. **Security**: new routes refuse anonymous callers on staging (401); session management refuses
-   branch-scoped callers and other tenants; govulncheck clean on every module; all ten rebuilt images
-   carry OpenSSL 3.5.9-r2.
-7. **Claims**: every claim in 01-08 links to a test, a run ID or a probe result.
-
-## E. Remaining items, separated by kind
+## D. Remaining items, by kind
 
 | Kind | Item |
 |---|---|
-| Genuine unimplemented requirement (needs a decision, not just code) | `/privacy-settings` (no contract defined); `/support-cases/{id}/messages` (cross-service contract with support-dispute-service) |
-| Specification-compliant behaviour, accepted | Rules-based recommendations; short pick resolved by cancellation, not automatic replanning; current paths where the spec names a route two ways |
+| External authorization | Dispatch websocket fix deployment (needs a reviewed change to the 070 deploy hold); vendor image deployment (gated vendor release with an independent reviewer); notification migration 012 on staging (notification starts with `MIGRATION=false`; needs an approved migration run) |
+| Staging data dependency | The only organization is `UNDER_REVIEW`, so the Section 22/23 schedulers enqueue nothing and pre-activation rules block most operational writes until it is activated by Verification |
 | Deliberately not built | `audit.recorded` (would duplicate the audit history), `security.risk_detected` (no risk engine specified) |
-| Missing test evidence | `-race` not run; worker activity on staging evidenced only by the running container |
-| External authorization blockers | Authenticated live journeys need staff sign-in (OTP inbox access) and two distinct staff identities; `SECTION23_WORKERS_ENABLED` needs an owner decision about the notification backlog before SLA escalation can run on staging; Dispatch's websocket fix reaches its staging runtime only when its owner deploys Dispatch; notification-service has its own Dockerfile on the same vulnerable OpenSSL base (not authorized here) |
-| Deferred by plan | Platform-wide authenticated end-to-end certification |
+| Missing test evidence | `-race` (no C compiler on this host); Support/Dispute database tests run only in CI |
+| Authenticated live journeys | See E |
+
+## E. Authenticated staging testing
+
+Prepared and pending the account owner's one-time codes: the trusted origin was confirmed by a CORS
+preflight, sign-in is the existence check (an unknown email gets `sign_in_unavailable` and no email), and
+a local client keeps tokens out of logs and the repository. Results are recorded here once run.
 
 ## F. Verdicts
 
 | Verdict | Answer | Evidence or blocker |
 |---|---|---|
-| **SECTIONS_21_33_ENGINEERING_COMPLETE** | **YES**, except the two contract gaps in E (`/privacy-settings`, support-case messages), which need a product and cross-service decision rather than more code | All other mandatory requirements implemented and tested (02, 06) |
-| **SECTIONS_21_33_RELEASE_GATES_GREEN** | **YES** | Every workflow green on the final code commit `befb4c33`, including Section 31 mandatory acceptance (`45949687541`), Admin Bridge (`45949687535`) and Customer V4 certification (`45949687656`). This documentation commit changes no code. |
-| **SECTIONS_21_33_STAGING_INTEGRATION_COMPLETE** | **PARTIAL** | Done: deployed on `d5409a21` (healthy, migration head `000105`), capabilities active, workers running, routes live and protected. Not done: Section 23 workers left off pending the notification-backlog decision, so SLA escalation does not run on staging; no authenticated staging check |
-| **SECTIONS_21_33_LIVE_E2E_CERTIFIED** | **NO** | No authenticated journey has run; needs signed-in staff with inbox access and two distinct identities |
+| **SECTIONS_21_33_ENGINEERING_COMPLETE** | **YES** | Every mandatory route, contract, event, permission, worker and recovery path implemented and tested; the two former contract gaps are built (B, 02) |
+| **SECTIONS_21_33_RELEASE_GATES_GREEN** | **YES** | Every workflow green on the final code commit `0cbe08e4` (G) |
+| **SECTIONS_21_33_STAGING_INTEGRATION_COMPLETE** | **PARTIAL** | Done: deployed `0cbe08e4`/`73ab7ff9`, migrations applied, privacy settings and support messages live and protected, Support/Dispute paired, Section 22/23 workers on. Not done: notification migration 012 not applied; no active organization, so workers have nothing to process; Dispatch and vendor security images not deployed (authorization) |
+| **SECTIONS_21_33_LIVE_E2E_CERTIFIED** | **NO** (pending E) | No authenticated journey has run yet |
+
+## G. CI on the final code commit `0cbe08e4`
+
+| Workflow | Run | Result |
+|---|---|---|
+| Section 31 mandatory acceptance (gofmt, govulncheck over every module, full module suites) | `45985568691` | success |
+| Vendor Sections 46-48 gates (incl. vendor image build, OpenSSL 3.5.9-r2) | `45985569083` | success |
+| Deployment safety acceptance (incl. pairing tests) | `45985568732` | success |
+| Customer V4 backend certification | `45985568758` | success |
+| Admin bridge Sections 2-5 / Admin 16-38 / Admin owner reads and Dispatch safety | `45985568705`, `45985568697`, `45985568849` | success |
+| Fleet authentication v2 / Partner Web split / Email branding | `45985568807`, `45985568709`, `45985568708` | success |
+| Deploy staging (automatic) / read-only evidence | `45985568753`, `45988729997` | success |
+
+The first push (`73ab7ff9`) failed Section 31 and the Vendor gate only on gofmt of two new files, fixed in `0cbe08e4`.

@@ -19,7 +19,7 @@ Rules every client must follow:
 
 The **Flag** column is the route manifest's flag label. Two differ from their environment variable:
 `RECOMMENDATIONS_ENABLED` is switched by `FEATURE_AI_RECOMMENDATIONS`, and `AUTOMATION_ENABLED` by `FEATURE_AUTOMATION`.
-All 72 routes are listed below; full request/response schemas are in the OpenAPI files named in 04.
+All 75 routes are listed below; full request/response schemas are in the OpenAPI files named in 04.
 
 | Method | Path | Operation | Permission | Flag | Idempotent | Version |
 |---|---|---|---|---|---|---|
@@ -93,6 +93,9 @@ All 72 routes are listed below; full request/response schemas are in the OpenAPI
 | GET | `/privacy-requests/:requestId` | getPrivacyRequest | privacy.manage | PRIVACY_REQUESTS_ENABLED |  |  |
 | POST | `/privacy-requests/:requestId/decisions` | decidePrivacyRequest | privacy.decide | PRIVACY_REQUESTS_ENABLED | yes | yes |
 | POST | `/privacy-requests/:requestId/complete` | completePrivacyRequest | privacy.manage | PRIVACY_REQUESTS_ENABLED | yes | yes |
+| GET | `/privacy-settings` | getPrivacySettings | privacy.manage | PRIVACY_SETTINGS_ENABLED |  |  |
+| PATCH | `/privacy-settings` | updatePrivacySettings | privacy.manage | PRIVACY_SETTINGS_ENABLED | yes | yes (If-Match required) |
+| POST | `/support/cases/:caseId/messages` | createSupportMessage | support.manage | SUPPORT_PROJECTIONS_ENABLED | yes |  |
 | GET | `/audit-events` | listAuditEvents | audit.read | (always on) |  |  |
 | POST | `/sessions/:sessionId/revoke` | revokeSession (own session) | (signed-in user, own sessions only) | (always on) |  |  |
 
@@ -109,3 +112,29 @@ All 72 routes are listed below; full request/response schemas are in the OpenAPI
 - `POST /security/sessions/:sessionId/revoke` needs `{"reason": "..."}` (required, up to 500 characters) and an
   `Idempotency-Key`. Revoking an already-ended session succeeds without change. A session of another
   organization answers 404.
+
+## Privacy settings (added in final closure)
+
+- `GET /privacy-settings` returns `organizationId`, `version`, `legalHoldsOverrideRetention` (always true),
+  `retention` and `protectedRetention`. Both are maps keyed by retention class; each value has
+  `retentionDays`, `platformMinimumDays`, `configurable` and `executionAvailable`. Only the four classes in
+  `retention` (TEMPORARY, OPERATIONAL, SUPPORT, COMPANY_CONFIDENTIAL) can be changed; `protectedRetention`
+  (FINANCIAL, PAYROLL, SAFETY_EVIDENCE, INCIDENT_EVIDENCE, COMPLIANCE, AUDIT) is read-only.
+- `PATCH /privacy-settings` is a JSON Merge Patch: `{"retention":{"OPERATIONAL":{"retentionDays":120}}}`.
+  `If-Match` with the current `version` is **required** (`0` is a valid version before the first change);
+  a missing header is 400 and a stale one 409. Any other field, or a protected/unknown class, is 422; a value
+  below `platformMinimumDays` (or above 36500) is 422. Branch-scoped users get 403. The response is the full
+  resource with the new `version`. A change made through `/retention-policies` also moves `version`.
+
+## Support-case messages (added in final closure)
+
+- `POST /support/cases/:caseId/messages` (`caseId` is the local projection id or the support case id):
+  `{"clientMessageId":"<uuid>","text":"...","fileIds":["..."],"visibility":"SHARED"}`. `visibility` is
+  `SHARED` (default: the organization and platform support) or `INTERNAL` (platform support only). At most
+  10 files, each uploaded through media-file-service, owned by the organization and scanned clean
+  (otherwise 403).
+- Generate `clientMessageId` once per message and reuse it on every retry. The same id with the same body
+  returns the same message; with a different body, 409.
+- **503 means the outcome is unknown**: retry with the same `clientMessageId`; the message is never posted
+  twice. The response `status` is `CONFIRMED` once support has the message; it carries `supportMessageId`,
+  `text` and `postedAt`.

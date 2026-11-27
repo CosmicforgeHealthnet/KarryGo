@@ -39,3 +39,14 @@ appropriate to each area (owner always; warehouse/finance/compliance/analyst/ope
 Every migration has a down file. `TestMigrationsReplayAndRollback` applies all, rolls back, verifies
 the down files actually remove their objects, and reapplies, against a real PostgreSQL 18.
 The 000103 down file restores the earlier inactive `reports.read` permission row rather than deleting it.
+
+## Final closure, round 2
+
+| Item | Change |
+|---|---|
+| Fleet routes | `GET/PATCH /privacy-settings` (privacy.manage, `PRIVACY_SETTINGS_ENABLED`), `POST /support/cases/:caseId/messages` (support.manage, `SUPPORT_PROJECTIONS_ENABLED`). Total new tenant routes: 75. OpenAPI: `docs/openapi/section28-56-governance.openapi.json`, `docs/openapi/section23-communications-support-sla.openapi.json` (both generated; parity tests pass). |
+| Fleet migration | `000106_support_case_messages` (reversible): `fleet_partner_support_case_messages` (submission ledger, unique per organization, case and client message id; no message text) and the `support.manage` permission for owner, operations and compliance roles. Head is now `000106`. |
+| Support/Dispute routes | `POST /admin/organization-cases/:id/messages`, `GET /admin/organization-cases/:id/messages/by-client-id/:clientMessageId` (caller `fleet-partner-service`). |
+| Support/Dispute migration | `011_organization_case_messages` (idempotent): `visibility`, `file_ids`, `request_hash`, sender `organization_user`. Down script keeps every message. |
+| notification-service migration | `012_fleet_corporate_templates`: `fleet.escalation.due`, `fleet.communication.message`, `fleet.automation.notice` (in-app and websocket only). |
+| Fleet settings | `PRIVACY_SETTINGS_ENABLED`, `FLEET_NOTIFICATION_INTENT_MAX_ATTEMPTS` (8), `FLEET_NOTIFICATION_INTENT_MAX_AGE_SECONDS` (86400). |

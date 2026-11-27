@@ -112,3 +112,27 @@ automation approval by a second person, privacy requests, session revocation) we
 signed-in staff, which means OTP delivery to an inbox this session can read and, for separation of duties,
 two distinct staff identities. Neither is available here. Worker activity after activation is evidenced
 only by the worker running on the new revision; its logs were not read.
+
+## Final closure, round 2 (2026-11-27)
+
+| Step | Run | Result |
+|---|---|---|
+| Read-only evidence before changes | `45971479853` | Fleet `d5409a21`; Support/Dispute lists its callers explicitly (incl. Fleet); Dispatch still `8f992eee` (pre websocket fix); notification `ef9e5b39` (unpatched OpenSSL) |
+| Backlog evidence (aggregates only) | `45973177043` | **No** notification intents, Section 22/23 jobs, posting operations or escalations exist on staging. The earlier statement that a backlog had been queued since 2026-11-13 was wrong. One Fleet organization, `UNDER_REVIEW`. Fleet templates absent from notification-service. |
+| Deploy (automatic) `73ab7ff9` | `45973177045` | Fleet, Support/Dispute and notification healthy on `73ab7ff9`; every image `openssl-runtime libssl3/libcrypto3 3.5.9-r2` |
+| Fleet settings: `PRIVACY_SETTINGS_ENABLED` | `45973176981` | success |
+| Pairing Fleet -> Support/Dispute | `45981913711` | new shared secret generated on the server; Support/Dispute's six other callers kept; `SUPPORT_PROJECTIONS_ENABLED` and Fleet's Support/Dispute URL set; all touched services healthy |
+| Fleet settings: `SECTION22_WORKERS_ENABLED`, `SECTION23_WORKERS_ENABLED` | `45983930377` | success, Fleet API and worker healthy 11:02:37 UTC |
+| Deploy (automatic) `0cbe08e4` (formatting only) | `45985568753` | success |
+| Read-only evidence after | `45988729997` | Fleet API and worker on `0cbe08e4`, migration head `000106` (106 applied); Support/Dispute and notification on `73ab7ff9` |
+
+Live anonymous probe: `GET` and `PATCH /fleet-partner/v1/privacy-settings` and
+`POST .../support/cases/{id}/messages` answer 401; an unknown path 404; `/health` and `/ready` 200.
+
+Worker behaviour: the Section 22/23 schedulers enqueue work per **active** organization. Staging's only
+organization is `UNDER_REVIEW`, so no Section 22/23 job has run yet (evidence `45988729997` shows none);
+they will start once an organization is activated.
+
+Not applied: notification-service starts with `MIGRATION=false` on staging, so its migration 012 (Fleet
+templates) is in the image but has not run; until an approved migration run applies it, Fleet notices are
+refused with "template not found" and dead-lettered after 8 attempts (no loop, no email).

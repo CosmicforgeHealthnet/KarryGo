@@ -78,3 +78,13 @@ set; all defaulted off.
 - Money: payment-wallet-service; Fleet's finance features are projections and posting instructions.
 - Staging settings: changed only through `deploy/platform/fleet-staging-modules.txt` and its gated
   workflow (backup, health wait, automatic restore).
+
+## Appendix: round-2 audit (2026-11-27, before editing)
+
+Re-derived from code and read-only staging evidence, not from earlier reports: privacy settings had no
+contract but the retention store, executors and legal holds existed; Support/Dispute had organization cases
+and chat messages but no organization-scoped idempotent message contract; there was **no** notification
+backlog on staging (the earlier claim was wrong) while failed intents would have retried forever and the
+Fleet templates were missing; the Section 22 workers cannot move money; notification and vendor images
+carried the vulnerable OpenSSL; Dispatch still ran the pre-fix websocket build with no approved post-070
+deploy path. Decisions and fixes are in 03 and 09.

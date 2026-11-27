@@ -49,7 +49,7 @@ handler. Everything else is matched by capability.
 | Exceptions, SLA escalation, breaches, notification preferences | DONE | `TestSection53ExceptionEscalationJourney` |
 | Quality reviews | PATH DIFFERS | `/quality/cases` |
 | Support cases (create with organization context) | PRE-EXISTING | `/support/cases` (the path Section 23.1 itself uses) |
-| `POST /support-cases/{id}/messages` (59.10) | NOT BUILT | Platform support cases belong to support-dispute-service (Section 23.1). Relaying messages needs a new cross-service contract; recorded as a future expansion. |
+| `POST /support-cases/{id}/messages` (59.10) | DONE (`0102c77f`, `9ad46a91`) | `POST /support/cases/:caseId/messages` (support.manage). Support/Dispute stays the message store (new organization-message create and read-back by client message id, migration 011); Fleet keeps a submission ledger without text (migration 000106). Files checked with media-file-service; one message per client id; unknown outcomes read back, never resent; `support_message.created.v1` once. Tests: `TestSupportCaseMessagesSubmitOnceAndReconcile`, `TestOrganizationMessages`, `TestOrganizationCaseMessagesMigrationAndRepository`, `TestSupportCaseAdapterMessageContract`. |
 
 ## Section 24 / 54 - Analytics and automation
 
@@ -82,7 +82,7 @@ handler. Everything else is matched by capability.
 | Legal holds, privacy requests, security events | DONE | |
 | Events `legal_hold.applied/released` (56.4) | DONE (**fixed**) | were audited only; now published (asserted) |
 | Events `audit.recorded`, `security.risk_detected` (56.4) | NOT BUILT | `audit.recorded` would copy every audit row onto the outbox, duplicating the append-only audit history; no risk engine or `session_risk_records` contract is defined |
-| `GET/PATCH /privacy-settings` (59.10) | NOT BUILT | No field definition anywhere in the specification (absent from the Section 57 schema catalogue); building it would mean inventing the contract |
+| `GET/PATCH /privacy-settings` (59.10) | DONE (`0102c77f`) | Owner decision: privacy settings expose only enforced privacy controls. A versioned view over the existing retention-policy store: the four executor-enforced classes are writable, protected classes are read-only, platform minimums and legal holds still apply; If-Match required (version = sum of class row versions); `privacy_settings.updated.v1` once per change. Test: `TestPrivacySettingsViewTheEnforcedRetentionPolicy`, `TestPrivacySettingsOfferOnlyEnforcedRetentionClasses`. |
 
 ## Sections 29-33
 

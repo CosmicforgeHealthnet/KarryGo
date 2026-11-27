@@ -49,3 +49,17 @@ fleet-partner-owned. Specifically:
   Dispatch's existing 15 socket tests and a new Hauling socket test pass on the new websocket version.
 - **Not integrated (recorded)**: support-case messages to support-dispute-service (needs a new
   cross-service contract); the Section 23 notification delivery worker stays off on staging (see 07).
+
+## Final closure, round 2
+
+- **Support/Dispute** is now called for organization-case messages over the same signed client Fleet
+  already used for cases. It remains the only message store; Fleet records submissions only. An unknown
+  outcome is resolved by reading the message back by client id; Fleet never resends on its own because it
+  does not keep the text. Staging pairing generated a new shared secret on the server (run
+  `45981913711`); Support/Dispute's six other callers were kept.
+- **media-file-service** validates each attachment (organization ownership, completed upload, clean scan)
+  with the existing metadata contract.
+- **notification-service** now holds the three Fleet template keys; previously every Fleet intent would
+  have been refused. Fleet never sends a recipient email, so these notices are in-app and websocket only.
+- **payment-wallet-service**: the Section 22 workers only read postings back by idempotency key. Expense
+  posting targets an accounting service that does not exist in the platform and fails closed.

@@ -82,3 +82,24 @@ failure). `befb4c33` points the test at the Redis the gate provides.
 
 - `-race` (no C compiler on this Windows host; CI does not run it for these modules either).
 - Authenticated live journeys on staging (see 07 and 09).
+
+## Final closure, round 2 (2026-11-27)
+
+New tests, all run against real PostgreSQL unless noted:
+
+| Test | Proves |
+|---|---|
+| `TestPrivacySettingsViewTheEnforcedRetentionPolicy` | Flag off is 404; defaults (version 0, 4 configurable, 6 protected); refusals (missing If-Match 400, protected/unknown class, below minimum, missing days, empty patch 422, branch-scoped 403); a two-class patch lands in the retention store; stale If-Match 409; a `/retention-policies` write invalidates the version; a no-op patch writes nothing; one event and one audit record; another tenant untouched; HTTP: 403 without `privacy.manage`, strict merge patch (read-only fields 422), quoted If-Match accepted |
+| `TestPrivacySettingsOfferOnlyEnforcedRetentionClasses` (unit) | Configurable classes equal the retention executors' classes; protected classes valid and disjoint |
+| `TestSupportCaseMessagesSubmitOnceAndReconcile` | Validation, unknown and foreign case 404, unscanned/foreign/missing file 403 (nothing sent); one create per client id, replay by either case id, different body 409; six concurrent submissions give one ledger row and one event (a mutation removing the confirm guard makes this fail with 2-3 events); definite refusal then resubmission; lost response resolved by read-back without a second create; reconcile confirms a landed message and closes a never-received one after an hour without resending |
+| `TestSupportCaseAdapterMessageContract` (httptest) | Signed create and read-back paths, body and response mapping |
+| `TestNotificationIntentBacklogIsClosedNotReplayed` | Stale never-sent intent closed as expired with no call; stale intent held by notification-service recorded as accepted without resubmission; stale unknown intent never received closed as expired; failing read-back closed as unverified at the cap; refusal at the cap dead-lettered; closed intents never retried |
+| `TestOrganizationMessages` (Support/Dispute, unit) | Validation, organization scoping, exactly-once, conflict on a different body, read-back, INTERNAL hidden from complainant reads |
+| `TestOrganizationCaseMessagesMigrationAndRepository` (Support/Dispute, CI database) | 011 re-run no-op, checks refuse bad rows, six concurrent inserts store one row, INTERNAL filtering, down keeps every message, reapply |
+| `TestFleetCorporateTemplatesAreInAppAndReferenceOnly` (notification) | All three keys present, no email/push/SMS channel, no interpolation, operator edits preserved |
+| `scripts/release/test_staging_pairing.py` | Support pair keeps existing callers; refuses to replace a built-in caller list (Linux CI) |
+| Migration-tip contract | Replay, rollback and reapply through `000106` |
+
+Full Fleet suite locally: 100 packages, 0 failures. Support/Dispute and notification suites pass, apart from
+two local-only artifacts on this Windows checkout that CI does not see: the pairing tests depend on Linux
+`stat`, and notification's `009_campaigns.sql` is CRLF in the working tree (unchanged file).
