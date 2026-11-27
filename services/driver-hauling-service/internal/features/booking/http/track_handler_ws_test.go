@@ -46,12 +46,11 @@ func (r trackRepo) GetByIDForCustomer(_ context.Context, id, customerID string) 
 // enforced, upgrade, the initial frame, relay of a published fix, client
 // close ending the stream, and a clean reconnect.
 func TestTrackSocket_AuthUpgradeRelayCloseAndReconnect(t *testing.T) {
-	addr := os.Getenv("HAULING_TEST_REDIS_ADDR")
+	// JOURNEY_TEST_REDIS_ADDR is the disposable Redis this service's other
+	// live-tracking tests use (the certification gate provides it).
+	addr := os.Getenv("JOURNEY_TEST_REDIS_ADDR")
 	if addr == "" {
-		addr = os.Getenv("FLEET_PARTNER_TEST_REDIS_ADDR")
-	}
-	if addr == "" {
-		t.Skip("set HAULING_TEST_REDIS_ADDR to run the tracking socket test against Redis")
+		t.Skip("set JOURNEY_TEST_REDIS_ADDR to run the tracking socket test against Redis")
 	}
 	rdb := redis.NewClient(&redis.Options{Addr: addr})
 	t.Cleanup(func() { _ = rdb.Close() })
