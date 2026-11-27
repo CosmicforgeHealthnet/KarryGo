@@ -19,7 +19,7 @@ Rules every client must follow:
 
 The **Flag** column is the route manifest's flag label. Two differ from their environment variable:
 `RECOMMENDATIONS_ENABLED` is switched by `FEATURE_AI_RECOMMENDATIONS`, and `AUTOMATION_ENABLED` by `FEATURE_AUTOMATION`.
-All 68 routes are listed below; full request/response schemas are in the OpenAPI files named in 04.
+All 72 routes are listed below; full request/response schemas are in the OpenAPI files named in 04.
 
 | Method | Path | Operation | Permission | Flag | Idempotent | Version |
 |---|---|---|---|---|---|---|
@@ -86,8 +86,26 @@ All 68 routes are listed below; full request/response schemas are in the OpenAPI
 | POST | `/automation-rules/:ruleId/disable` | disableAutomationRule | automation.approve | AUTOMATION_ENABLED | yes | yes |
 | GET | `/automation-executions` | listAutomationExecutions | automation.read | AUTOMATION_ENABLED |  |  |
 | GET | `/security-events` | listSecurityEvents | security_events.read | SECURITY_EVENTS_ENABLED |  |  |
+| GET | `/security/sessions` | listOrganizationSessions | security.manage | SECURITY_SESSIONS_ENABLED |  |  |
+| POST | `/security/sessions/:sessionId/revoke` | revokeOrganizationSession | security.manage | SECURITY_SESSIONS_ENABLED | yes |  |
 | GET | `/privacy-requests` | listPrivacyRequests | privacy.manage | PRIVACY_REQUESTS_ENABLED |  |  |
 | POST | `/privacy-requests` | createPrivacyRequest | privacy.manage | PRIVACY_REQUESTS_ENABLED | yes |  |
 | GET | `/privacy-requests/:requestId` | getPrivacyRequest | privacy.manage | PRIVACY_REQUESTS_ENABLED |  |  |
 | POST | `/privacy-requests/:requestId/decisions` | decidePrivacyRequest | privacy.decide | PRIVACY_REQUESTS_ENABLED | yes | yes |
 | POST | `/privacy-requests/:requestId/complete` | completePrivacyRequest | privacy.manage | PRIVACY_REQUESTS_ENABLED | yes | yes |
+| GET | `/audit-events` | listAuditEvents | audit.read | (always on) |  |  |
+| POST | `/sessions/:sessionId/revoke` | revokeSession (own session) | (signed-in user, own sessions only) | (always on) |  |  |
+
+## Notes on the new governance routes
+
+- `GET /audit-events` returns exactly what `GET /audit-logs` returns (same filters: `branchId`, `actorType`,
+  `actorId`, `action`, `resourceType`, `resourceId`, `requestId`, `correlationId`, `highRiskOnly`, `from`,
+  `to`, `cursor`, `limit`). Existing consumers of `/audit-logs` need no change.
+- `POST /sessions/:sessionId/revoke` behaves exactly like `DELETE /sessions/:sessionId` and only reaches the
+  caller's own sessions. Both stay supported.
+- `GET /security/sessions` lists the organization's staff sessions (newest first, at most 200). Each item:
+  `id`, `organizationId`, `organizationUserId`, `status`, `deviceLabel`, `lastSeenAt`, `createdAt`,
+  `revokedAt`, `revocationReason`, `current` (true for the caller's own session). Branch-scoped users get 403.
+- `POST /security/sessions/:sessionId/revoke` needs `{"reason": "..."}` (required, up to 500 characters) and an
+  `Idempotency-Key`. Revoking an already-ended session succeeds without change. A session of another
+  organization answers 404.

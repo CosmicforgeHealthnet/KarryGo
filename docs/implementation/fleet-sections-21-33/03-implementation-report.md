@@ -84,3 +84,45 @@ New switches, all default off (`.env.example`): `ANALYTICS_REPORTS_ENABLED`,
 `PRIVACY_REQUESTS_ENABLED`, `SECURITY_EVENTS_ENABLED`, `OPERATIONAL_EXCEPTIONS_ENABLED`,
 `NOTIFICATION_PREFERENCES_ENABLED`. Deploying the code therefore changes no behaviour until a switch is
 turned on.
+
+---
+
+# Final-closure repairs (2026-11-27)
+
+Every change below came out of the read-only re-audit (01) and is the smallest correction found. Nothing
+was rebuilt; no new service, ledger, session store or audit history was introduced.
+
+| Commit | Change | Spec | Why it was needed |
+|---|---|---|---|
+| `f38b8305` | Order-level PICK refuses wave orders; CANCEL recovers a PICKING order once no pick task is open, releasing reservations with a balancing RELEASE movement | 51.2 | A short-picked order dead-ended, and the old PICK path recorded stock as picked twice |
+| `2b820123` | `report_run.ready/failed.v1` and `legal_hold.applied/released.v1` published in the transaction of the change | 54.4, 56.4 | Required events were never produced |
+| `f4fe0df9` | `GET /security/sessions`, `POST /security/sessions/:id/revoke`; aliases `GET /audit-events`, `POST /sessions/:id/revoke`; migration `000105` (`security.manage`) | 59.10, 56.3 | Organization session management was missing; the spec's audit and revoke paths were absent |
+| `ad478ab2` | Fleet runtime image upgrades OpenSSL to 3.5.9-r2 with a build-time floor check | 28.3, 33.2 | CVE-2026-124709; no gate scanned the fleet image |
+| `c85fb5be` | Same patch in the shared `services/Dockerfile` (owner-authorized) | 33.2 | Admin Bridge Trivy gate |
+| `b4f0c77a` | media-file-service OpenTelemetry v1.45.0 -> v1.47.0 (owner-authorized) | 31, 33.2 | GO-2026-6974, hidden behind the first failing module |
+| `d5409a21`, `befb4c33` | gorilla/websocket v1.5.3 -> v1.5.4-0.20240701034025-d67f41855da4 in Dispatch and Hauling (owner-authorized); new Hauling tracking-socket test | 31, 33.2 | GO-2026-6278 |
+| `b92ecf79` | Staging capability switches for Sections 21-28 | 33.1 | Completed features were off on staging |
+
+## Organization session management, in detail
+
+- Governance owns the routes; it reaches the auth feature's `SessionRepository` through a
+  `SessionAuthority` port adapted in the composition root (`internal/app/governance_sessions.go`).
+- Listing returns the organization's sessions only, newest first, never token or network hashes, and marks
+  the caller's own session. Branch-scoped callers are refused (staff sessions are organization-level).
+- Revocation locks the session family (the same advisory lock refresh rotation takes), revokes the
+  family's active credentials **scoped to this organization only**, appends session history, writes an
+  audit entry carrying the human reason and publishes `security.session_revoked.v1`, all in one
+  transaction. A repeat is a no-op. A session of another organization answers 404.
+- Access tokens stop working on the next request: the auth middleware already checks session status.
+- `SECURITY_SESSIONS_ENABLED` gates the routes. `security.manage` is granted to owners and administrators.
+
+## Cross-service changes and their blast radius
+
+| Change | Services affected | How it reached staging |
+|---|---|---|
+| Shared Dockerfile OpenSSL | 9 shared-image services auto-deployed (media, wallet, verification, customer, taxi, hauling, support, referral, pricing); api-gateway, partner-web, admin, dispatch and analytics stay manual-deploy | `deploy-staging-auto.yml`, each with a pre-deploy database backup and automatic rollback; all healthy |
+| Media OpenTelemetry | media-file-service | same run |
+| Websocket | Hauling (auto-deployed); Dispatch (manual-deploy: the fix is in CI, not yet on the Dispatch staging runtime) | same run for Hauling |
+
+Not changed, recorded for the owners: notification-service has its own Dockerfile on the same `alpine:3.22`
+base (same OpenSSL), outside what was authorized.

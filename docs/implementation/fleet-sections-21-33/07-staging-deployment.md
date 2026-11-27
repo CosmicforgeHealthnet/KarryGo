@@ -44,3 +44,71 @@ workers do not run.
 - No switch was turned on in staging settings: those files live on the server, are owner-controlled,
   and changing them is an owner action, not a code change.
 - No live end-to-end exercise with real staging users.
+
+---
+
+# Final closure: deployment, activation and runtime evidence (2026-11-27)
+
+## Deployment of `d5409a21` (code) - run `45947752384`, success
+
+Ten services rebuilt and deployed by `deploy-staging-auto.yml` (Fleet for its own changes; nine through
+the owner-authorized shared-Dockerfile patch; media also for its OpenTelemetry bump). Each was backed up
+first and reported healthy; no rollback happened.
+
+| Service | Pre-deploy backup | Healthy on |
+|---|---|---|
+| media-file-service | `media-file-service-20261127T055940Z.sql.gz` | `d5409a21` |
+| payment-wallet-service | `payment-wallet-service-20261127T060012Z.sql.gz` | `d5409a21` |
+| verification-compliance-service | (no database container on the host) | `d5409a21` |
+| fleet-partner-service | `fleet-partner-service-20261127T060129Z.sql.gz` | `d5409a21` |
+| customer-service | `customer-service-20261127T060156Z.sql.gz` | `d5409a21` |
+| driver-taxi-service | `driver-taxi-service-20261127T060220Z.sql.gz` | `d5409a21` |
+| driver-hauling-service | `driver-hauling-service-20261127T060238Z.sql.gz` | `d5409a21` |
+| support-dispute-service | `support-dispute-service-20261127T060300Z.sql.gz` | `d5409a21` |
+| referral-service | `referral-service-20261127T060321Z.sql.gz` | `d5409a21` |
+| pricing-service | `pricing-service-20261127T060339Z.sql.gz` | `d5409a21` |
+
+Every one of the ten image builds printed `openssl-runtime libssl3 3.5.9-r2` and
+`openssl-runtime libcrypto3 3.5.9-r2` from the build-time floor check.
+
+Not redeployed by design: api-gateway, partner-web-service, admin-backoffice-service,
+driver-dispatch-delivery-service and analytics-service are manual-deploy services. Dispatch's websocket fix
+is therefore in CI and in the image it will next build, but not yet on its staging runtime.
+
+The follow-up commit `befb4c33` (Hauling test-only) redeployed through run `45949687555`, success.
+
+## Capability activation - run `45949687696`, success
+
+Applied through `fleet-staging-modules.yml` (authorized initiator, settings backup, health wait, automatic
+restore on failure). Fleet API and worker reported healthy with the new settings at 06:12:19 UTC.
+
+| Switched on | Left off, and why |
+|---|---|
+| `OPERATIONAL_EXCEPTIONS_ENABLED`, `NOTIFICATION_PREFERENCES_ENABLED`, `ANALYTICS_REPORTS_ENABLED`, `FEATURE_AI_RECOMMENDATIONS`, `FEATURE_AUTOMATION`, `PRIVACY_REQUESTS_ENABLED`, `SECURITY_EVENTS_ENABLED`, `SECURITY_SESSIONS_ENABLED`, `SECTION21_WORKERS_ENABLED`, `SECTION24_WORKERS_ENABLED` (warehouse, fulfilment, yard and finance read flags were already on) | `SECTION22_WORKERS_ENABLED` (expense posting and posting reconciliation call the wallet); `SECTION23_WORKERS_ENABLED` (would deliver every notification intent queued since 2026-11-13 at once to real staging inboxes, and SLA escalation depends on it); `SUPPORT_PROJECTIONS_ENABLED` (no support-dispute credentials on staging); finance posting, wallet allocations and withdrawals (unchanged) |
+
+The post-change report (names and booleans only) shows each switch on as listed and the left-off ones absent.
+
+## Runtime evidence - read-only run `45950455856` (06:15 UTC)
+
+| Item | Value |
+|---|---|
+| `karrygo-fleet-partner-api` | running, healthy, revision `d5409a21419f9c6be592f2154aaadd9651eea1b9`, started 06:12:13 (activation restart) |
+| `karrygo-fleet-partner-worker` | running, revision `d5409a21...` (the container defines no health check) |
+| Release image | `ghcr.io/cosmicforgehealthnet/fleet-partner-service:d5409a21...` |
+| Migration head | `000105_security_session_management` (105 applied), read from `fleet_partner_schema_migrations` |
+| Settings file | mode 600, owned by the deploy account (contents never read) |
+
+## Live probe of the deployed API (unauthenticated, `https://fleet-api.staging.karryam.com`)
+
+`/health` 200 and `/ready` 200. `GET /fleet-partner/v1/security/sessions`,
+`POST .../security/sessions/{id}/revoke`, `GET .../audit-events`, `POST .../sessions/{id}/revoke`,
+`GET .../report-runs` and `GET .../exceptions` all answer **401** to an anonymous caller, while an unknown
+path answers 404: the new routes are mounted and refuse unauthenticated access.
+
+## Not done on staging
+
+Authenticated journeys (warehouse receive/put-away/pick, invoice and payroll, exception escalation,
+automation approval by a second person, privacy requests, session revocation) were not run: they need
+signed-in staff, which means OTP delivery to an inbox this session can read and, for separation of duties,
+two distinct staff identities. Neither is available here. Worker activity after activation is evidenced
+only by the worker running on the new revision; its logs were not read.

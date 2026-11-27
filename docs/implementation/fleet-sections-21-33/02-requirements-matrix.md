@@ -1,75 +1,94 @@
 # Fleet Sections 21-33: requirements matrix
 
-Status values: **DONE** (code + test), **PRE-EXISTING** (implemented before this work and re-verified),
-**PARTIAL** (implemented with a stated limitation), **NOT BUILT** (with reason).
+Re-audited on 2026-11-27 against the full specification text (Part I Sections 21-33 and the binding
+Part II catalogues 51.3-56.3 and 59.8-59.10) and the 871 mounted routes. Status values:
 
-## Section 21 / Contract 51 - Warehouse, fulfilment, yard, dock
+- **DONE**: implemented and proven by a test.
+- **PRE-EXISTING**: implemented before this campaign and re-verified.
+- **PATH DIFFERS**: the capability exists under another path; the specification itself names the same
+  route differently in two places, so the path cannot be binding on its own (examples below).
+- **NOT BUILT**: with the reason.
 
-| Requirement | Status | Evidence |
-|---|---|---|
-| Inbound receipt with expected lines, arrive / receive / resolve discrepancy / complete / cancel | DONE | `warehouse/usecases/inbound_outbound.go`, `TestSection51WarehouseJourney` |
-| Received quantity posts to the stock ledger; over/under receipt raises a discrepancy that must be resolved before completion | DONE | same |
-| Put-away tasks with leased claim, scan validation of bin, lease expiry release | DONE | `workers.go`, journey test |
-| Pick waves over released fulfilment orders, pick tasks, short pick recorded | PARTIAL | Short pick is recorded and the order is held; automatic replanning of the shortfall is not implemented, an operator re-releases. |
-| Packing units limited to picked quantity | DONE | journey test |
-| Gate events (append-only, ordered: check-in before dock, dock before check-out) | DONE | migration 000100 trigger, journey test |
-| Yard / dock appointments | PRE-EXISTING | `section19_21contract` |
+## How the path question was settled
 
-## Section 22 / Contract 52 - Finance
+The specification contradicts itself on paths: Section 51.3 says `/warehouse/receipts`, Section 59.8 says
+`/warehouse-receipts`; Section 52.3 says `/payroll/periods`, Section 59.9 says `/payroll-periods`;
+Section 23.1 says `/support/cases`, Sections 53.3 and 59.10 say `/support-cases`. A route was therefore
+added under the specification's name only where every mention agrees and no equivalent exists. Two cases
+met that bar (`/audit-events`, `POST /sessions/{id}/revoke`); both are thin aliases over the existing
+handler. Everything else is matched by capability.
 
-| Requirement | Status | Evidence |
-|---|---|---|
-| Payroll calculation fingerprint; approval refuses changed inputs (409 `payroll_inputs_changed`) | DONE | `models/payroll_hash.go`, `TestSection52FinanceAnalysis` |
-| Invoice submit command; correct `invoice.cancelled.v1` event name | DONE | `usecases/invoices.go`, `models/rules.go` |
-| Receivables ageing (CURRENT, 1-30, 31-60, 61-90, over 90), per currency and customer | DONE | `TestAgeingBucketsAndCurrencyIsolation` |
-| Profitability (revenue, direct cost, allocated cost, margin) and immutable snapshots | DONE | migration 000101 append-only trigger |
-| Cost allocation (MANUAL or EVEN split, exact minor units, remainder assigned deterministically) | DONE | `TestProfitabilityMarginAndSplitEven` |
-| Ledger authority stays in payment-wallet-service | DONE | No ledger tables added; finance reads are projections. |
-
-## Section 23 / Contract 53 - Communication, support, quality, SLA
+## Section 21 / 51 - Warehouse
 
 | Requirement | Status | Evidence |
 |---|---|---|
-| Operational exception register with dedupe per source, update / acknowledge / escalate / resolve | DONE | `engagement/usecases/exceptions.go`, `TestSection53ExceptionEscalationJourney` |
-| SLA due time, automatic escalation by durable job, breach list | DONE | job `SECTION23_EXCEPTION_SLA`, `/sla-breaches` |
-| Notification preferences (personal and organization), mandatory channels cannot be suppressed | DONE | `communications/models/preferences.go` (`NarrowChannels` test), applied inside `QueueIntentTx` |
-| Notification failure does not lose the exception | DONE | integration test with failing notifier |
+| Receipts: expected, received, damaged, quarantined; discrepancy blocks completion | DONE | `TestSection51WarehouseJourney` |
+| Put-away and pick tasks leased, scan-validated (source, destination, item, quantity) | DONE | same |
+| Concurrent picking cannot allocate the same units twice | DONE | WH-003 concurrent release |
+| Stock changes only through append-only movements | DONE | movement immutability check; **fixed**: the order-level PICK command no longer re-picks a wave order (see 03) |
+| Short pick | DONE | Spec requires no replanning (it is never mentioned). Fixed the real defect: the order dead-ended. Now cancellable once no task is open; picked units return to stock with a balancing RELEASE movement. Covered end to end, and the test fails on the old code. |
+| Zones/bins (`/warehouses/{id}/zones`, `/bins`, `/warehouse-zones`, `/storage-bins`) | PATH DIFFERS | typed storage locations (`ZONE`, `BIN`, ...) under `/warehouses/:id/locations` |
+| Inventory items, stock, adjustments | PATH DIFFERS | `/inventory`, `/inventory/receipts`, `/inventory/movements` (`ADJUSTMENT`) |
+| Warehouse tasks | PATH DIFFERS | `/putaway-tasks`, `/pick-tasks` (claim/complete) |
+| Dock overlap, yard state order, returns disposition | PRE-EXISTING / DONE | `section19_21contract`, gate-event ordering test |
 
-## Section 24 / Contract 54 - Analytics, reporting, AI, automation
+## Section 22 / 52 - Finance
 
 | Requirement | Status | Evidence |
 |---|---|---|
-| Dashboards (executive, operations, finance, fleet, warehouse, workforce, sla, customers) with allowlisted filters, branch-scoped | DONE | `analytics/http/handler.go`, `TestSection24AnalyticsRecommendationsAutomationAndGovernance` |
-| Report definitions, scheduled (cron) and on-demand runs, results expire | DONE | jobs `REPORT_RUN_GENERATE`, `ANALYTICS_HOUSEKEEPING` |
-| Report runs freeze the requester's permissions at request time | DONE | `permissions` column on run, enforced on read |
-| Recommendations: explainable, versioned model registry, human decision with expected version, expiry | DONE (rules-based) | `usecases/recommendations.go`; no trained model |
-| Automation rules: draft -> submit -> approve (separation of duties) -> active -> disabled; versions append-only | DONE | `usecases/automation.go`, SoD test |
-| Rule evaluation from committed outbox events, exactly once per (rule, trigger), loop guard | DONE | unique `(rule_id, trigger_ref)`, `sourceType=AUTOMATION_EXECUTION` skip |
-| Allowed actions limited to raise exception and queue notification | DONE | `models.AutomationActions` |
+| Payroll calculation fingerprint; changed inputs refuse approval | DONE | `TestSection52FinanceAnalysis` |
+| Payroll finalize / allocate | PATH DIFFERS | `approve` / `post` |
+| Credit notes, expense decisions, provider allocations approve/cancel | PATH DIFFERS | `/invoices/:id/credit-note`, `/expenses/:id/approve|reject`, `/providers/:id/sub-wallet/allocations/:id/approve|reject` |
+| Ageing, profitability, cost allocation | DONE | unit + integration tests |
+| Wallet remains the ledger authority | DONE | no ledger tables; postings via payment-wallet-service |
+
+## Section 23 / 53 - Communication, support, SLA
+
+| Requirement | Status | Evidence |
+|---|---|---|
+| Exceptions, SLA escalation, breaches, notification preferences | DONE | `TestSection53ExceptionEscalationJourney` |
+| Quality reviews | PATH DIFFERS | `/quality/cases` |
+| Support cases (create with organization context) | PRE-EXISTING | `/support/cases` (the path Section 23.1 itself uses) |
+| `POST /support-cases/{id}/messages` (59.10) | NOT BUILT | Platform support cases belong to support-dispute-service (Section 23.1). Relaying messages needs a new cross-service contract; recorded as a future expansion. |
+
+## Section 24 / 54 - Analytics and automation
+
+| Requirement | Status | Evidence |
+|---|---|---|
+| Reports with permission and filter snapshots, async runs, expiry | DONE | `TestSection24AnalyticsRecommendationsAutomationAndGovernance` |
+| Report events `report.ready` / `report.failed` (54.4) | DONE (**fixed**) | were never emitted; now published once with the state change (asserted) |
+| Recommendations: input references, model/version, confidence, explanation, human decision, no protected writes | DONE | all fields present (migration 000103); rules-based, which 54.2 permits |
+| Automation: approved catalogue, separation of duties, exactly once, loop guard | DONE | same test |
+| `/reports/{id}/runs`, `/scheduled-reports`, `/automation-rules/{id}/enable|activate` | PATH DIFFERS | `/reports/:id/run`, schedule on the report definition, `approve` |
 
 ## Sections 25-27
 
 | Requirement | Status | Evidence |
 |---|---|---|
-| Files, search, imports, exports | PRE-EXISTING | `section25contract` |
-| Section 26.2 core events produced | DONE | `internal/events/canonical.go`, `canonical_test.go` |
-| Durable jobs for every new background workflow | DONE | see 03 |
+| Files, search, imports, exports, API clients, webhooks | PRE-EXISTING / PATH DIFFERS | `section25contract`; API clients and webhooks under `/integrations/...`; uploads under `/documents/upload-requests` |
+| Section 26.2 core events | DONE | `internal/events/canonical.go` |
+| Durable jobs | DONE | five job kinds plus warehouse sweep |
 
-## Section 28 / Contract 56 - Security, privacy, audit
+## Section 28 / 56 - Security, privacy, audit
 
 | Requirement | Status | Evidence |
 |---|---|---|
-| Tenant security-event feed | DONE | `GET /security-events` |
-| Privacy requests (EXPORT, ERASURE, RECTIFICATION, RESTRICTION), response window, decision with SoD, legal hold blocks erasure | DONE | `features/governance`, `TestSection24AnalyticsRecommendationsAutomationAndGovernance` (governance part) |
-| Audit events endpoint | PRE-EXISTING | Served as `/audit-logs`; no separate `/audit-events` alias added. |
-| Admin session management (`/security/sessions`) | NOT BUILT | Platform-admin surface, outside the tenant service scope of this work; recorded as follow-up. |
+| `GET /security/sessions`, `POST /security/sessions/{id}/revoke` (59.10) | DONE (**new**) | over the auth feature's session store; organization-scoped, reasoned, audited, `security.session_revoked` event; integration test |
+| `GET /sessions` (self) | PRE-EXISTING | auth feature |
+| `POST /sessions/{id}/revoke` (56.3) | DONE (alias) | same handler as `DELETE /sessions/:id` |
+| `GET /audit-events` (56.3 and 59.10) | DONE (alias) | same handler, filters, permission as `/audit-logs`; router test proves identical output |
+| `POST /security/step-up` | PATH DIFFERS | two-phase `/auth/step-up/start` + `/verify` (an OTP challenge cannot be one call) |
+| Retention policies / actions | PATH DIFFERS | `PUT /retention-policies/:class`, `/retention-runs` |
+| Legal holds, privacy requests, security events | DONE | |
+| Events `legal_hold.applied/released` (56.4) | DONE (**fixed**) | were audited only; now published (asserted) |
+| Events `audit.recorded`, `security.risk_detected` (56.4) | NOT BUILT | `audit.recorded` would copy every audit row onto the outbox, duplicating the append-only audit history; no risk engine or `session_risk_records` contract is defined |
+| `GET/PATCH /privacy-settings` (59.10) | NOT BUILT | No field definition anywhere in the specification (absent from the Section 57 schema catalogue); building it would mean inventing the contract |
 
 ## Sections 29-33
 
 | Requirement | Status | Evidence |
 |---|---|---|
 | Reliability, observability, DR | PRE-EXISTING | `section29contract` |
-| Reversible migrations, compatibility | DONE | 000100-000104 replay/rollback test; `section30contract` tip `000104` |
-| Testing strategy | DONE | 06-test-certification.md |
-| WP20 warehouse, WP21 finance, WP22 communication/SLA, WP23 analytics/automation, WP24 governance | DONE (with the PARTIAL / NOT BUILT rows above) | commits listed in 03 |
-| Release gates | See 09 | |
+| Reversible migrations | DONE | 000100-000105 replay/rollback; tip test at `000105` |
+| Mandatory tests | DONE | see 06 |
+| Release gates | DONE | all workflows green on the final code; see 09 |

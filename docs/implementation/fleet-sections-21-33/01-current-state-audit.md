@@ -36,3 +36,45 @@ and a test proved it. Comments, boundary markers and registered-but-unproduced e
 - "AI" recommendations are deterministic, explainable rules with a versioned model registry, not a
   trained model. The spec permits this ("explainable, versioned, human-approved"); it is stated
   explicitly so nobody assumes ML exists.
+
+---
+
+# Re-audit before final closure (2026-11-27)
+
+A second, read-only audit was done before any further change, starting from `staging` at `59a2a00f`
+(no concurrent commits). It used the full specification text, recovered from the session record because
+no copy existed on disk, and compared every route in the Sections 51.3-56.3 and 59.8-59.10 catalogues
+against the 871 mounted routes (from the risk registry, which a test forces to match every manifest).
+
+## Corrections to the first closure report
+
+| First report said | Re-audit found |
+|---|---|
+| Fleet's image inherits the shared-Dockerfile OpenSSL vulnerability | Fleet builds from its **own** Dockerfile on the same `alpine:3.22` base, so it carried the same vulnerable OpenSSL, but changing it does not touch other services. No scanner gate covered the fleet image at all. |
+| Short pick "needs replan" | The spec never requires replanning. The real defect was worse: a short-picked order could not be packed, waved or cancelled, and the order-level PICK command would record its stock as picked a second time. |
+| `/security/sessions` is a platform-admin capability | Section 59.10 makes it an organization capability (`security.manage`, "organization user sessions"). It was missing. |
+| `/audit-events` not needed | Sections 56.3 and 59.10 agree on the name; `/audit-logs` is the same contract, so a thin alias was justified. |
+| Two red gates | Three blockers. The Section 31 scan stops at the first failing module (Dispatch), so it never reached Hauling (same websocket finding) or media-file-service (GO-2026-6974, OpenTelemetry). |
+
+## Original CI failures at the baseline
+
+| Workflow | Cause |
+|---|---|
+| Section 31 mandatory acceptance, `static-and-contract` | govulncheck GO-2026-6278 (gorilla/websocket v1.5.3) in Dispatch; Hauling and media-file-service hidden behind it |
+| Admin Bridge Sections 2-5 | Trivy HIGH CVE-2026-124709 (OpenSSL 3.5.9-r0) in the shared runtime image |
+
+## Staging state at the baseline
+
+Fleet was deployed at `dc1569ed` (docs-only commit `59a2a00f` on top) and healthy at migration `000104`. The last applied capability
+snapshot (2026-11-13, `fleet-staging-modules.yml`) predates Sections 21-33, so none of their switches was
+set; all defaulted off.
+
+## Ownership confirmed during the re-audit
+
+- Sessions: one table, `fleet_partner_corporate_sessions`, owned by the auth feature, with
+  organization-scoped revocation helpers already used by suspension and closure.
+- Audit: append-only `fleet_partner_audit_records` with chain verification, served by `/audit-logs`.
+- Platform support cases: support-dispute-service (Section 23.1); Fleet keeps a projection.
+- Money: payment-wallet-service; Fleet's finance features are projections and posting instructions.
+- Staging settings: changed only through `deploy/platform/fleet-staging-modules.txt` and its gated
+  workflow (backup, health wait, automatic restore).

@@ -35,3 +35,17 @@ fleet-partner-owned. Specifically:
 - Payroll inputs edited after calculation: approval refused with 409.
 - A task already claimed by one operator cannot be claimed or completed by another (409).
 - Concurrent wave release of the same fulfilment orders: exactly one wins, no double allocation (WH-003, real goroutines).
+
+## Final-closure additions (2026-11-27)
+
+- **Sessions**: organization session management reuses the auth feature's single session table through the
+  governance `SessionAuthority` port. No second session store exists, and revocation takes the same family
+  advisory lock as refresh rotation, so a concurrent refresh cannot slip a new credential past it.
+- **Audit**: `/audit-events` reuses the audit handler and the append-only audit records; nothing is copied.
+- **Events**: report-run and legal-hold events now go through the same transactional outbox as every other
+  domain event.
+- **Cross-service dependency fixes** (owner-authorized, release-gate driven, no business logic changed):
+  shared runtime image OpenSSL, media-file-service OpenTelemetry, Dispatch/Hauling websocket library.
+  Dispatch's existing 15 socket tests and a new Hauling socket test pass on the new websocket version.
+- **Not integrated (recorded)**: support-case messages to support-dispute-service (needs a new
+  cross-service contract); the Section 23 notification delivery worker stays off on staging (see 07).
