@@ -43,11 +43,40 @@ backup_db() {
   test -s "$out" && gzip -t "$out"
   log "verified compressed backup for $svc"
 }
+# The VPS guide authorizes the deploy account to own KarryGo settings, mode
+# 600. Never widen access, use Docker to bypass file permissions, or add sudo
+# rules. The repair uses an existing exact-command sudo grant only.
+vendor_settings() {
+  local f=/opt/karrygo/vendor-service/vendor.env
+  if [ -r "$f" ]; then
+    check_private_file "$f"
+    require_staging "$f"
+    return
+  fi
+  [ -f "$f" ] && [ ! -L "$f" ] &&
+    [ "$(readlink -f "$f")" = "$f" ] &&
+    [ "$(stat -c '%u:%a:%h' "$f")" = "0:600:1" ] ||
+    die "Vendor configuration is not a regular root-owned 0600 file"
+  [ "$(id -un)" = deploy ] || die "Vendor permission repair requires the documented deploy identity"
+  # Confirm the already-running service is staging without emitting its env.
+  docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' karrygo-vendor-api-staging |
+    grep -Fxq APP_ENV=staging || die "Vendor runtime is not explicitly staging"
+  command -v sudo >/dev/null || die "Vendor ownership repair requires existing authorized sudo"
+  sudo -n -l /usr/bin/chown --no-dereference "deploy:$(id -gn)" -- "$f" >/dev/null 2>&1 ||
+    die "Vendor file is root-owned; existing account has no authorized noninteractive ownership repair"
+  if [ "$mode" = deploy ]; then
+    sudo -n /usr/bin/chown --no-dereference "deploy:$(id -gn)" -- "$f"
+    check_private_file "$f"
+    require_staging "$f"
+    log "Vendor settings ownership repaired; mode 600 retained"
+  else
+    log "Vendor settings ownership can be repaired after CI authorization"
+  fi
+}
 preflight() {
   case "$svc" in
     vendor-service)
-      check_private_file /opt/karrygo/vendor-service/vendor.env
-      require_staging /opt/karrygo/vendor-service/vendor.env
+      vendor_settings
       [ -r /opt/karrygo/vendor-service/network.override.yml ] || die "Vendor network enrollment missing"
       for c in karrygo-vendor-api-staging karrygo-vendor-worker-staging; do
         running "$c" || die "Vendor existing runtime missing: $c"

@@ -97,19 +97,86 @@ jobs:
           echo "services=$picked" >> "$GITHUB_OUTPUT"
           echo "Deploying: ${picked:-nothing}"
 
+      - name: Early VPS prerequisite check (read only)
+        id: preflight
+        if: steps.pick.outputs.services != ''
+        env:
+          SERVICES: ${{ steps.pick.outputs.services }}
+          SHA: ${{ github.sha }}
+          HOST: ${{ secrets.STAGING_DEPLOY_HOST }}
+          USER_: ${{ secrets.STAGING_DEPLOY_USER }}
+          KEY: ${{ secrets.STAGING_DEPLOY_SSH_KEY }}
+          KNOWN: ${{ secrets.STAGING_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [[ "$HOST" =~ ^[A-Za-z0-9.-]+$ && "$USER_" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          umask 077
+          scratch=$(mktemp -d)
+          trap 'rm -rf "$scratch"' EXIT
+          printf '%s\n' "$KEY" > "$scratch/key"
+          printf '%s\n' "$KNOWN" > "$scratch/known_hosts"
+          opts=(-i "$scratch/key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$scratch/known_hosts" -o ConnectTimeout=12)
+          target="$USER_@$HOST"
+          remote="/opt/karrygo/releases/$SHA/$GITHUB_RUN_ID/preflight"
+          mkdir -p "$scratch/platform"
+          cp -r deploy/platform/bin deploy/platform/compose deploy/platform/network "$scratch/platform/"
+          cp deploy/platform/services.tsv "$scratch/platform/"
+          cp deploy/vendor-service/docker-compose.staging.yml "$scratch/platform/vendor.yml"
+          ssh "${opts[@]}" "$target" "mkdir -p '$remote'"
+          scp "${opts[@]}" -r "$scratch/platform" "$target:$remote/"
+          ssh "${opts[@]}" "$target" bash -s -- "$remote" "$SHA" $SERVICES <<'REMOTE' | tee "$scratch/result"
+          set -euo pipefail
+          root="$1"; sha="$2"; shift 2
+          cd "$root/platform"
+          for svc in "$@"; do
+            if out=$( (
+              case "$svc" in
+                vendor-service|driver-dispatch-delivery-service|admin-backoffice-service|api-gateway|partner-web-service|analytics-service)
+                  bash bin/staging-special.sh "$svc" "ghcr.io/cosmicforgehealthnet/$svc:$sha" preflight ;;
+                *) source bin/lib.sh; load_service "$svc"; check_service_files ;;
+              esac
+            ) 2>&1 ); then
+              echo "READY $svc"
+            else
+              echo "BLOCKED $svc $(printf '%s' "$out" | tr '\n' ' ')"
+            fi
+          done
+          # Inspect only expected filenames and mount paths, never env values,
+          # key contents, DB URLs, or other product configuration.
+          for d in /opt/karrygo/api-gateway /opt/karrygo/partner-web-service \
+                   /opt/karrygo/admin-backoffice-service/secrets \
+                   /opt/karrygo/analytics-service /etc/cosmicforge/staging/karryam-analytics \
+                   /opt/karrygo/vendor-service; do
+            if [ -d "$d" ] && [ -r "$d" ]; then
+              find "$d" -maxdepth 1 -type f \( -name '*.env' -o -name '*.pem' -o -name '*.crt' -o -name '*.key' -o -name 'trust.json' -o -name 'network.override.yml' \) \
+                -printf 'CONFIG %p owner=%u mode=%m\n' 2>/dev/null || true
+            fi
+          done
+          if docker container inspect karrygo-admin-backoffice-service >/dev/null 2>&1; then
+            docker inspect -f '{{range .Mounts}}{{if eq .Type "bind"}}{{println .Destination .Source}}{{end}}{{end}}' karrygo-admin-backoffice-service |
+              awk '$1 ~ /^\/run\/admin-secrets(\/|$)/ {print "ADMIN_EXISTING_MOUNT", $0}'
+          fi
+          REMOTE
+          ready=$(awk '$1=="READY"{print $2}' "$scratch/result" | paste -sd' ' -)
+          blocked=$(awk '$1=="BLOCKED"{print $2}' "$scratch/result" | paste -sd' ' -)
+          test "$(awk '$1=="READY" || $1=="BLOCKED"{n++}END{print n+0}' "$scratch/result")" = "$(wc -w <<< "$SERVICES" | tr -d ' ')"
+          echo "services=$ready" >> "$GITHUB_OUTPUT"
+          echo "blocked=$blocked" >> "$GITHUB_OUTPUT"
+          echo "Ready: ${ready:-none}; blocked: ${blocked:-none}"
+
       - uses: docker/setup-buildx-action@v3
-        if: steps.pick.outputs.services != ''
+        if: steps.preflight.outputs.services != ''
       - uses: docker/login-action@v3
-        if: steps.pick.outputs.services != ''
+        if: steps.preflight.outputs.services != ''
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push images (tagged with the commit)
-        if: steps.pick.outputs.services != ''
+        if: steps.preflight.outputs.services != ''
         env:
-          SERVICES: ${{ steps.pick.outputs.services }}
+          SERVICES: ${{ steps.preflight.outputs.services }}
           SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
@@ -118,6 +185,13 @@ jobs:
               df=$(grep -E "^$s[[:space:]]*\|" deploy/platform/services.tsv | cut -d'|' -f2 | tr -d ' ')
             fi
             [ "$df" = shared ] && df=services/Dockerfile
+            ref="ghcr.io/cosmicforgehealthnet/$s:$SHA"
+            if docker pull -q "$ref" >/dev/null 2>&1; then
+              revision=$(docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$ref")
+              [ "$revision" = "$SHA" ] || { echo "::error::Existing image revision mismatch: $s"; exit 1; }
+              echo "Reusing exact-commit image: $s"
+              continue
+            fi
             echo "== building $s ($df)"
             docker buildx build --push --file "$df" \
               --build-arg SERVICE_DIR="$s" \
@@ -128,15 +202,15 @@ jobs:
           done
 
       - name: Verify mandatory CI for the exact staging revision
-        if: steps.pick.outputs.services != ''
+        if: steps.preflight.outputs.services != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/release/staging_auto_ci.py
 
       - name: Back up, deploy and health-check on the server
-        if: steps.pick.outputs.services != ''
+        if: steps.preflight.outputs.services != ''
         env:
-          SERVICES: ${{ steps.pick.outputs.services }}
+          SERVICES: ${{ steps.preflight.outputs.services }}
           SHA: ${{ github.sha }}
           HOST: ${{ secrets.STAGING_DEPLOY_HOST }}
           USER_: ${{ secrets.STAGING_DEPLOY_USER }}
@@ -240,6 +314,12 @@ jobs:
             echo "NOTIFICATION_MIGRATION_EVIDENCE fleet_templates=3"
           fi
           bash bin/deploy-service.sh "$svc" "$image"
+          if [ "$svc" = notification-service ]; then
+            actual_image=$(docker inspect -f '{{.Image}}' karrygo-notification-service)
+            revision=$(docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$actual_image")
+            [ "$revision" = "${image##*:}" ] && [ "$(docker inspect -f '{{.State.Health.Status}}' karrygo-notification-service)" = healthy ]
+            echo "NOTIFICATION_RUNTIME_EVIDENCE revision=$revision health=healthy"
+          fi
           if [ "$svc" = fleet-partner-service ]; then
             expected="${image##*:}"
             for container in karrygo-fleet-partner-api karrygo-fleet-partner-worker; do
@@ -260,9 +340,20 @@ jobs:
           [ -z "$failed" ] || { echo "::error::failed services:$failed"; exit 1; }
 
           # Keep the disk from filling: drop unused images older than 7 days.
-          ssh "${opts[@]}" "$target" "docker image prune -af --filter until=168h >/dev/null && df -h / | tail -1"
+          # Keep previously deployed rollback images; never prune them merely
+          # because a partial deployment has made them temporarily unused.
+          ssh "${opts[@]}" "$target" "df -h / | tail -1"
 
           if [ -n "${blocked// /}" ]; then
             grep '^PREFLIGHT_BLOCKED' "$scratch/preflight.out" | sed 's/^PREFLIGHT_BLOCKED /::error::not deployed: /'
             exit 1
           fi
+
+      - name: Report unresolved VPS prerequisites
+        if: always() && steps.preflight.outputs.blocked != ''
+        env:
+          BLOCKED: ${{ steps.preflight.outputs.blocked }}
+        run: |
+          echo "::error::VPS prerequisite checks blocked: $BLOCKED"
+          echo "See Early VPS prerequisite check for exact missing files and authorization."
+          exit 1
