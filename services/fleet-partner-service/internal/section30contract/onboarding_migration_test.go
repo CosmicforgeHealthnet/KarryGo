@@ -9,6 +9,7 @@ import (
 // The latest migrations, newest first. Each down file is exercised in
 // reverse order and must remove exactly what its up file added; re-applying
 // must restore it:
+//   - 000106 support-case message submission ledger and support.manage
 //   - 000105 security.manage for organization staff-session management
 //     (spec 59.10; sessions stay in the auth feature's table)
 //   - 000104 privacy requests (Sections 28.5/56)
@@ -35,7 +36,7 @@ import (
 //     one; rolling it back keeps the branches (other records may reference
 //     them) and re-applying it never duplicates them.
 func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
-	if replayMigrationTip(t) != "000105_security_session_management" {
+	if replayMigrationTip(t) != "000106_support_case_messages" {
 		t.Fatal("review latest migration retention assertions")
 	}
 	pool := isolatedTestDatabase(t, "fleet_partner_onboarding_tip")
@@ -49,6 +50,7 @@ func TestMigrationReplay_LatestMigrationRollbackAndReapply(t *testing.T) {
 	// role-permission table for the failure message).
 	type marker struct{ migration, table, column, check, grant string }
 	markers := []marker{
+		{"000106", "fleet_partner_support_case_messages", "", "", ""},
 		{"000105", "fleet_partner_role_permissions", "", "", "security.manage"},
 		{"000104", "fleet_partner_privacy_requests", "", "", ""},
 		{"000103", "fleet_partner_automation_executions", "", "", ""},

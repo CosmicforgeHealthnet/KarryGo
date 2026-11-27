@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 type walletPostingAdapter struct{ client *platformclients.Client }
@@ -290,6 +291,51 @@ func (a supportCaseAdapter) Create(ctx context.Context, organizationID, key stri
 	err := a.client.Do(ctx, platformclients.CallMeta{OrganizationID: organizationID, IdempotencyKey: key}, http.MethodPost, "/api/v1/support-disputes/admin/organization-cases", body, &response)
 	return engagementmodels.SupportProjection{CaseID: response.Data.ID, Status: response.Data.Status, Priority: response.Data.Priority, OwnerReference: response.Data.OwnerReference, SourceVersion: response.Data.Version}, err
 }
+
+// supportMessageResponse is support-dispute-service's organization message.
+type supportMessageResponse struct {
+	Success bool `json:"success"`
+	Data    struct {
+		ID              string    `json:"id"`
+		ClientMessageID string    `json:"client_message_id"`
+		Content         string    `json:"content"`
+		Visibility      string    `json:"visibility"`
+		FileIDs         []string  `json:"file_ids"`
+		CreatedAt       time.Time `json:"created_at"`
+	} `json:"data"`
+}
+
+func (r supportMessageResponse) message() engagementmodels.SupportMessage {
+	return engagementmodels.SupportMessage{ID: r.Data.ID, ClientMessageID: r.Data.ClientMessageID, Text: r.Data.Content,
+		Visibility: r.Data.Visibility, FileIDs: r.Data.FileIDs, CreatedAt: r.Data.CreatedAt}
+}
+
+// CreateMessage posts an organization message on the organization's own
+// platform case; support-dispute-service stores it once per client message id.
+func (a supportCaseAdapter) CreateMessage(ctx context.Context, request engagementmodels.SupportMessageRequest) (engagementmodels.SupportMessage, error) {
+	if !a.Configured() {
+		return engagementmodels.SupportMessage{}, platformclients.ErrNotConfigured
+	}
+	body := map[string]any{"organization_reference": request.OrganizationID, "client_message_id": request.ClientMessageID,
+		"sender_reference": request.SenderReference, "text": request.Text, "file_ids": request.FileIDs, "visibility": request.Visibility}
+	var response supportMessageResponse
+	path := "/api/v1/support-disputes/admin/organization-cases/" + url.PathEscape(request.SupportCaseID) + "/messages"
+	err := a.client.Do(ctx, platformclients.CallMeta{OrganizationID: request.OrganizationID, IdempotencyKey: request.ClientMessageID}, http.MethodPost, path, body, &response)
+	return response.message(), err
+}
+
+// ReadMessage reads an organization message back by its client message id.
+func (a supportCaseAdapter) ReadMessage(ctx context.Context, organizationID, supportCaseID, clientMessageID string) (engagementmodels.SupportMessage, error) {
+	if !a.Configured() {
+		return engagementmodels.SupportMessage{}, platformclients.ErrNotConfigured
+	}
+	var response supportMessageResponse
+	path := "/api/v1/support-disputes/admin/organization-cases/" + url.PathEscape(supportCaseID) + "/messages/by-client-id/" +
+		url.PathEscape(clientMessageID) + "?organization_reference=" + url.QueryEscape(organizationID)
+	err := a.client.Do(ctx, platformclients.CallMeta{OrganizationID: organizationID}, http.MethodGet, path, nil, &response)
+	return response.message(), err
+}
+
 func (a supportCaseAdapter) Read(ctx context.Context, organizationID, caseID string) (engagementmodels.SupportProjection, error) {
 	if !a.Configured() {
 		return engagementmodels.SupportProjection{}, platformclients.ErrNotConfigured

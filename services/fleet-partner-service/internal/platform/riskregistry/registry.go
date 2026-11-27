@@ -1085,6 +1085,12 @@ var overrides = []Entry{
 	{Method: "POST", Path: "/fleet-partner/v1/sessions/:sessionId/revoke", RiskClass: ratelimit.RiskHighRisk},
 	{Method: "GET", Path: "/fleet-partner/v1/security/sessions", RiskClass: ratelimit.RiskSensitive},
 	{Method: "POST", Path: "/fleet-partner/v1/security/sessions/:sessionId/revoke", RiskClass: ratelimit.RiskHighRisk},
+	// Privacy settings view the retention policy; a change is HIGH_RISK like
+	// PUT /retention-policies/:class.
+	{Method: "GET", Path: "/fleet-partner/v1/privacy-settings", RiskClass: ratelimit.RiskSensitive},
+	{Method: "PATCH", Path: "/fleet-partner/v1/privacy-settings", RiskClass: ratelimit.RiskHighRisk},
+	// Spec 59.10 support-case messages: SENSITIVE like opening a case.
+	{Method: "POST", Path: "/fleet-partner/v1/support/cases/:caseId/messages", RiskClass: ratelimit.RiskSensitive},
 	// Section 28/56 security events and privacy requests.
 	{Method: "GET", Path: "/fleet-partner/v1/security-events", RiskClass: ratelimit.RiskStandard},
 	{Method: "GET", Path: "/fleet-partner/v1/privacy-requests", RiskClass: ratelimit.RiskStandard},

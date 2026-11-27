@@ -877,6 +877,11 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 	// calls Registrars before it wires up the job worker, can read
 	// components.RetentionRunner to register the durable-job handler.
 	c.RetentionRunner = retentionRunner
+	// Privacy settings (spec 59.10) view the same retention store the runner
+	// enforces, so they attach once the executors are registered.
+	if c.Governance != nil {
+		c.Governance.WithPrivacyRetention(NewGovernancePrivacyRetention(c.Pool, retentionRunner))
+	}
 	retentionExecutionHandler := retentionexecutionhttp.NewHandler(
 		retentionexec.NewAdministrator(c.Pool, retentionRunner, jobs.NewQueue(c.Pool),
 			stepUpVerifier, securitySettingsService, nil),

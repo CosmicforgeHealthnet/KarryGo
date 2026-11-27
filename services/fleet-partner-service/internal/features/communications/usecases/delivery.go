@@ -96,10 +96,13 @@ func (s *Service) submitIntent(ctx context.Context, org, id string, readFirst bo
 	if err != nil {
 		return err
 	}
-	if intent.Delivered() {
+	if intent.Closed() {
 		return nil
 	}
 	start := s.o.Now().UTC()
+	if start.Sub(intent.CreatedAt) > s.o.IntentMaxAge {
+		return s.expireIntent(ctx, org, id, intent, start)
+	}
 	var channelValues []string
 	_ = json.Unmarshal(intent.Channels, &channelValues)
 	for i := range channelValues {
@@ -134,6 +137,13 @@ func (s *Service) submitIntent(ctx context.Context, org, id string, readFirst bo
 			outcome = "OUTCOME_UNKNOWN"
 			newStatus = "OUTCOME_UNKNOWN"
 		}
+		// Retries are bounded: after the last allowed attempt the intent is
+		// dead-lettered (kept, with its attempts, as evidence) instead of
+		// being retried every 30 seconds forever.
+		if intent.Attempts+1 >= s.o.IntentMaxAttempts {
+			newStatus = "DEAD_LETTERED"
+			code = "attempts_exhausted"
+		}
 	}
 	txErr := s.o.Store.WithinTx(ctx, func(tx pgx.Tx) error {
 		return s.o.Store.RecordDeliveryAttempt(ctx, tx, org, id, intent.Attempts+1, outcome, out.Reference, code, start, newStatus)
@@ -141,5 +151,39 @@ func (s *Service) submitIntent(ctx context.Context, org, id string, readFirst bo
 	if txErr != nil {
 		return txErr
 	}
+	if newStatus == "DEAD_LETTERED" {
+		return nil
+	}
 	return err
+}
+
+// expireIntent closes an undelivered intent that is older than IntentMaxAge
+// without sending it. An intent that was never submitted is dead-lettered as
+// expired straight away. One that may already have reached
+// notification-service (an earlier attempt, or an unknown outcome) is read
+// back by its idempotency key first: if notification-service holds it, it is
+// recorded as accepted; if it authoritatively does not, it is dead-lettered
+// as expired. Nothing is deleted and every decision is an attempt row.
+func (s *Service) expireIntent(ctx context.Context, org, id string, intent models.Intent, start time.Time) error {
+	outcome, status, code, reference := "EXPIRED", "DEAD_LETTERED", "expired", ""
+	if intent.Attempts > 0 || intent.Status == "OUTCOME_UNKNOWN" {
+		out, err := s.o.Notification.Read(ctx, org, intent.IdempotencyKey)
+		var ce *platformclients.Error
+		switch {
+		case err == nil:
+			outcome, status, code, reference = "CONFIRMED", "ACCEPTED", "", out.Reference
+		case errors.As(err, &ce) && ce.Outcome == platformclients.OutcomeNotFound:
+			// Authoritatively never received: expired.
+		default:
+			// The read-back itself failed: the outcome stays unknown and is
+			// read again later, until the attempt cap closes it.
+			outcome, status, code = "OUTCOME_UNKNOWN", "OUTCOME_UNKNOWN", "expired_readback_failed"
+			if intent.Attempts+1 >= s.o.IntentMaxAttempts {
+				status, code = "DEAD_LETTERED", "expired_unverified"
+			}
+		}
+	}
+	return s.o.Store.WithinTx(ctx, func(tx pgx.Tx) error {
+		return s.o.Store.RecordDeliveryAttempt(ctx, tx, org, id, intent.Attempts+1, outcome, reference, code, start, status)
+	})
 }

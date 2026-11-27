@@ -85,7 +85,12 @@ type Intent struct {
 	IdempotencyKey, Status, RecipientType, RecipientReference, TemplateCode string
 	SafePayload, Channels                                                   []byte
 	Attempts                                                                int
+	CreatedAt                                                               time.Time
 }
+
+// Closed reports whether an intent is finished: delivered, not applicable or
+// dead-lettered. A closed intent is never submitted again.
+func (i Intent) Closed() bool { return i.Delivered() || i.Status == "DEAD_LETTERED" }
 
 // Delivered reports whether an intent needs no further submission.
 func (i Intent) Delivered() bool {

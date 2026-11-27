@@ -93,7 +93,7 @@ func (s *Service) handleSupportReconcile(ctx context.Context, job jobs.Job) erro
 			return err
 		}
 	}
-	return nil
+	return s.reconcileSupportMessages(ctx, v["organizationId"])
 }
 
 func (s *Service) handleSLAGenerate(ctx context.Context, job jobs.Job) error {

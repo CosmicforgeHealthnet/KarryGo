@@ -26,11 +26,17 @@ func newSection23Services(cfg config.Config, pool *pgxpool.Pool, publisher engag
 	queue := jobs.NewQueue(pool)
 	communications := communicationsusecases.NewService(communicationsusecases.Options{
 		Store: communicationsrepos.NewRepository(pool), Events: publisher, Queue: queue, Media: media,
-		Notification: notification,
+		Notification: notification, IntentMaxAttempts: cfg.NotificationIntentMaxAttempts, IntentMaxAge: cfg.NotificationIntentMaxAge,
 		Flags: communicationsmodels.Flags{Communications: cfg.CommunicationsEnabled, NotificationRules: cfg.NotificationRulesEnabled, Preferences: cfg.NotificationPreferencesEnabled,
 			Workers: cfg.Section23WorkersEnabled, KillSwitch: cfg.IntegrationsKillSwitch}})
+	engagementStore := engagementrepos.NewRepository(pool)
+	var messages engagementusecases.SupportMessagePort
+	if m, ok := support.(engagementusecases.SupportMessagePort); ok {
+		messages = m
+	}
 	engagement := engagementusecases.NewService(engagementusecases.Options{
-		Store: engagementrepos.NewRepository(pool), Events: publisher, Queue: queue, Support: support,
+		Store: engagementStore, Events: publisher, Queue: queue, Support: support,
+		SupportMessages: messages, MessageStore: engagementStore, Media: media,
 		Notifications: EscalationNotices(communications),
 		Flags: engagementmodels.Flags{Support: cfg.SupportProjectionsEnabled, Quality: cfg.QualityCasesEnabled,
 			SLA: cfg.SLAMeasurementsEnabled, Escalations: cfg.EscalationsEnabled, Exceptions: cfg.OperationalExceptionsEnabled,

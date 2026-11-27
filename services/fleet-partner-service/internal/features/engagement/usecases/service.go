@@ -63,14 +63,19 @@ type NotificationIntents interface {
 
 // Options configures the service.
 type Options struct {
-	Store         Store
-	Events        Events
-	Audit         AuditRecorder
-	Queue         Enqueuer
-	Support       SupportPort
-	Notifications NotificationIntents
-	Flags         models.Flags
-	Now           func() time.Time
+	Store   Store
+	Events  Events
+	Audit   AuditRecorder
+	Queue   Enqueuer
+	Support SupportPort
+	// SupportMessages and MessageStore serve spec 59.10 support-case
+	// messages; Media validates their attachments.
+	SupportMessages SupportMessagePort
+	MessageStore    SupportMessageStore
+	Media           MediaFiles
+	Notifications   NotificationIntents
+	Flags           models.Flags
+	Now             func() time.Time
 }
 
 // Service implements the engagement workflows.

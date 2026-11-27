@@ -126,6 +126,7 @@ var declared = map[string][]string{
 	"/audit-events": {"branchId", "actorType", "actorId", "action", "resourceType", "resourceId",
 		"requestId", "correlationId", "highRiskOnly:bool", "from", "to", cursorPage},
 	"/security/sessions":                    {},
+	"/privacy-settings":                     {},
 	"/security-settings":                    {},
 	"/legal-holds":                          {"scopeType", "scopeReference", "status", limitOnly},
 	"/retention-policies":                   {},

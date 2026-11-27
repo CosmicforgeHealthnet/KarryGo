@@ -2162,6 +2162,77 @@
         "x-idempotency-required": false,
         "x-permission": "support.read"
       }
+    },
+    "/fleet-partner/v1/support/cases/{caseId}/messages": {
+      "post": {
+        "operationId": "createSupportMessage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "caseId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            },
+            "description": "Successful operation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Idempotency or version conflict"
+          }
+        },
+        "security": [
+          {
+            "CorporateBearer": []
+          }
+        ],
+        "x-auth-class": "corporate",
+        "x-expected-version-required": false,
+        "x-feature-flag": "SUPPORT_PROJECTIONS_ENABLED",
+        "x-idempotency-required": true,
+        "x-permission": "support.manage"
+      }
     }
   },
   "servers": [

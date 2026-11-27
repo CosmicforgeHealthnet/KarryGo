@@ -83,6 +83,8 @@ var PreActivationWriteRoutes = map[string]bool{
 	// Ending a compromised staff session must never wait for activation.
 	"POST /fleet-partner/v1/security/sessions/:sessionId/revoke": true,
 	"POST /fleet-partner/v1/support/cases":                       true,
+	// A non-active organization may still write on its own support case.
+	"POST /fleet-partner/v1/support/cases/:caseId/messages": true,
 }
 
 // RequireOperationalOrganization refuses state-changing tenant requests from

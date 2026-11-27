@@ -30,6 +30,9 @@ func TenantRoutes() []Route {
 func coreRoutes() []Route {
 	return []Route{
 		{"GET", "/support/cases", "listSupportCases", "support.read", "SUPPORT_PROJECTIONS_ENABLED", "corporate", false, false}, {"POST", "/support/cases", "createSupportCase", "support.create", "SUPPORT_PROJECTIONS_ENABLED", "corporate", true, false}, {"GET", "/support/cases/:caseId", "getSupportCase", "support.read", "SUPPORT_PROJECTIONS_ENABLED", "corporate", false, false},
+		// Spec 59.10 POST /support-cases/{id}/messages, under the existing
+		// /support/cases family.
+		{"POST", "/support/cases/:caseId/messages", "createSupportMessage", "support.manage", "SUPPORT_PROJECTIONS_ENABLED", "corporate", true, false},
 		{"GET", "/quality/cases", "listQualityCases", "quality.read", "QUALITY_CASES_ENABLED", "corporate", false, false}, {"POST", "/quality/cases", "createQualityCase", "quality.manage", "QUALITY_CASES_ENABLED", "corporate", true, false}, {"GET", "/quality/cases/:qualityCaseId", "getQualityCase", "quality.read", "QUALITY_CASES_ENABLED", "corporate", false, false}, {"PATCH", "/quality/cases/:qualityCaseId", "updateQualityCase", "quality.manage", "QUALITY_CASES_ENABLED", "corporate", true, true}, {"POST", "/quality/cases/:qualityCaseId/resolve", "resolveQualityCase", "quality.resolve", "QUALITY_CASES_ENABLED", "corporate", true, true},
 		{"GET", "/sla/measurements", "listMeasurements", "sla.read", "SLA_MEASUREMENTS_ENABLED", "corporate", false, false}, {"GET", "/sla/measurements/:measurementId", "getMeasurement", "sla.read", "SLA_MEASUREMENTS_ENABLED", "corporate", false, false},
 		{"GET", "/escalations", "listEscalations", "escalations.read", "ESCALATIONS_ENABLED", "corporate", false, false}, {"GET", "/escalations/:escalationId", "getEscalation", "escalations.read", "ESCALATIONS_ENABLED", "corporate", false, false}, {"POST", "/escalations/:escalationId/acknowledge", "acknowledgeEscalation", "escalations.acknowledge", "ESCALATIONS_ENABLED", "corporate", true, true}, {"POST", "/escalations/:escalationId/resolve", "resolveEscalation", "escalations.resolve", "ESCALATIONS_ENABLED", "corporate", true, true},
@@ -86,6 +89,12 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 			return h.s.CreateSupportCase(c, t, key, in)
 		case "getSupportCase":
 			return h.s.GetSupportCase(c, t, c.Param("caseId"))
+		case "createSupportMessage":
+			var in models.SupportMessageInput
+			if !tenantcmd.Bind(c, &in) {
+				return nil, tenantcmd.ErrBound
+			}
+			return h.s.PostSupportMessage(c, t, c.Param("caseId"), in)
 		case "listQualityCases":
 			return h.s.ListQualityCases(c, t)
 		case "createQualityCase":

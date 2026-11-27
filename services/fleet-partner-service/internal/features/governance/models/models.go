@@ -9,7 +9,9 @@ import (
 )
 
 // Flags gate the governance capabilities; all default off.
-type Flags struct{ PrivacyRequests, SecurityEvents, SecuritySessions, KillSwitch bool }
+type Flags struct {
+	PrivacyRequests, PrivacySettings, SecurityEvents, SecuritySessions, KillSwitch bool
+}
 
 // OrganizationSession is one organization-scoped staff session as its
 // security managers see it (spec 59.10). Refresh-token hashes, IP and

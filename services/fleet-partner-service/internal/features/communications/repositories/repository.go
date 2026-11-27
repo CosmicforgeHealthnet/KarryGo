@@ -277,7 +277,7 @@ func (r *Repository) DueIntents(ctx context.Context, organizationID string) ([]s
 // GetIntent reads an intent's delivery state.
 func (r *Repository) GetIntent(ctx context.Context, organizationID, id string) (models.Intent, error) {
 	var i models.Intent
-	err := r.pool.QueryRow(ctx, `SELECT idempotency_key,status,recipient_type,recipient_reference,template_code,safe_payload,channels,attempts FROM fleet_partner_notification_intents WHERE organization_id=$1 AND id=$2`, organizationID, id).Scan(&i.IdempotencyKey, &i.Status, &i.RecipientType, &i.RecipientReference, &i.TemplateCode, &i.SafePayload, &i.Channels, &i.Attempts)
+	err := r.pool.QueryRow(ctx, `SELECT idempotency_key,status,recipient_type,recipient_reference,template_code,safe_payload,channels,attempts,created_at FROM fleet_partner_notification_intents WHERE organization_id=$1 AND id=$2`, organizationID, id).Scan(&i.IdempotencyKey, &i.Status, &i.RecipientType, &i.RecipientReference, &i.TemplateCode, &i.SafePayload, &i.Channels, &i.Attempts, &i.CreatedAt)
 	return i, err
 }
 

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	engagementmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/models"
 	financeopsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/financeops/models"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
 	"encoding/json"
@@ -79,5 +80,49 @@ func TestFinancialPostingAdapterFailsClosedForUnknownOperation(t *testing.T) {
 	adapter := financialPostingAdapter{}
 	if adapter.Configured("UNKNOWN") {
 		t.Fatal("unknown operation must not be configured")
+	}
+}
+
+// TestSupportCaseAdapterMessageContract pins the support-case message calls
+// to support-dispute-service's organization-case routes: a signed create on
+// the organization's own case carrying the client message id, and a signed
+// read-back by client message id scoped by organization.
+func TestSupportCaseAdapterMessageContract(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Service-Name") != "fleet-partner-service" || r.Header.Get("X-Service-Signature") == "" {
+			t.Fatal("support request was not HMAC-v2 signed")
+		}
+		switch r.Method {
+		case http.MethodPost:
+			if r.URL.Path != "/api/v1/support-disputes/admin/organization-cases/case-1/messages" {
+				t.Fatalf("create path = %s", r.URL.Path)
+			}
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if body["organization_reference"] != "org-1" || body["client_message_id"] != "cid-1" || body["sender_reference"] != "usr-1" ||
+				body["text"] != "Hello" || body["visibility"] != "INTERNAL" {
+				t.Fatalf("create body = %#v", body)
+			}
+			w.WriteHeader(http.StatusCreated)
+		case http.MethodGet:
+			if r.URL.Path != "/api/v1/support-disputes/admin/organization-cases/case-1/messages/by-client-id/cid-1" || r.URL.Query().Get("organization_reference") != "org-1" {
+				t.Fatalf("read-back = %s?%s", r.URL.Path, r.URL.RawQuery)
+			}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": map[string]any{"id": "msg-1", "client_message_id": "cid-1", "content": "Hello",
+			"visibility": "INTERNAL", "file_ids": []string{"fil-1"}, "created_at": "2026-11-27T10:00:00Z"}})
+	}))
+	defer server.Close()
+	adapter := supportCaseAdapter{client: platformclients.New(platformclients.Options{ServiceName: "support-dispute-service", BaseURL: server.URL, Secret: []byte("test-secret")})}
+	created, err := adapter.CreateMessage(context.Background(), engagementmodels.SupportMessageRequest{OrganizationID: "org-1", SupportCaseID: "case-1",
+		ClientMessageID: "cid-1", SenderReference: "usr-1", Text: "Hello", Visibility: "INTERNAL", FileIDs: []string{"fil-1"}})
+	if err != nil || created.ID != "msg-1" || created.Text != "Hello" || len(created.FileIDs) != 1 || created.CreatedAt.IsZero() {
+		t.Fatalf("create = %+v, %v", created, err)
+	}
+	back, err := adapter.ReadMessage(context.Background(), "org-1", "case-1", "cid-1")
+	if err != nil || back.ID != "msg-1" || back.ClientMessageID != "cid-1" {
+		t.Fatalf("read-back = %+v, %v", back, err)
 	}
 }

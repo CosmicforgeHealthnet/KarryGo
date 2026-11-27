@@ -2,8 +2,11 @@
 package http
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -38,6 +41,8 @@ func TenantRoutes() []Route {
 		{"GET", "/privacy-requests/:requestId", "getPrivacyRequest", "privacy.manage", p, "corporate", false, false},
 		{"POST", "/privacy-requests/:requestId/decisions", "decidePrivacyRequest", "privacy.decide", p, "corporate", true, true},
 		{"POST", "/privacy-requests/:requestId/complete", "completePrivacyRequest", "privacy.manage", p, "corporate", true, true},
+		{"GET", "/privacy-settings", "getPrivacySettings", "privacy.manage", "PRIVACY_SETTINGS_ENABLED", "corporate", false, false},
+		{"PATCH", "/privacy-settings", "updatePrivacySettings", "privacy.manage", "PRIVACY_SETTINGS_ENABLED", "corporate", true, true},
 	}
 }
 
@@ -51,6 +56,8 @@ type Service interface {
 	ListPrivacyRequests(ctx context.Context, t tenant.Context) ([]map[string]any, error)
 	DecidePrivacyRequest(ctx context.Context, t tenant.Context, id string, in models.PrivacyDecisionInput) (map[string]any, error)
 	CompletePrivacyRequest(ctx context.Context, t tenant.Context, id string, in models.PrivacyDecisionInput) (map[string]any, error)
+	GetPrivacySettings(ctx context.Context, t tenant.Context) (models.PrivacySettings, error)
+	UpdatePrivacySettings(ctx context.Context, t tenant.Context, in models.PrivacySettingsPatch) (models.PrivacySettings, error)
 }
 
 // Handler serves the governance routes.
@@ -117,6 +124,14 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 				return h.s.DecidePrivacyRequest(c, t, c.Param("requestId"), in)
 			}
 			return h.s.CompletePrivacyRequest(c, t, c.Param("requestId"), in)
+		case "getPrivacySettings":
+			return h.s.GetPrivacySettings(c, t)
+		case "updatePrivacySettings":
+			in, err := decodePrivacyPatch(c)
+			if err != nil {
+				return nil, err
+			}
+			return h.s.UpdatePrivacySettings(c, t, in)
 		}
 		return nil, apperrors.NotFound("Resource not found.", nil)
 	}
@@ -130,4 +145,31 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		return
 	}
 	tenantcmd.Command(c, h.idem, t.OrganizationID, r.Method, r.Path, strings.HasPrefix(r.OperationID, "create"), run)
+}
+
+// decodePrivacyPatch reads a privacy-settings JSON Merge Patch strictly:
+// only the retention member is writable and each class carries only
+// retentionDays, so an attempt to set a read-only field is refused rather
+// than silently ignored. If-Match is required; its absence is -1 because 0
+// is a real version.
+func decodePrivacyPatch(c *gin.Context) (models.PrivacySettingsPatch, error) {
+	var in models.PrivacySettingsPatch
+	raw, err := c.GetRawData()
+	if err != nil {
+		return in, apperrors.BadRequest("Request body must be valid JSON.", err)
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&in); err != nil {
+		return in, apperrors.Validation("Only retention settings can be changed: "+err.Error(), nil)
+	}
+	in.ExpectedVersion = -1
+	if v := strings.Trim(strings.TrimSpace(c.GetHeader("If-Match")), `"`); v != "" {
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || n < 0 {
+			return in, apperrors.BadRequest("If-Match must carry the current privacy-settings version.", nil)
+		}
+		in.ExpectedVersion = n
+	}
+	return in, nil
 }

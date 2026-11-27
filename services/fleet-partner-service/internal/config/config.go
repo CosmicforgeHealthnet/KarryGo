@@ -457,8 +457,16 @@ type Config struct {
 	PrivacyRequestsEnabled, SecurityEventsEnabled bool
 	// SecuritySessionsEnabled gates organization staff-session management
 	// (GET /security/sessions, POST .../revoke; spec 59.10).
-	SecuritySessionsEnabled                          bool
+	SecuritySessionsEnabled bool
+	// PrivacySettingsEnabled gates GET/PATCH /privacy-settings (spec 59.10),
+	// a view over the enforced retention policy.
+	PrivacySettingsEnabled                           bool
 	Section22WorkersEnabled, Section23WorkersEnabled bool
+	// NotificationIntentMaxAttempts and NotificationIntentMaxAge bound
+	// Section 23 notification delivery: an intent is dead-lettered after the
+	// attempt cap, and one older than the age is closed instead of sent late.
+	NotificationIntentMaxAttempts int
+	NotificationIntentMaxAge      time.Duration
 
 	// Sections 6-7 Fleet partner foundations. Security and membership
 	// verification do not have rollout bypasses; these flags only gate new
@@ -901,8 +909,11 @@ func Load() (Config, error) {
 		PrivacyRequestsEnabled:               getEnvBool("PRIVACY_REQUESTS_ENABLED", false),
 		SecurityEventsEnabled:                getEnvBool("SECURITY_EVENTS_ENABLED", false),
 		SecuritySessionsEnabled:              getEnvBool("SECURITY_SESSIONS_ENABLED", false),
+		PrivacySettingsEnabled:               getEnvBool("PRIVACY_SETTINGS_ENABLED", false),
 		Section22WorkersEnabled:              getEnvBool("SECTION22_WORKERS_ENABLED", false),
 		Section23WorkersEnabled:              getEnvBool("SECTION23_WORKERS_ENABLED", false),
+		NotificationIntentMaxAttempts:        getEnvInt("FLEET_NOTIFICATION_INTENT_MAX_ATTEMPTS", 8),
+		NotificationIntentMaxAge:             time.Duration(getEnvInt("FLEET_NOTIFICATION_INTENT_MAX_AGE_SECONDS", 86400)) * time.Second,
 		FleetOperatingModeEnforcementEnabled: getEnvBool("FLEET_OPERATING_MODE_ENFORCEMENT_ENABLED", true),
 		ActivationWalletGateWaived:           getEnvBool("FLEET_ACTIVATION_WALLET_GATE_WAIVED", false),
 		VerificationReconcileInterval:        getEnvDuration("FLEET_VERIFICATION_RECONCILE_INTERVAL", time.Minute),

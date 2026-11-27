@@ -12,6 +12,7 @@ type Service interface {
 	ListSupportCases(ctx context.Context, t tenant.Context) ([]map[string]any, error)
 	CreateSupportCase(ctx context.Context, t tenant.Context, key string, in models.SupportCreateInput) (map[string]any, error)
 	GetSupportCase(ctx context.Context, t tenant.Context, caseID string) (map[string]any, error)
+	PostSupportMessage(ctx context.Context, t tenant.Context, caseID string, in models.SupportMessageInput) (map[string]any, error)
 	ListQualityCases(ctx context.Context, t tenant.Context) ([]map[string]any, error)
 	CreateQualityCase(ctx context.Context, t tenant.Context, in models.QualityInput) (map[string]any, error)
 	GetQualityCase(ctx context.Context, t tenant.Context, id string) (map[string]any, error)

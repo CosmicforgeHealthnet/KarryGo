@@ -96,6 +96,6 @@ func NewGovernanceService(cfg config.Config, pool *pgxpool.Pool, publisher gover
 	}
 	return governanceusecases.NewService(governanceusecases.Options{
 		Store: governancerepos.NewRepository(pool), Events: publisher, Sessions: authority,
-		Flags: governancemodels.Flags{PrivacyRequests: cfg.PrivacyRequestsEnabled, SecurityEvents: cfg.SecurityEventsEnabled, SecuritySessions: cfg.SecuritySessionsEnabled, KillSwitch: cfg.IntegrationsKillSwitch},
+		Flags: governancemodels.Flags{PrivacyRequests: cfg.PrivacyRequestsEnabled, SecurityEvents: cfg.SecurityEventsEnabled, SecuritySessions: cfg.SecuritySessionsEnabled, PrivacySettings: cfg.PrivacySettingsEnabled, KillSwitch: cfg.IntegrationsKillSwitch},
 	})
 }

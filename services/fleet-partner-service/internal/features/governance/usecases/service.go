@@ -32,8 +32,10 @@ type Options struct {
 	// Sessions is the authentication feature's session store, reached
 	// through a port so there is still exactly one session authority.
 	Sessions SessionAuthority
-	Flags    models.Flags
-	Now      func() time.Time
+	// PrivacyRetention is the retention-policy store privacy settings view.
+	PrivacyRetention PrivacyRetention
+	Flags            models.Flags
+	Now              func() time.Time
 	// PrivacyResponseWindow is how long the organization has to answer a
 	// privacy request; zero means 30 days.
 	PrivacyResponseWindow time.Duration

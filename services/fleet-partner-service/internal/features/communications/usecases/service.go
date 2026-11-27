@@ -52,6 +52,13 @@ type Options struct {
 	Notification NotificationPort
 	Flags        models.Flags
 	Now          func() time.Time
+	// IntentMaxAttempts dead-letters an intent after this many failed or
+	// unknown submissions (default 8). IntentMaxAge closes an undelivered
+	// intent older than this instead of submitting it (default 24h): a stale
+	// notice is never sent late, and one that may already have been sent is
+	// read back first so its outcome is recorded, never guessed.
+	IntentMaxAttempts int
+	IntentMaxAge      time.Duration
 }
 
 // Service implements the communication workflows.
@@ -67,6 +74,12 @@ func NewService(o Options) *Service {
 	}
 	if o.Now == nil {
 		o.Now = time.Now
+	}
+	if o.IntentMaxAttempts <= 0 {
+		o.IntentMaxAttempts = 8
+	}
+	if o.IntentMaxAge <= 0 {
+		o.IntentMaxAge = 24 * time.Hour
 	}
 	return &Service{o: o}
 }

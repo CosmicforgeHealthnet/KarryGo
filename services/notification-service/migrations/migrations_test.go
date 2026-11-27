@@ -144,3 +144,27 @@ func TestCorporateOTPTemplateIsProvisionedByProductionMigration(t *testing.T) {
 		}
 	}
 }
+
+// TestFleetCorporateTemplatesAreInAppAndReferenceOnly pins the Fleet
+// Section 23-24 templates: every key Fleet queues exists, none reaches email,
+// push or SMS, and none interpolates data.
+func TestFleetCorporateTemplatesAreInAppAndReferenceOnly(t *testing.T) {
+	content, err := os.ReadFile("012_fleet_corporate_templates.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	for _, key := range []string{"fleet.escalation.due", "fleet.communication.message", "fleet.automation.notice"} {
+		if !strings.Contains(text, "('"+key+"','en-NG'") {
+			t.Fatalf("template %s is missing", key)
+		}
+	}
+	for _, forbidden := range []string{`"email"`, `"push"`, `"sms"`, "{{"} {
+		if strings.Contains(text, forbidden) {
+			t.Fatalf("Fleet templates contain %s", forbidden)
+		}
+	}
+	if !strings.Contains(text, "ON CONFLICT (key, locale) DO NOTHING") {
+		t.Fatal("an operator-customized template must be preserved")
+	}
+}
