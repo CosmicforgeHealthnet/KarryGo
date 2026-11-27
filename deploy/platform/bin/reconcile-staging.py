@@ -7,19 +7,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 REGISTRY = ROOT / "deploy/platform/services.tsv"
-BLOCKED = {"api-gateway", "partner-web-service", "admin-backoffice-service",
-           "driver-dispatch-delivery-service", "analytics-service"}
 
 
 def candidates():
     for line in REGISTRY.read_text().splitlines():
         if line.strip() and not line.lstrip().startswith("#"):
             key = line.split("|")[0].strip()
-            if key not in BLOCKED:
-                yield key
+            yield key
+    yield "vendor-service"
 
 
 def targets(key):
+    if key == "vendor-service":
+        return ["karrygo-vendor-api-staging", "karrygo-vendor-worker-staging"]
     names = []
     service = ""
     for line in (ROOT / "deploy/platform/compose" / (key + ".yml")).read_text().splitlines():
@@ -45,7 +45,9 @@ def select(observed, keys):
         revision = revisions[0]
         if subprocess.run(["git", "merge-base", "--is-ancestor", revision, "HEAD"],
                           cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
-            raise ValueError("unrecognized or non-ancestor runtime revision for " + key)
+            # Unknown legacy revisions require guarded service preflight.
+            picked.add(key)
+            continue
         groups[revision].append(key)
     for revision, group in groups.items():
         changes = subprocess.check_output(["git", "diff", "--name-only", revision, "HEAD"], cwd=ROOT, text=True)
@@ -55,7 +57,8 @@ def select(observed, keys):
         picked.update(result.split())
         changed = set(changes.splitlines())
         for key in group:
-            if f"deploy/platform/compose/{key}.yml" in changed or "deploy/platform/compose/common.yml" in changed:
+            if (f"deploy/platform/compose/{key}.yml" in changed or "deploy/platform/compose/common.yml" in changed
+                    or key == "vendor-service" and "deploy/vendor-service/docker-compose.staging.yml" in changed):
                 picked.add(key)
     return [key for key in keys if key in picked]
 

@@ -104,7 +104,7 @@ def main():
     for path in changed:
         if path in ("go.work", "go.work.sum"):
             continue
-        if path == "services/Dockerfile":
+        if path in ("services/Dockerfile", "deploy/platform/bin/migrate.sh"):
             picked |= {k for k in candidates if k in shared_dockerfile}
             continue
         if path in ("shared/go/go.mod", "shared/go/go.sum"):
