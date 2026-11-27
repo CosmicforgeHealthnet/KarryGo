@@ -205,6 +205,7 @@ func main() {
 
 		if runErr != nil {
 			fmt.Printf("FAIL: %s\n", pkg.shortName)
+			fmt.Println(failureSummary(output))
 			fmt.Println(tail(output, 70))
 			fmt.Println()
 			failedCount++
@@ -556,6 +557,24 @@ func trimIdentifier(value string) string {
 		return value
 	}
 	return value[:60]
+}
+
+// failureSummary exposes failed test names even when a long package log ends
+// with unrelated passing tests. Raw test evidence remains in the artifact.
+func failureSummary(output string) string {
+	var failures []string
+	scanner := bufio.NewScanner(strings.NewReader(output))
+	scanner.Buffer(make([]byte, 64<<10), 4<<20)
+	for scanner.Scan() {
+		var event struct{ Action, Test, Package string }
+		if json.Unmarshal(scanner.Bytes(), &event) == nil && event.Action == "fail" && event.Test != "" {
+			failures = append(failures, event.Package+" "+event.Test)
+		}
+	}
+	if len(failures) == 0 {
+		return "No named failing test found; inspect the complete package artifact."
+	}
+	return "Failed tests: " + strings.Join(failures, ", ")
 }
 
 func tail(text string, lines int) string {

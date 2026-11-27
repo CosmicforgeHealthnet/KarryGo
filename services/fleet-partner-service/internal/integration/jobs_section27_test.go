@@ -275,8 +275,10 @@ func TestJobWorker_ShutdownSentinelReleasesWithoutBackoff(t *testing.T) {
 		Queue: queue, Metrics: observability.NewMetrics(), Owner: "shutdown-worker",
 		PollInterval: 20 * time.Millisecond, LeaseDuration: time.Minute, HeartbeatInterval: time.Second,
 	}
+	started := make(chan struct{})
 	release := make(chan struct{})
 	worker.Register("test.shutdown-sentinel", func(runCtx context.Context, job jobs.Job) error {
+		close(started)
 		<-runCtx.Done()
 		close(release)
 		return jobs.ErrShutdownSafeToRelease
@@ -291,18 +293,29 @@ func TestJobWorker_ShutdownSentinelReleasesWithoutBackoff(t *testing.T) {
 	}
 
 	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	done := make(chan struct{})
 	go func() { worker.Run(runCtx); close(done) }()
 
-	// Give the worker a moment to claim and start the handler, then cancel.
-	time.Sleep(100 * time.Millisecond)
+	// Synchronize with the handler, not the scheduler or database speed.
+	select {
+	case <-started:
+	case <-done:
+		t.Fatal("worker exited before claiming the test job")
+	case <-time.After(10 * time.Second):
+		t.Fatal("worker never started the test handler")
+	}
 	cancel()
 	select {
 	case <-release:
-	case <-time.After(3 * time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("handler never observed cancellation")
 	}
-	<-done
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("worker did not finish shutdown")
+	}
 
 	job, err := queue.Get(context.Background(), org.ID, jobID)
 	if err != nil {
