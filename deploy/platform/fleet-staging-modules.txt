@@ -106,3 +106,28 @@ BULK_IMPORTS_WRITES_ENABLED=true
 BULK_IMPORTS_WORKER_ENABLED=true
 FLEET_DOCUMENTS_WRITES_ENABLED=true
 FLEET_DOCUMENTS_DOWNLOAD_ENABLED=true
+#
+# Switched on for the Sections 21-33 closure. All are tenant-owned modules
+# whose data lives in Fleet. Request-path features: operational exceptions,
+# notification preferences, analytics reports and dashboards, rules-based
+# recommendations (advisory only), automation rules (approved catalogue only:
+# raise exception, queue notification; a second person must approve), privacy
+# requests, the security-event feed and organization staff-session
+# management. Workers: the Section 21 warehouse sweep (expired reservations
+# and task leases) and the Section 24 report/automation/housekeeping jobs,
+# which touch only Fleet's own data.
+# Left off on purpose: SECTION22_WORKERS_ENABLED (expense posting and posting
+# reconciliation call the wallet) and SECTION23_WORKERS_ENABLED (it would
+# deliver every notification intent queued since 2026-11-13 to real staging
+# inboxes at once), plus SUPPORT_PROJECTIONS_ENABLED (no support-dispute
+# credentials on staging).
+SECTION21_WORKERS_ENABLED=true
+OPERATIONAL_EXCEPTIONS_ENABLED=true
+NOTIFICATION_PREFERENCES_ENABLED=true
+ANALYTICS_REPORTS_ENABLED=true
+FEATURE_AI_RECOMMENDATIONS=true
+FEATURE_AUTOMATION=true
+SECTION24_WORKERS_ENABLED=true
+PRIVACY_REQUESTS_ENABLED=true
+SECURITY_EVENTS_ENABLED=true
+SECURITY_SESSIONS_ENABLED=true
