@@ -72,3 +72,11 @@ SET driver-hauling-service HAULING_OUTBOX_WORKER_ENABLED=true
 SET driver-taxi-service TAXI_ORGANIZATION_PROVIDERS_ENABLED=true
 SET driver-taxi-service TAXI_FLEET_MARKETPLACE_FEED_ENABLED=true
 SET driver-taxi-service TAXI_FLEET_MANAGED_EXECUTION_ENABLED=true
+
+# Organization support cases and their messages (Fleet spec 59.10, Section
+# 23): Fleet opens cases on and posts messages to Support/Dispute, the one
+# store of platform support conversations. Support/Dispute already lists its
+# callers explicitly; pairing refuses if it ever relies on its built-in list.
+PAIR fleet-partner-service support-dispute-service
+URL fleet-partner-service FLEET_PARTNER_SUPPORT_DISPUTE_SERVICE_BASE_URL=http://karrygo-support-dispute-service:8107 requires=support-dispute-service
+SET fleet-partner-service SUPPORT_PROJECTIONS_ENABLED=true requires=support-dispute-service

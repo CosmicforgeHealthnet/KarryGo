@@ -180,6 +180,60 @@ BEGIN
 END
 $integration$;
 SQL
+    # Fleet Sections 22-23 worker backlog and notification-service Fleet
+    # templates, aggregate counts only (no id, key, payload or recipient):
+    #   - notification intents by status, template and recipient type, with
+    #     their age range, the highest attempt count and how many address a
+    #     staff member of the same organization;
+    #   - queued Section 22/23 durable jobs, financial posting operations,
+    #     escalations and support-message submissions by status;
+    #   - whether notification-service holds each Fleet template, and its
+    #     Fleet messages by status.
+    docker exec -i "$db" sh -c 'psql -X -q -U "$POSTGRES_USER" -d "${POSTGRES_DB:-$POSTGRES_USER}" -v ON_ERROR_STOP=0 -f - 2>&1' <<'SQL' | sed -n 's/^.*NOTICE:  //p'
+DO $backlog$
+DECLARE r record;
+BEGIN
+  IF to_regclass('public.fleet_partner_notification_intents') IS NOT NULL THEN
+    FOR r IN SELECT i.status, i.template_code, i.recipient_type, count(*) AS n,
+               min(i.created_at)::date::text AS oldest, max(i.created_at)::date::text AS newest, max(i.attempts) AS max_attempts,
+               count(*) FILTER (WHERE EXISTS (SELECT 1 FROM fleet_partner_organization_users u
+                                WHERE u.organization_id = i.organization_id AND u.id = i.recipient_reference)) AS staff_recipients
+             FROM fleet_partner_notification_intents i GROUP BY 1, 2, 3 ORDER BY 1, 2, 3 LOOP
+      RAISE NOTICE 'FLEET_NOTIFICATION_INTENTS status=% template=% recipient_type=% count=% oldest=% newest=% max_attempts=% staff_recipients=%',
+        r.status, r.template_code, r.recipient_type, r.n, r.oldest, r.newest, r.max_attempts, r.staff_recipients;
+    END LOOP;
+    FOR r IN SELECT job_type, status, count(*) AS n, min(created_at)::date::text AS oldest
+             FROM fleet_partner_jobs WHERE job_type LIKE 'SECTION22_%' OR job_type LIKE 'SECTION23_%' GROUP BY 1, 2 ORDER BY 1, 2 LOOP
+      RAISE NOTICE 'FLEET_SECTION22_23_JOBS type=% status=% count=% oldest=%', r.job_type, r.status, r.n, r.oldest;
+    END LOOP;
+    FOR r IN SELECT operation_type, status, count(*) AS n FROM fleet_partner_financial_posting_operations GROUP BY 1, 2 ORDER BY 1, 2 LOOP
+      RAISE NOTICE 'FLEET_POSTING_OPERATIONS type=% status=% count=%', r.operation_type, r.status, r.n;
+    END LOOP;
+    FOR r IN SELECT status, count(*) AS n FROM fleet_partner_escalations GROUP BY 1 ORDER BY 1 LOOP
+      RAISE NOTICE 'FLEET_ESCALATIONS status=% count=%', r.status, r.n;
+    END LOOP;
+    FOR r IN SELECT status, count(*) AS n FROM fleet_partner_sla_measurements GROUP BY 1 ORDER BY 1 LOOP
+      RAISE NOTICE 'FLEET_SLA_MEASUREMENTS status=% count=%', r.status, r.n;
+    END LOOP;
+    IF to_regclass('public.fleet_partner_support_case_messages') IS NOT NULL THEN
+      FOR r IN SELECT status, count(*) AS n FROM fleet_partner_support_case_messages GROUP BY 1 ORDER BY 1 LOOP
+        RAISE NOTICE 'FLEET_SUPPORT_MESSAGES status=% count=%', r.status, r.n;
+      END LOOP;
+    END IF;
+  END IF;
+  IF to_regclass('public.notification_templates') IS NOT NULL THEN
+    FOR r IN SELECT k AS key, EXISTS (SELECT 1 FROM notification_templates t WHERE t.key = k AND t.active) AS present
+             FROM unnest(ARRAY['fleet.escalation.due','fleet.communication.message','fleet.automation.notice','corporate.auth.otp']) AS k LOOP
+      RAISE NOTICE 'NOTIFICATION_FLEET_TEMPLATE key=% present=%', r.key, r.present;
+    END LOOP;
+    FOR r IN SELECT event_type, status, count(*) AS n FROM notification_messages WHERE source_service = 'fleet-partner-service'
+             GROUP BY 1, 2 ORDER BY 1, 2 LOOP
+      RAISE NOTICE 'NOTIFICATION_FLEET_MESSAGES event=% status=% count=%', r.event_type, r.status, r.n;
+    END LOOP;
+  END IF;
+END
+$backlog$;
+SQL
     # Dispatch only: the read-only inventory step 1 of the reviewed 070
     # transition needs (docs/deployment/staging-release-approval.md).
     # Aggregate counts only; no payload, key, provider or offer is printed.

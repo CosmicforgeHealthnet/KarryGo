@@ -43,6 +43,7 @@ FILES = {
     "driver-hauling-service": "/opt/karrygo/hauling-service/hauling.env",
     "driver-taxi-service": "/opt/karrygo/taxi-service/taxi.env",
     "media-file-service": "/opt/karrygo/media-file-service/media.env",
+    "support-dispute-service": "/opt/karrygo/support-dispute-service/support.env",
 }
 # (service, NAME) -> key size in bytes, for KEYGEN. Closed list: a key is
 # generated only for a setting that is known to take keyId:base64 keys.
@@ -87,6 +88,14 @@ PAIRS = {
     ("payment-wallet-service", "fleet-partner-service"): {
         "caller_var": "PAYMENT_WALLET_FINANCE_OUTBOX_SECRET",
         "callee_list": "FLEET_PARTNER_SERVICE_SECRETS"},
+    # Fleet -> Support/Dispute organization cases and their messages.
+    # Support/Dispute has a built-in caller list: pairing refuses (below)
+    # unless the settings file names the list explicitly, so the built-in
+    # callers are never silently replaced by a list holding only Fleet.
+    ("fleet-partner-service", "support-dispute-service"): {
+        "caller_var": "FLEET_PARTNER_SUPPORT_DISPUTE_SERVICE_SECRET",
+        "callee_list": "SUPPORT_DISPUTE_SERVICE_SECRETS",
+        "require_explicit_list": True},
 }
 plan = {"pairs": [], "sets": [], "urls": [], "keygens": []}
 for raw in sys.argv[1].splitlines():
@@ -297,6 +306,9 @@ for pair in plan["pairs"]:
     _, _, callee_values = read(callee)
     caller_secret = updates.get(caller, {}).get(pair["caller_var"], caller_values.get(pair["caller_var"], ""))
     entries = parse_list(updates.get(callee, {}).get(pair["callee_list"], callee_values.get(pair["callee_list"], "")))
+    if pair.get("require_explicit_list") and pair["callee_list"] not in callee_values and pair["callee_list"] not in updates.get(callee, {}):
+        sys.exit(f"Refusing {caller} -> {callee}: {pair['callee_list']} is not set explicitly in its settings file, "
+                 f"so the service uses a built-in caller list that pairing would replace. Owner action: set it explicitly first.")
     trusted = [secret for name, secret in entries if name == caller]
     if caller_secret and trusted and trusted[0] == caller_secret:
         print(f"== {caller} -> {callee}: already paired")

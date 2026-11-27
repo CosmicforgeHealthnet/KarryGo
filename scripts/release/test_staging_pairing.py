@@ -162,3 +162,43 @@ class StagingPairingKeygenTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StagingPairingSupportTest(unittest.TestCase):
+    """Fleet -> Support/Dispute pairing keeps every existing Support caller."""
+
+    # The KEYGEN harness (redirected root and apply-env.sh), shared without
+    # inheriting and so re-running its tests.
+    run_pairing = StagingPairingKeygenTest.run_pairing
+
+    def setUp(self):
+        StagingPairingKeygenTest.setUp(self)
+        opt = self.tmp / "opt"
+        self.fleet_env = opt / "fleet-partner-service" / "fleet.service.env"
+        self.support_env = opt / "support-dispute-service" / "support.env"
+        for path in (self.fleet_env, self.support_env):
+            path.parent.mkdir(parents=True, exist_ok=True)
+        self.fleet_env.write_text("APP_ENV=staging\n")
+        self.fleet_env.chmod(0o600)
+
+    def test_support_pair_adds_fleet_and_keeps_existing_callers(self):
+        self.support_env.write_text("APP_ENV=staging\nSUPPORT_DISPUTE_SERVICE_SECRETS=admin-backoffice-service=a1,customer-service=c1\n")
+        self.support_env.chmod(0o600)
+        result = self.run_pairing("PAIR fleet-partner-service support-dispute-service\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        support = dict(l.split("=", 1) for l in self.support_env.read_text().splitlines() if "=" in l)
+        fleet = dict(l.split("=", 1) for l in self.fleet_env.read_text().splitlines() if "=" in l)
+        entries = dict(e.split("=", 1) for e in support["SUPPORT_DISPUTE_SERVICE_SECRETS"].split(","))
+        self.assertEqual(entries["admin-backoffice-service"], "a1")
+        self.assertEqual(entries["customer-service"], "c1")
+        self.assertEqual(entries["fleet-partner-service"], fleet["FLEET_PARTNER_SUPPORT_DISPUTE_SERVICE_SECRET"])
+        self.assertNotIn(fleet["FLEET_PARTNER_SUPPORT_DISPUTE_SERVICE_SECRET"], result.stdout + result.stderr)
+
+    def test_support_pair_refuses_to_replace_a_built_in_caller_list(self):
+        self.support_env.write_text("APP_ENV=staging\n")
+        self.support_env.chmod(0o600)
+        result = self.run_pairing("PAIR fleet-partner-service support-dispute-service\n")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("not set explicitly", result.stdout + result.stderr)
+        self.assertEqual(self.support_env.read_text(), "APP_ENV=staging\n")
+        self.assertNotIn("SUPPORT_DISPUTE", self.fleet_env.read_text())

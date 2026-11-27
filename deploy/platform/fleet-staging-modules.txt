@@ -131,3 +131,7 @@ SECTION24_WORKERS_ENABLED=true
 PRIVACY_REQUESTS_ENABLED=true
 SECURITY_EVENTS_ENABLED=true
 SECURITY_SESSIONS_ENABLED=true
+
+# Organization privacy settings: a versioned view over the enforced retention
+# policy (spec 59.10), tenant data only.
+PRIVACY_SETTINGS_ENABLED=true
