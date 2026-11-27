@@ -23,7 +23,17 @@ RUN CGO_ENABLED=0 go build -trimpath \
 RUN CGO_ENABLED=0 go build -trimpath -o /out/vendor-migrate ./tools/migrate
 
 FROM alpine:3.22
+# The alpine:3.22 base still ships OpenSSL 3.5.9-r0; CVE-2026-124709 is fixed
+# in 3.5.9-r2 (Alpine 3.22 main). Upgrade the two runtime libraries and fail
+# the build if they are still below the fixed release, printing the installed
+# versions as evidence.
 RUN apk add --no-cache ca-certificates \
+    && apk upgrade --no-cache libssl3 libcrypto3 \
+    && for p in libssl3 libcrypto3; do \
+         v="$(apk info -e -v "$p" | sed "s/^$p-//")"; \
+         [ "$(apk version -t "$v" 3.5.9-r2)" != "<" ] || { echo "$p $v is below 3.5.9-r2"; exit 1; }; \
+         echo "openssl-runtime $p $v"; \
+       done \
     && addgroup -S cosmicforge \
     && adduser -S cosmicforge -G cosmicforge
 
