@@ -27,7 +27,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/staging'
+    if: github.repository == 'CosmicforgeHealthnet/KarryGo' && github.ref == 'refs/heads/staging'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     environment: staging
@@ -189,6 +189,7 @@ jobs:
             echo "== $s"
             ssh "${opts[@]}" "$target" bash -s -- "$remote" "$s" "ghcr.io/cosmicforgehealthnet/$s:$SHA" <<'REMOTE'
           set -euo pipefail
+          umask 077
           remote="$1"; svc="$2"; image="$3"
           cd "$remote/platform"
           source bin/lib.sh
@@ -208,6 +209,23 @@ jobs:
           fi
           find "$dir" -name '*.sql.gz' -mtime +7 -delete || true
           docker pull -q "$image" >/dev/null
+          if [ "$svc" = notification-service ]; then
+            # This command exists in the newly built image only. Never run it
+            # from the generic rollback path or start another consumer.
+            migration_release=$(mktemp "$SVC_DIR/migration.XXXXXX")
+            trap 'rm -f "$migration_release"' EXIT
+            printf 'IMAGE=%s\n' "$image" > "$migration_release"
+            RELEASE_OVERRIDE="$migration_release" svc_compose run --rm --no-deps -T app --migrate-only
+            rm -f "$migration_release"
+            trap - EXIT
+            templates=$(docker exec -i "$db" sh -c 'psql -X -qAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "${POSTGRES_DB:-$POSTGRES_USER}"' <<'SQL'
+          SELECT count(*) FROM notification_templates
+          WHERE locale='en-NG' AND key IN ('fleet.escalation.due','fleet.communication.message','fleet.automation.notice');
+          SQL
+            )
+            [ "$templates" = 3 ] || { echo "::error::Fleet notification migration evidence missing"; exit 1; }
+            echo "NOTIFICATION_MIGRATION_EVIDENCE fleet_templates=3"
+          fi
           bash bin/deploy-service.sh "$svc" "$image"
           if [ "$svc" = fleet-partner-service ]; then
             expected="${image##*:}"

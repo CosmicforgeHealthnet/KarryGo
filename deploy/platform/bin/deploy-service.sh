@@ -84,10 +84,7 @@ if [ -n "$helpers" ]; then
 fi
 
 # 4. Database tables.
-if [ "$SVC_KEY" = notification-service ]; then
-  log "applying Notification migrations without starting consumers"
-  RELEASE_OVERRIDE="$NEW_RELEASE" svc_compose run --rm --no-deps -T app --migrate-only
-elif [ "$SVC_MIGRATE" = "bridge" ]; then
+if [ "$SVC_MIGRATE" = "bridge" ]; then
   log "applying bridge-only migrations with isolated DDL credentials"
   RELEASE_OVERRIDE="$NEW_RELEASE" svc_compose run --rm --no-deps -T migrate
 elif [ "$SVC_MIGRATE" = "script" ]; then
