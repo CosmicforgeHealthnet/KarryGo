@@ -29,11 +29,12 @@ jobs:
   deploy:
     if: github.ref == 'refs/heads/staging'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     environment: staging
     permissions:
       contents: read
       packages: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -104,6 +105,12 @@ jobs:
               --label org.opencontainers.image.revision="$SHA" \
               --tag "ghcr.io/cosmicforgehealthnet/$s:$SHA" .
           done
+
+      - name: Verify mandatory CI for the exact staging revision
+        if: steps.pick.outputs.services != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release/staging_auto_ci.py
 
       - name: Back up, deploy and health-check on the server
         if: steps.pick.outputs.services != ''
