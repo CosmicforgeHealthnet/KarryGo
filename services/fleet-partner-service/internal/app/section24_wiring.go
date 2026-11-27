@@ -13,6 +13,7 @@ import (
 	analyticsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/analytics/models"
 	analyticsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/analytics/repositories"
 	analyticsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/analytics/usecases"
+	authrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/auth/repositories"
 	communicationsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/models"
 	communicationsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/usecases"
 	engagementmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/engagement/models"
@@ -88,9 +89,13 @@ func StartSection24Workers(ctx context.Context, cfg config.Config, c *Components
 
 // NewGovernanceService wires the Section 28/56 privacy-request workflow and
 // the organization security-event read model.
-func NewGovernanceService(cfg config.Config, pool *pgxpool.Pool, publisher governanceusecases.Events) *governanceusecases.Service {
+func NewGovernanceService(cfg config.Config, pool *pgxpool.Pool, publisher governanceusecases.Events, sessions *authrepos.SessionRepository) *governanceusecases.Service {
+	var authority governanceusecases.SessionAuthority
+	if sessions != nil {
+		authority = governanceSessions{sessions: sessions}
+	}
 	return governanceusecases.NewService(governanceusecases.Options{
-		Store: governancerepos.NewRepository(pool), Events: publisher,
-		Flags: governancemodels.Flags{PrivacyRequests: cfg.PrivacyRequestsEnabled, SecurityEvents: cfg.SecurityEventsEnabled, KillSwitch: cfg.IntegrationsKillSwitch},
+		Store: governancerepos.NewRepository(pool), Events: publisher, Sessions: authority,
+		Flags: governancemodels.Flags{PrivacyRequests: cfg.PrivacyRequestsEnabled, SecurityEvents: cfg.SecurityEventsEnabled, SecuritySessions: cfg.SecuritySessionsEnabled, KillSwitch: cfg.IntegrationsKillSwitch},
 	})
 }

@@ -1078,6 +1078,13 @@ var overrides = []Entry{
 	{Method: "POST", Path: "/fleet-partner/v1/integrations/webhook-deliveries/:id/replay", RiskClass: ratelimit.RiskHighRisk},
 	{Method: "GET", Path: "/fleet-partner/integrations/v1/context", RiskClass: ratelimit.RiskSensitive},
 	// --- sections 21-33 additions ---
+	// Spec 56.3/59.10 names: /audit-events reuses the /audit-logs handler;
+	// POST /sessions/:sessionId/revoke is the command form of the DELETE.
+	// Organization staff-session revocation is HIGH_RISK like self-revoke.
+	{Method: "GET", Path: "/fleet-partner/v1/audit-events", RiskClass: ratelimit.RiskStandard},
+	{Method: "POST", Path: "/fleet-partner/v1/sessions/:sessionId/revoke", RiskClass: ratelimit.RiskHighRisk},
+	{Method: "GET", Path: "/fleet-partner/v1/security/sessions", RiskClass: ratelimit.RiskSensitive},
+	{Method: "POST", Path: "/fleet-partner/v1/security/sessions/:sessionId/revoke", RiskClass: ratelimit.RiskHighRisk},
 	// Section 28/56 security events and privacy requests.
 	{Method: "GET", Path: "/fleet-partner/v1/security-events", RiskClass: ratelimit.RiskStandard},
 	{Method: "GET", Path: "/fleet-partner/v1/privacy-requests", RiskClass: ratelimit.RiskStandard},

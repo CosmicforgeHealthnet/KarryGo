@@ -21,6 +21,10 @@ const CorporatePrefix = "/fleet-partner/v1"
 func (h *Handler) TenantRoutes() []Route {
 	return []Route{
 		{Method: "GET", Path: "/audit-logs", OperationID: "listAuditLogs", Permission: PermissionAuditRead},
+		// /audit-events is the spec 56.3/59.10 name for the same list; it is
+		// served by the same handler, filters and permission, never a copy
+		// of the audit history.
+		{Method: "GET", Path: "/audit-events", OperationID: "listAuditEvents", Permission: PermissionAuditRead},
 		{Method: "GET", Path: "/audit-logs/:auditId", OperationID: "getAuditLog", Permission: PermissionAuditRead},
 		{Method: "POST", Path: "/audit/verify-chain", OperationID: "verifyAuditChain", Permission: PermissionAuditVerifyChain},
 	}

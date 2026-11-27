@@ -49,6 +49,7 @@ func NewHandler(repo AuditReader, authorizer *accesscontrol.Authorizer) *Handler
 // RegisterTenantRoutes mounts the audit-log read surface.
 func (h *Handler) RegisterTenantRoutes(group *gin.RouterGroup) {
 	group.GET("/audit-logs", h.list)
+	group.GET("/audit-events", h.list)
 	group.GET("/audit-logs/:auditId", h.get)
 	group.POST("/audit/verify-chain", h.verifyChain)
 }

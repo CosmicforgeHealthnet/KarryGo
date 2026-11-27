@@ -1,11 +1,36 @@
 // Package models holds the Section 28/56 governance domain: the
-// organization's security-event read model and privacy requests.
+// organization's security-event read model, organization session
+// management and privacy requests.
 package models
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Flags gate the governance capabilities; all default off.
-type Flags struct{ PrivacyRequests, SecurityEvents, KillSwitch bool }
+type Flags struct{ PrivacyRequests, SecurityEvents, SecuritySessions, KillSwitch bool }
+
+// OrganizationSession is one organization-scoped staff session as its
+// security managers see it (spec 59.10). Refresh-token hashes, IP and
+// user-agent hashes are never exposed.
+type OrganizationSession struct {
+	ID                 string     `json:"id"`
+	OrganizationID     string     `json:"organizationId"`
+	OrganizationUserID string     `json:"organizationUserId"`
+	Status             string     `json:"status"`
+	DeviceLabel        string     `json:"deviceLabel,omitempty"`
+	LastSeenAt         time.Time  `json:"lastSeenAt"`
+	CreatedAt          time.Time  `json:"createdAt"`
+	RevokedAt          *time.Time `json:"revokedAt,omitempty"`
+	RevocationReason   string     `json:"revocationReason,omitempty"`
+	Current            bool       `json:"current"`
+}
+
+// SessionRevokeInput revokes an organization session.
+type SessionRevokeInput struct {
+	Reason string `json:"reason"`
+}
 
 // PrivacyRequestInput submits a privacy request.
 type PrivacyRequestInput struct {

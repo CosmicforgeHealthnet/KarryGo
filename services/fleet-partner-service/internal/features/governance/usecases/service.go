@@ -29,8 +29,11 @@ type Events interface {
 type Options struct {
 	Store  Repository
 	Events Events
-	Flags  models.Flags
-	Now    func() time.Time
+	// Sessions is the authentication feature's session store, reached
+	// through a port so there is still exactly one session authority.
+	Sessions SessionAuthority
+	Flags    models.Flags
+	Now      func() time.Time
 	// PrivacyResponseWindow is how long the organization has to answer a
 	// privacy request; zero means 30 days.
 	PrivacyResponseWindow time.Duration
@@ -67,11 +70,25 @@ func (s *Service) gate(on, write bool) error {
 }
 
 func (s *Service) record(ctx context.Context, tx pgx.Tx, t tenant.Context, event, id string, v int64, p any) error {
-	if err := s.audit.Record(ctx, tx, audit.EntryFromTenant(t, strings.TrimSuffix(event, ".v1"), "privacy_request", id)); err != nil {
+	return s.recordKind(ctx, tx, t, event, "privacy_request", id, v, p)
+}
+
+// recordKind writes the audit entry and the domain event of one change in
+// the caller's transaction.
+func (s *Service) recordKind(ctx context.Context, tx pgx.Tx, t tenant.Context, event, kind, id string, v int64, p any) error {
+	return s.recordReason(ctx, tx, t, event, kind, id, "", v, p)
+}
+
+// recordReason is recordKind with the human reason kept on the audit entry
+// (spec 28.4).
+func (s *Service) recordReason(ctx context.Context, tx pgx.Tx, t tenant.Context, event, kind, id, reason string, v int64, p any) error {
+	entry := audit.EntryFromTenant(t, strings.TrimSuffix(event, ".v1"), kind, id)
+	entry.Reason = reason
+	if err := s.audit.Record(ctx, tx, entry); err != nil {
 		return err
 	}
 	if s.o.Events != nil {
-		return s.o.Events.Publish(ctx, tx, event, "privacy_request", id, v, t.OrganizationID, t.CorrelationID, p)
+		return s.o.Events.Publish(ctx, tx, event, kind, id, v, t.OrganizationID, t.CorrelationID, p)
 	}
 	return nil
 }

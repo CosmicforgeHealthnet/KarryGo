@@ -227,6 +227,8 @@ var manifestlessPermissions = map[string]string{
 	// coverage test does not misreport a real, checked, non-permission
 	// authorization rule as an unreviewed gap.
 	"DELETE /fleet-partner/v1/sessions/:sessionId": selfOwnershipSentinel,
+	// The spec 56.3 command form of the same self-revoke.
+	"POST /fleet-partner/v1/sessions/:sessionId/revoke": selfOwnershipSentinel,
 
 	// marketplace/finance internal object routes: HMAC caller-allowlist
 	// (requireAllowedCaller), not an organization permission -- same

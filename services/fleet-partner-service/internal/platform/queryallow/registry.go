@@ -122,6 +122,10 @@ var declared = map[string][]string{
 	// Audit, security, retention, background operations.
 	"/audit-logs": {"branchId", "actorType", "actorId", "action", "resourceType", "resourceId",
 		"requestId", "correlationId", "highRiskOnly:bool", "from", "to", cursorPage},
+	// Same handler and filters as /audit-logs (spec 56.3/59.10 name).
+	"/audit-events": {"branchId", "actorType", "actorId", "action", "resourceType", "resourceId",
+		"requestId", "correlationId", "highRiskOnly:bool", "from", "to", cursorPage},
+	"/security/sessions":                    {},
 	"/security-settings":                    {},
 	"/legal-holds":                          {"scopeType", "scopeReference", "status", limitOnly},
 	"/retention-policies":                   {},

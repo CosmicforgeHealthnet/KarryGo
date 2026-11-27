@@ -149,6 +149,39 @@ func (r *SessionRepository) RevokeActiveFamily(ctx context.Context, q database.Q
 	return tag.RowsAffected(), err
 }
 
+// ListForOrganization returns the sessions scoped to one organization,
+// newest first, for that organization's security managers (spec 59.10).
+func (r *SessionRepository) ListForOrganization(ctx context.Context, organizationID string) ([]models.Session, error) {
+	rows, err := r.db.Query(ctx, `SELECT `+sessionColumns+`
+		FROM fleet_partner_corporate_sessions
+		WHERE organization_id = $1
+		ORDER BY created_at DESC, id
+		LIMIT 200`, organizationID)
+	if err != nil {
+		return nil, fmt.Errorf("auth: list organization sessions: %w", err)
+	}
+	defer rows.Close()
+	var sessions []models.Session
+	for rows.Next() {
+		session, err := scanSessionRows(rows)
+		if err != nil {
+			return nil, err
+		}
+		sessions = append(sessions, *session)
+	}
+	return sessions, rows.Err()
+}
+
+// RevokeActiveFamilyInOrganization revokes the active credentials of a
+// browser session family that are scoped to one organization. An
+// organization may end its own access through a session, never the same
+// person's access to another organization they later switched to. Caller
+// holds LockFamily.
+func (r *SessionRepository) RevokeActiveFamilyInOrganization(ctx context.Context, q database.Querier, familyID, organizationID, reason string) (int64, error) {
+	tag, err := q.Exec(ctx, `UPDATE fleet_partner_corporate_sessions SET status='REVOKED',revoked_at=now(),revocation_reason=$3,updated_at=now() WHERE session_family_id=$1 AND organization_id=$2 AND status='ACTIVE'`, familyID, organizationID, reason)
+	return tag.RowsAffected(), err
+}
+
 // ListForIdentity returns the identity's own sessions, newest first.
 func (r *SessionRepository) ListForIdentity(ctx context.Context, identityID string) ([]models.Session, error) {
 	rows, err := r.db.Query(ctx, `SELECT `+sessionColumns+`

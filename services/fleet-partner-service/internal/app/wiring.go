@@ -565,7 +565,7 @@ func BuildComponents(cfg config.Config, pool *pgxpool.Pool, redisClient *redis.C
 		FinanceOperations: financeOperations,
 		Engagement:        engagementService,
 		Analytics:         NewAnalyticsService(cfg, pool, publisher, engagementService, communicationsService),
-		Governance:        NewGovernanceService(cfg, pool, publisher),
+		Governance:        NewGovernanceService(cfg, pool, publisher, sessions),
 		Communications:    communicationsService,
 		Marketplace:       BuildMarketplaceService(cfg, pool, metrics),
 		FleetPartner:      fleetPartnerService,
@@ -785,7 +785,8 @@ func (c *Components) Registrars(cfg config.Config) (public RouteRegistrar, ident
 		Pool:       c.Pool,
 		Events:     events.NewDomainPublisher(events.NewOutboxRepository(c.Pool)),
 	}), c.Authorizer, c.Idempotency)
-	legalHoldService := legalholdusecases.NewService(c.Pool, stepUpVerifier, securitySettingsService)
+	legalHoldService := legalholdusecases.NewService(c.Pool, stepUpVerifier, securitySettingsService).
+		WithEvents(events.NewDomainPublisher(events.NewOutboxRepository(c.Pool)))
 	legalHoldHandler := legalholdhttp.NewHandler(legalHoldService, c.Authorizer)
 	securitySettingsHandler := securitysettingshttp.NewHandler(securitySettingsService, c.Authorizer)
 	retentionPolicyService := retentionpolicyusecases.NewService(c.Pool)

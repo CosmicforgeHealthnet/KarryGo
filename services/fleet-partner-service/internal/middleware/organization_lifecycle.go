@@ -79,6 +79,9 @@ var PreActivationWriteRoutes = map[string]bool{
 	"POST /fleet-partner/v1/staff/:staffId/reactivate":           true,
 	"PUT /fleet-partner/v1/security-settings":                    true,
 	"DELETE /fleet-partner/v1/sessions/:sessionId":               true,
+	"POST /fleet-partner/v1/sessions/:sessionId/revoke":          true,
+	// Ending a compromised staff session must never wait for activation.
+	"POST /fleet-partner/v1/security/sessions/:sessionId/revoke": true,
 	"POST /fleet-partner/v1/support/cases":                       true,
 }
 

@@ -143,6 +143,9 @@ func (h *Handler) RegisterAuthenticatedRoutes(group *gin.RouterGroup) {
 	group.GET("/identity/profile", h.currentProfile)
 	group.GET("/sessions", h.listSessions)
 	group.DELETE("/sessions/:sessionId", h.revokeSession)
+	// Spec 56.3 names the command form; it revokes exactly as DELETE does
+	// (the caller's own session family only).
+	group.POST("/sessions/:sessionId/revoke", h.revokeSession)
 }
 
 // setSessionCookies sets both the real (narrowly-scoped) refresh cookie and

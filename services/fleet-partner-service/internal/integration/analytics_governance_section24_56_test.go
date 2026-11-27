@@ -3,6 +3,7 @@ package integration_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	analyticsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/analytics/models"
 	analyticsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/analytics/usecases"
+	authmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/auth/models"
+	authrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/auth/repositories"
 	communicationsmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/models"
 	communicationsrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/repositories"
 	communicationsusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/communications/usecases"
@@ -113,7 +116,7 @@ func TestSection24AnalyticsRecommendationsAutomationAndGovernance(t *testing.T) 
 	eng := engagementusecases.NewService(engagementusecases.Options{Store: engagementrepos.NewRepository(pool), Events: publisher, Queue: queue, Notifications: app.EscalationNotices(comms), Flags: engagementmodels.Flags{Support: true, Quality: true, SLA: true, Escalations: true, Exceptions: true}})
 	cfg := config.Config{AnalyticsReportsEnabled: true, RecommendationsEnabled: true, AutomationEnabled: true, Section24WorkersEnabled: true, PrivacyRequestsEnabled: true, SecurityEventsEnabled: true}
 	svc := app.NewAnalyticsService(cfg, pool, publisher, eng, comms)
-	gov := app.NewGovernanceService(cfg, pool, publisher)
+	gov := app.NewGovernanceService(cfg, pool, publisher, authrepos.NewSessionRepository(pool))
 	worker := &jobs.Worker{Queue: queue, Metrics: observability.NewMetrics(), Owner: "s24-worker", PollInterval: 20 * time.Millisecond, LeaseDuration: 5 * time.Second, HeartbeatInterval: time.Second}
 	svc.RegisterWorkers(worker)
 	h := &s24{t: t, pool: pool, queue: queue, worker: worker, org: org}
@@ -180,6 +183,12 @@ func TestSection24AnalyticsRecommendationsAutomationAndGovernance(t *testing.T) 
 	done, err := svc.GetReportRun(ctx, scopeA, runA["id"].(string))
 	if err != nil || done["status"] != "COMPLETED" {
 		t.Fatalf("run = %v %v", done, err)
+	}
+	// Spec 54.4: a finished run announces itself exactly once, in the same
+	// transaction that stored the result.
+	var readyEvents int
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM fleet_partner_outbox WHERE event_type='report_run.ready.v1' AND aggregate_id=$1`, runA["id"]).Scan(&readyEvents); err != nil || readyEvents != 1 {
+		t.Fatalf("report_run.ready.v1 events for run = %d (%v), want 1", readyEvents, err)
 	}
 	var result analyticsmodels.ReportResult
 	raw, _ := json.Marshal(done["result"])
@@ -342,5 +351,65 @@ func TestSection24AnalyticsRecommendationsAutomationAndGovernance(t *testing.T) 
 	secEvents, err := gov.SecurityEvents(ctx, scope)
 	if err != nil || len(secEvents) != 1 {
 		t.Fatalf("security events = %d %v, want 1 (no cross-tenant)", len(secEvents), err)
+	}
+
+	// --- Organization staff sessions (spec 59.10) --------------------------------
+	// Disabled by default; then organization-wide security managers list and
+	// revoke their own organization's sessions only, through the auth
+	// feature's one session table.
+	if _, err = gov.ListOrganizationSessions(ctx, scope, ""); appCode(err) != "not_found" {
+		t.Fatalf("session management while disabled = %v, want not_found", err)
+	}
+	cfg.SecuritySessionsEnabled = true
+	gov = app.NewGovernanceService(cfg, pool, publisher, authrepos.NewSessionRepository(pool))
+	sessions := authrepos.NewSessionRepository(pool)
+	seedSession := func(orgID, identity, family string) string {
+		id, userID := ids.New("ses"), ids.New("usr")
+		s := &authmodels.Session{ID: id, IdentityID: identity, OrganizationUserID: &userID, OrganizationID: &orgID, SessionFamilyID: family,
+			RefreshTokenHash: ids.New("hash"), Status: authmodels.SessionStatusActive, RefreshExpiresAt: time.Now().Add(time.Hour)}
+		if err := sessions.Create(ctx, pool, s); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	staff := seedIdentity(t, pool, ids.New("s")+"@example.test", "+23480"+fmt.Sprint(time.Now().UnixNano()%100000000))
+	family := ids.New("fam")
+	mine := seedSession(org, staff, family)
+	// The same browser family later switched to another organization: an
+	// organization may end its own access, never the other one's.
+	elsewhere := seedSession(otherOrg.ID, staff, family)
+	foreign := seedSession(otherOrg.ID, staff, ids.New("fam"))
+	if _, err = gov.ListOrganizationSessions(ctx, scopeA, ""); appCode(err) != "forbidden" {
+		t.Fatalf("branch-scoped session listing = %v, want forbidden", err)
+	}
+	listed, err := gov.ListOrganizationSessions(ctx, scope, mine)
+	if err != nil || len(listed) != 1 || listed[0].ID != mine || !listed[0].Current {
+		t.Fatalf("organization sessions = %+v %v, want only %s marked current", listed, err, mine)
+	}
+	if _, err = gov.RevokeOrganizationSession(ctx, scope, mine, governancemodels.SessionRevokeInput{}); appCode(err) != "validation_failed" {
+		t.Fatalf("revoke without reason = %v", err)
+	}
+	if _, err = gov.RevokeOrganizationSession(ctx, scope, foreign, governancemodels.SessionRevokeInput{Reason: "lost laptop"}); appCode(err) != "not_found" {
+		t.Fatalf("revoking another organization's session = %v, want not_found", err)
+	}
+	revoked, err := gov.RevokeOrganizationSession(ctx, scope, mine, governancemodels.SessionRevokeInput{Reason: "lost laptop"})
+	if err != nil || revoked.Status != authmodels.SessionStatusRevoked {
+		t.Fatalf("revoke = %+v %v", revoked, err)
+	}
+	if _, err = gov.RevokeOrganizationSession(ctx, scope, mine, governancemodels.SessionRevokeInput{Reason: "lost laptop"}); err != nil {
+		t.Fatalf("repeat revoke = %v, want a no-op success", err)
+	}
+	for id, want := range map[string]string{mine: "REVOKED", elsewhere: "ACTIVE", foreign: "ACTIVE"} {
+		var status string
+		if err = pool.QueryRow(ctx, `SELECT status FROM fleet_partner_corporate_sessions WHERE id=$1`, id).Scan(&status); err != nil || status != want {
+			t.Fatalf("session %s status = %s (%v), want %s", id, status, err, want)
+		}
+	}
+	var revokedEvents, revokedAudit int
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM fleet_partner_outbox WHERE event_type='security.session_revoked.v1' AND aggregate_id=$1`, mine).Scan(&revokedEvents); err != nil || revokedEvents != 1 {
+		t.Fatalf("security.session_revoked.v1 events = %d (%v), want exactly 1", revokedEvents, err)
+	}
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM fleet_partner_audit_records WHERE resource_id=$1 AND action='security.session_revoked' AND reason='lost laptop'`, mine).Scan(&revokedAudit); err != nil || revokedAudit != 1 {
+		t.Fatalf("session revocation audit entries with reason = %d (%v), want 1", revokedAudit, err)
 	}
 }

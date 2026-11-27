@@ -14,6 +14,7 @@ import (
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenant"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platform/tenantcmd"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/auth"
 )
 
 // Route describes one tenant route.
@@ -30,6 +31,8 @@ func TenantRoutes() []Route {
 	const p = "PRIVACY_REQUESTS_ENABLED"
 	return []Route{
 		{"GET", "/security-events", "listSecurityEvents", "security_events.read", "SECURITY_EVENTS_ENABLED", "corporate", false, false},
+		{"GET", "/security/sessions", "listOrganizationSessions", "security.manage", "SECURITY_SESSIONS_ENABLED", "corporate", false, false},
+		{"POST", "/security/sessions/:sessionId/revoke", "revokeOrganizationSession", "security.manage", "SECURITY_SESSIONS_ENABLED", "corporate", true, false},
 		{"GET", "/privacy-requests", "listPrivacyRequests", "privacy.manage", p, "corporate", false, false},
 		{"POST", "/privacy-requests", "createPrivacyRequest", "privacy.manage", p, "corporate", true, false},
 		{"GET", "/privacy-requests/:requestId", "getPrivacyRequest", "privacy.manage", p, "corporate", false, false},
@@ -41,6 +44,8 @@ func TenantRoutes() []Route {
 // Service is the governance use-case slice the handler calls.
 type Service interface {
 	SecurityEvents(ctx context.Context, t tenant.Context) ([]map[string]any, error)
+	ListOrganizationSessions(ctx context.Context, t tenant.Context, currentSessionID string) ([]models.OrganizationSession, error)
+	RevokeOrganizationSession(ctx context.Context, t tenant.Context, sessionID string, in models.SessionRevokeInput) (models.OrganizationSession, error)
 	SubmitPrivacyRequest(ctx context.Context, t tenant.Context, in models.PrivacyRequestInput) (map[string]any, error)
 	GetPrivacyRequest(ctx context.Context, t tenant.Context, id string) (map[string]any, error)
 	ListPrivacyRequests(ctx context.Context, t tenant.Context) ([]map[string]any, error)
@@ -80,6 +85,18 @@ func (h *Handler) handle(c *gin.Context, r Route) {
 		switch r.OperationID {
 		case "listSecurityEvents":
 			return h.s.SecurityEvents(c, t)
+		case "listOrganizationSessions":
+			current := ""
+			if claims, ok := auth.ClaimsFromContext(c); ok {
+				current = claims.SessionID
+			}
+			return h.s.ListOrganizationSessions(c, t, current)
+		case "revokeOrganizationSession":
+			var in models.SessionRevokeInput
+			if !tenantcmd.Bind(c, &in) {
+				return nil, tenantcmd.ErrBound
+			}
+			return h.s.RevokeOrganizationSession(c, t, c.Param("sessionId"), in)
 		case "listPrivacyRequests":
 			return h.s.ListPrivacyRequests(c, t)
 		case "createPrivacyRequest":
