@@ -216,14 +216,18 @@ func (r *Repository) ClaimRun(ctx context.Context, organizationID, id string) (r
 	return reportType, filters, permissions, err == nil, err
 }
 
-func (r *Repository) CompleteRun(ctx context.Context, organizationID, id string, result []byte, rows int) error {
-	_, err := r.pool.Exec(ctx, `UPDATE fleet_partner_report_runs SET status='COMPLETED',result=$3,row_count=$4,completed_at=now() WHERE organization_id=$1 AND id=$2 AND status='RUNNING'`, organizationID, id, result, rows)
-	return err
+// CompleteRun stores a running run's result. It reports whether this call
+// made the transition, so a retried job emits the ready event only once.
+func (r *Repository) CompleteRun(ctx context.Context, q database.Querier, organizationID, id string, result []byte, rows int) (bool, error) {
+	tag, err := r.q(q).Exec(ctx, `UPDATE fleet_partner_report_runs SET status='COMPLETED',result=$3,row_count=$4,completed_at=now() WHERE organization_id=$1 AND id=$2 AND status='RUNNING'`, organizationID, id, result, rows)
+	return tag.RowsAffected() == 1, err
 }
 
-func (r *Repository) FailRun(ctx context.Context, organizationID, id, code string) error {
-	_, err := r.pool.Exec(ctx, `UPDATE fleet_partner_report_runs SET status='FAILED',error_code=$3,completed_at=now() WHERE organization_id=$1 AND id=$2 AND status IN('QUEUED','RUNNING')`, organizationID, id, code)
-	return err
+// FailRun records why a run could not be produced; like CompleteRun it
+// reports whether this call made the transition.
+func (r *Repository) FailRun(ctx context.Context, q database.Querier, organizationID, id, code string) (bool, error) {
+	tag, err := r.q(q).Exec(ctx, `UPDATE fleet_partner_report_runs SET status='FAILED',error_code=$3,completed_at=now() WHERE organization_id=$1 AND id=$2 AND status IN('QUEUED','RUNNING')`, organizationID, id, code)
+	return tag.RowsAffected() == 1, err
 }
 
 // ExpireRuns drops the result of every run past its expiry.

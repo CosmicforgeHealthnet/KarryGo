@@ -65,6 +65,29 @@ type Service struct {
 	recorder       *audit.Recorder
 	stepUp         stepup.Verifier
 	securityPolicy SecurityPolicyReader
+	events         Events
+}
+
+// Events publishes a domain event in the caller's transaction.
+type Events interface {
+	Publish(ctx context.Context, tx pgx.Tx, eventType, aggregateType, aggregateID string, version int64, organizationID, correlationID string, payload any) error
+}
+
+// WithEvents makes the service publish legal_hold.applied.v1 and
+// legal_hold.released.v1 (spec 56.4) in the same transaction as the change
+// and its audit entry. Without it the service still audits every change.
+func (s *Service) WithEvents(e Events) *Service {
+	s.events = e
+	return s
+}
+
+func (s *Service) publish(ctx context.Context, tx pgx.Tx, event string, hold models.Hold, correlationID string) error {
+	if s.events == nil {
+		return nil
+	}
+	return s.events.Publish(ctx, tx, event, "legal_hold", hold.ID, hold.Version, hold.OrganizationID, correlationID, map[string]any{
+		"legalHoldId": hold.ID, "scopeType": hold.ScopeType, "scopeReference": hold.ScopeReference,
+	})
 }
 
 // NewService builds the service. pool is required for transactional writes;
@@ -157,6 +180,9 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (models.Hold, e
 			return err
 		}
 		created = hold
+		if err = s.publish(ctx, tx, "legal_hold.applied.v1", hold, input.CorrelationID); err != nil {
+			return err
+		}
 		return s.recorder.Record(ctx, tx, audit.Entry{
 			OrganizationID: input.Actor.OrganizationID,
 			ActorType:      input.Actor.ActorType,
@@ -228,6 +254,9 @@ func (s *Service) Release(ctx context.Context, input ReleaseInput) (models.Hold,
 			return err
 		}
 		released = hold
+		if err = s.publish(ctx, tx, "legal_hold.released.v1", hold, input.CorrelationID); err != nil {
+			return err
+		}
 		return s.recorder.Record(ctx, tx, audit.Entry{
 			OrganizationID:  input.Actor.OrganizationID,
 			ActorType:       input.Actor.ActorType,

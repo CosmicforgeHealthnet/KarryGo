@@ -26,8 +26,8 @@ type Repository interface {
 	GetRun(ctx context.Context, organizationID, id string) (map[string]any, error)
 	ListRuns(ctx context.Context, organizationID, requester string) ([]map[string]any, error)
 	ClaimRun(ctx context.Context, organizationID, id string) (reportType string, filters, permissions []byte, ok bool, err error)
-	CompleteRun(ctx context.Context, organizationID, id string, result []byte, rows int) error
-	FailRun(ctx context.Context, organizationID, id, code string) error
+	CompleteRun(ctx context.Context, q database.Querier, organizationID, id string, result []byte, rows int) (bool, error)
+	FailRun(ctx context.Context, q database.Querier, organizationID, id, code string) (bool, error)
 	ExpireRuns(ctx context.Context, organizationID string, now time.Time) (int64, error)
 	MaintenanceCandidates(ctx context.Context, organizationID string) ([]map[string]any, error)
 	FuelOdometerAnomalies(ctx context.Context, organizationID string) ([]map[string]any, error)

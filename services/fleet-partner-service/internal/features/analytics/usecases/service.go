@@ -419,20 +419,44 @@ func (s *Service) generateRun(ctx context.Context, organizationID, runID string)
 	}
 	f, err := models.ParseReportFilters(rawFilters)
 	if err != nil {
-		return s.o.Store.FailRun(ctx, organizationID, runID, "invalid_filters")
+		return s.failRun(ctx, organizationID, runID, reportType, "invalid_filters")
 	}
 	var perms models.PermissionSnapshot
 	if err = json.Unmarshal(rawPerms, &perms); err != nil {
-		return s.o.Store.FailRun(ctx, organizationID, runID, "invalid_permission_snapshot")
+		return s.failRun(ctx, organizationID, runID, reportType, "invalid_permission_snapshot")
 	}
 	result, err := s.generate(ctx, organizationID, reportType, f, perms.PermittedBranchIDs)
 	if err != nil {
 		var ae *apperrors.Error
 		if errors.As(err, &ae) {
-			return s.o.Store.FailRun(ctx, organizationID, runID, string(ae.Code))
+			return s.failRun(ctx, organizationID, runID, reportType, string(ae.Code))
 		}
 		return err
 	}
 	raw, _ := json.Marshal(result)
-	return s.o.Store.CompleteRun(ctx, organizationID, runID, raw, result.RowCount())
+	t := reportGeneratorTenant(organizationID, runID)
+	return s.o.Store.WithinTx(ctx, func(tx pgx.Tx) error {
+		changed, err := s.o.Store.CompleteRun(ctx, tx, organizationID, runID, raw, result.RowCount())
+		if err != nil || !changed {
+			return err
+		}
+		return s.record(ctx, tx, t, "report_run.ready.v1", "report_run", runID, 2, map[string]any{"reportRunId": runID, "reportType": reportType, "rowCount": result.RowCount()})
+	})
+}
+
+// failRun marks a run failed and emits report_run.failed.v1 in the same
+// transaction (spec 54.4), once.
+func (s *Service) failRun(ctx context.Context, organizationID, runID, reportType, code string) error {
+	t := reportGeneratorTenant(organizationID, runID)
+	return s.o.Store.WithinTx(ctx, func(tx pgx.Tx) error {
+		changed, err := s.o.Store.FailRun(ctx, tx, organizationID, runID, code)
+		if err != nil || !changed {
+			return err
+		}
+		return s.record(ctx, tx, t, "report_run.failed.v1", "report_run", runID, 2, map[string]any{"reportRunId": runID, "reportType": reportType, "errorCode": code})
+	})
+}
+
+func reportGeneratorTenant(organizationID, runID string) tenant.Context {
+	return tenant.Context{OrganizationID: organizationID, ActorType: tenant.ActorTypeSystem, ActorID: "report-generator", CorrelationID: runID}
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	fleetevents "cosmicforge/logistics/services/fleet-partner-service/internal/events"
 	auditrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/audit/repositories"
 	legalholdmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/models"
 	legalholdrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/legalhold/repositories"
@@ -26,7 +27,8 @@ func TestSection28LegalHold_LifecycleAndTenantIsolation(t *testing.T) {
 	orgA := createOrganization(t, pool, "Hold Org A", "RC-HOLD-A")
 	orgB := createOrganization(t, pool, "Hold Org B", "RC-HOLD-B")
 
-	svc := legalholdusecases.NewService(pool, acceptingStepUp{}, nil)
+	svc := legalholdusecases.NewService(pool, acceptingStepUp{}, nil).
+		WithEvents(fleetevents.NewDomainPublisher(fleetevents.NewOutboxRepository(pool)))
 	actorA := legalholdusecases.Actor{OrganizationID: orgA.ID, ActorType: "organization_user", ActorID: "ou_1"}
 
 	hold, err := svc.Create(ctx, legalholdusecases.CreateInput{
@@ -74,6 +76,15 @@ func TestSection28LegalHold_LifecycleAndTenantIsolation(t *testing.T) {
 	underHoldAfterRelease, err := svc.IsUnderHold(ctx, orgA.ID, legalholdmodels.ScopeTrip, "trp_1")
 	if err != nil || underHoldAfterRelease {
 		t.Fatalf("IsUnderHold after release = %v, %v; want false, nil", underHoldAfterRelease, err)
+	}
+
+	// Spec 56.4: applying and releasing a hold each publish one event in the
+	// same transaction as the change.
+	for _, event := range []string{"legal_hold.applied.v1", "legal_hold.released.v1"} {
+		var n int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM fleet_partner_outbox WHERE event_type=$1 AND aggregate_id=$2`, event, hold.ID).Scan(&n); err != nil || n != 1 {
+			t.Fatalf("%s events for hold = %d (%v), want 1", event, n, err)
+		}
 	}
 
 	// A second release attempt on an already-released hold is refused, not a
