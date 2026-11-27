@@ -63,6 +63,8 @@ type OperationsRepository interface {
 	SetLinePickedQuantity(ctx context.Context, q database.Querier, lineID string, picked float64) error
 	InsertPickTaskMovement(ctx context.Context, q database.Querier, org, taskID, itemID, orderID, actor string, quantity float64) error
 	OrderPickProgress(ctx context.Context, q database.Querier, org, orderID string) (int, int, error)
+	ReleaseOrderReservations(ctx context.Context, q database.Querier, org, itemID, orderID string) error
+	InsertPickReleaseMovement(ctx context.Context, q database.Querier, org, itemID, orderID, actor string, quantity float64) error
 	WaveOpenCount(ctx context.Context, q database.Querier, org, waveID string) (int, error)
 	CompleteWave(ctx context.Context, q database.Querier, org, waveID string) (int64, error)
 	SetOrderStatusLocked(ctx context.Context, q database.Querier, org, orderID, status string) (int64, error)
@@ -788,10 +790,50 @@ func (s *Service) ClaimPickTask(ctx context.Context, t tenant.Context, id string
 	return s.GetPickTask(ctx, t, id)
 }
 
+// cancelPickingOrder ends a wave order that can no longer complete, for
+// example after a short pick. The caller holds the order and its lines
+// locked, which also serializes it against pick-task completion (that path
+// locks the order first). Every pick task must be finished: an open or
+// claimed task still holds stock an operator may be carrying. Each line
+// still holds exactly its picked quantity (a wave creates one task per line
+// and a short pick already released the unpicked remainder), so that amount
+// is released and a RELEASE movement balances the PICK in the history.
+func (s *Service) cancelPickingOrder(ctx context.Context, tx pgx.Tx, t tenant.Context, orderID string, lines []models.FulfilmentLineState) error {
+	ops := s.ops()
+	if ops == nil {
+		return apperrors.Unavailable("Warehouse operations are unavailable.", nil)
+	}
+	org := t.OrganizationID
+	open, _, x := ops.OrderPickProgress(ctx, tx, org, orderID)
+	if x != nil {
+		return x
+	}
+	if open > 0 {
+		return errState("Finish or release the order's open pick tasks before cancelling it.")
+	}
+	for _, l := range lines {
+		if _, x = s.repo.LockItem(ctx, tx, org, l.InventoryItemID); x != nil {
+			return x
+		}
+		if l.Picked > 0 {
+			if x = s.repo.ReleaseItemReservation(ctx, tx, org, l.InventoryItemID, l.Picked); x != nil {
+				return x
+			}
+			if x = ops.InsertPickReleaseMovement(ctx, tx, org, l.InventoryItemID, orderID, t.ActorID, l.Picked); x != nil {
+				return x
+			}
+		}
+		if x = ops.ReleaseOrderReservations(ctx, tx, org, l.InventoryItemID, orderID); x != nil {
+			return x
+		}
+	}
+	return nil
+}
+
 // CompletePickTask confirms the source scan against the reserved stock. A
 // short pick releases the unpicked reservation and leaves the order in
-// PICKING for re-planning; a full pick of every task moves the order to
-// PICKED.
+// PICKING, from which an operator cancels it once no task is open (see
+// cancelPickingOrder); a full pick of every task moves the order to PICKED.
 func (s *Service) CompletePickTask(ctx context.Context, t tenant.Context, id string, in models.PickCompleteInput) (models.PickTask, error) {
 	current, e := s.GetPickTask(ctx, t, id)
 	if e != nil {

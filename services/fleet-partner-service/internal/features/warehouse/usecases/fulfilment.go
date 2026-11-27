@@ -161,7 +161,14 @@ func (s *Service) FulfilmentCommand(ctx context.Context, t tenant.Context, id, c
 			}
 			next = "RELEASED"
 		case "PICK":
-			if status != "RELEASED" && status != "PICKING" {
+			// A PICKING order belongs to a pick wave: its units are picked
+			// only by scanned pick tasks. Picking it here as well would
+			// record the stock as picked twice (and, after a short pick,
+			// claim units that were never picked).
+			if status == "PICKING" {
+				return apperrors.Conflict("This order is being picked by a pick wave; complete its pick tasks instead.", nil)
+			}
+			if status != "RELEASED" {
 				return apperrors.Conflict("Order is not releasable for picking.", nil)
 			}
 			for _, l := range lines {
@@ -244,8 +251,19 @@ func (s *Service) FulfilmentCommand(ctx context.Context, t tenant.Context, id, c
 			}
 			next = "DISPATCHED"
 		case "CANCEL":
+			if status == "PICKING" {
+				// Recovery for a wave order that cannot complete (for
+				// example after a short pick): once no pick task is still
+				// open, return what was picked to stock and end every
+				// reservation the order holds.
+				if x = s.cancelPickingOrder(ctx, tx, t, id, lines); x != nil {
+					return x
+				}
+				next = "CANCELLED"
+				break
+			}
 			if status != "DRAFT" && status != "RELEASED" {
-				return apperrors.Conflict("Only draft or safely reserved orders can be cancelled.", nil)
+				return apperrors.Conflict("Only draft, safely reserved or wave orders with no open pick task can be cancelled.", nil)
 			}
 			if status == "RELEASED" {
 				for _, l := range lines {

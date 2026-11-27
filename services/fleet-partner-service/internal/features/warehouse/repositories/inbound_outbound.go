@@ -322,6 +322,23 @@ func (r *Repository) InsertPickTaskMovement(ctx context.Context, q database.Quer
 	return e
 }
 
+// ReleaseOrderReservations ends every reservation an order still holds on
+// an item, including the PICKED rows a completed or short pick task left.
+func (r *Repository) ReleaseOrderReservations(ctx context.Context, q database.Querier, org, itemID, orderID string) error {
+	_, e := r.q(q).Exec(ctx, `UPDATE fleet_partner_inventory_reservations SET status='RELEASED',version=version+1,updated_at=now() WHERE organization_id=$1 AND inventory_item_id=$2 AND fulfilment_order_id=$3 AND status IN('ACTIVE','PICKED')`, org, itemID, orderID)
+	return e
+}
+
+// InsertPickReleaseMovement appends the RELEASE movement that returns
+// picked-but-unshipped units of a cancelled order to available stock. Like
+// PICK it leaves the quantity projection unchanged; it balances the PICK in
+// the append-only movement history.
+func (r *Repository) InsertPickReleaseMovement(ctx context.Context, q database.Querier, org, itemID, orderID, actor string, quantity float64) error {
+	_, e := r.q(q).Exec(ctx, `INSERT INTO fleet_partner_inventory_movements(id,organization_id,inventory_item_id,movement_type,from_location_id,quantity,reason_code,actor_reference,fulfilment_order_id,correlation_id,projection_before,projection_after)SELECT $1,$2,id,'RELEASE',location_id,$3,'PICK_CANCELLED',$4,$5,$6,quantity_projection,quantity_projection FROM fleet_partner_inventory_items WHERE id=$7`,
+		ids.New("imv"), org, quantity, actor, orderID, orderID+":pick-cancelled:"+itemID, itemID)
+	return e
+}
+
 // OrderPickProgress counts the live tasks of an order still being picked
 // and how many ended short.
 func (r *Repository) OrderPickProgress(ctx context.Context, q database.Querier, org, orderID string) (open, short int, e error) {

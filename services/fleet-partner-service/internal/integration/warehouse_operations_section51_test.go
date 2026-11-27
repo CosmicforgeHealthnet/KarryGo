@@ -290,6 +290,58 @@ func TestSection51WarehouseJourney(t *testing.T) {
 	}
 	h.must(owner, http.MethodPost, "/fleet-partner/v1/packing-units", map[string]any{"fulfilmentOrderId": orderID, "packingCode": "PK-" + sfx + "-Y", "contents": []map[string]any{{"inventoryItemId": binItem, "quantity": 1}}}, http.StatusConflict)
 
+	// --- Short pick recovery -----------------------------------------------------
+	// A wave order is picked only by its tasks: the order-level pick command
+	// must not record the same stock a second time, before or after a short
+	// pick. Once no task is open the order is cancellable, which returns the
+	// picked units to stock and ends its reservations.
+	_, reservedBefore, _ := stockAt(t, pool, bin, "SKU-1")
+	short := h.must(owner, http.MethodPost, "/fleet-partner/v1/fulfilment-orders", map[string]any{"warehouseId": warehouseID, "customerReference": "cust-short", "lines": []map[string]any{{"inventoryItemId": binItem, "requestedQuantity": 3}}}, http.StatusCreated)
+	shortID := short["id"].(string)
+	short = h.must(owner, http.MethodPost, "/fleet-partner/v1/fulfilment-orders/"+shortID+"/release", map[string]any{"expectedVersion": ver(short)}, http.StatusOK)
+	shortWave := h.must(owner, http.MethodPost, "/fleet-partner/v1/pick-waves", map[string]any{"warehouseId": warehouseID, "waveNumber": "W-SHORT-" + sfx, "fulfilmentOrderIds": []string{shortID}}, http.StatusCreated)
+	shortTask := shortWave["tasks"].([]any)[0].(map[string]any)["id"].(string)
+	short = h.must(owner, http.MethodGet, "/fleet-partner/v1/fulfilment-orders/"+shortID, nil, http.StatusOK)
+	h.must(owner, http.MethodPost, "/fleet-partner/v1/fulfilment-orders/"+shortID+"/pick", map[string]any{"expectedVersion": ver(short)}, http.StatusConflict)
+	h.must(owner, http.MethodPost, "/fleet-partner/v1/pick-tasks/"+shortTask+"/claim", map[string]any{"clientClaimId": "pick-short"}, http.StatusOK)
+	h.must(owner, http.MethodPost, "/fleet-partner/v1/fulfilment-orders/"+shortID+"/cancel", map[string]any{"expectedVersion": ver(short)}, http.StatusConflict)
+	h.must(owner, http.MethodPost, "/fleet-partner/v1/pick-tasks/"+shortTask+"/complete", map[string]any{"scannedLocationCode": "BIN-A", "scannedSku": "SKU-1", "pickedQuantity": 1}, http.StatusOK)
+	short = h.must(owner, http.MethodGet, "/fleet-partner/v1/fulfilment-orders/"+shortID, nil, http.StatusOK)
+	if short["status"] != "PICKING" {
+		t.Fatalf("order after short pick = %v, want PICKING", short["status"])
+	}
+	if _, reserved, _ := stockAt(t, pool, bin, "SKU-1"); reserved != reservedBefore+1 {
+		t.Fatalf("reserved after short pick = %v, want %v (only the picked unit stays reserved)", reserved, reservedBefore+1)
+	}
+	var pickMovements int
+	countPicks := func() int {
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM fleet_partner_inventory_movements WHERE fulfilment_order_id=$1 AND movement_type='PICK'`, shortID).Scan(&pickMovements); err != nil {
+			t.Fatal(err)
+		}
+		return pickMovements
+	}
+	if n := countPicks(); n != 1 {
+		t.Fatalf("PICK movements after short pick = %d, want 1", n)
+	}
+	h.must(owner, http.MethodPost, "/fleet-partner/v1/fulfilment-orders/"+shortID+"/pick", map[string]any{"expectedVersion": ver(short)}, http.StatusConflict)
+	if n := countPicks(); n != 1 {
+		t.Fatalf("order-level pick recorded stock a second time: %d PICK movements", n)
+	}
+	short = h.must(owner, http.MethodPost, "/fleet-partner/v1/fulfilment-orders/"+shortID+"/cancel", map[string]any{"expectedVersion": ver(short)}, http.StatusOK)
+	if short["status"] != "CANCELLED" {
+		t.Fatalf("short-picked order after cancel = %v", short["status"])
+	}
+	if _, reserved, _ := stockAt(t, pool, bin, "SKU-1"); reserved != reservedBefore {
+		t.Fatalf("reserved after cancel = %v, want %v", reserved, reservedBefore)
+	}
+	var released, liveReservations int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fleet_partner_inventory_movements WHERE fulfilment_order_id=$1 AND movement_type='RELEASE' AND reason_code='PICK_CANCELLED' AND quantity=1`, shortID).Scan(&released); err != nil || released != 1 {
+		t.Fatalf("RELEASE movement for cancelled pick = %d (%v), want 1", released, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM fleet_partner_inventory_reservations WHERE fulfilment_order_id=$1 AND status<>'RELEASED'`, shortID).Scan(&liveReservations); err != nil || liveReservations != 0 {
+		t.Fatalf("reservations still held by the cancelled order = %d (%v)", liveReservations, err)
+	}
+
 	// --- Gate events in yard order ---------------------------------------------
 	visit := h.must(owner, http.MethodPost, "/fleet-partner/v1/yard-visits", map[string]any{"warehouseId": warehouseID, "providerReference": "carrier-1", "vehicleOrTruckReference": "TRK-1"}, http.StatusCreated)
 	visitPath := "/fleet-partner/v1/yard-visits/" + visit["id"].(string) + "/gate-events"
