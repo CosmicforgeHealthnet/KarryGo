@@ -118,6 +118,21 @@ e.g. `POST /provider/complaints`, `GET /provider/complaints`, `POST /provider/so
 | `POST /admin/complaints/:id/messages` | Reply as admin (notifies the complainant). |
 | `GET /admin/complaints/:id/messages` | Read the thread. |
 
+#### Organization cases (Fleet only: caller `fleet-partner-service`)
+
+Support/Dispute is the one store of an organization's platform support
+conversation. Fleet keeps only a submission ledger (no message text).
+
+| Method & path | What it does |
+|---|---|
+| `POST /admin/organization-cases` | Open an organization case once per `(organization_reference, idempotency_key)`. |
+| `GET /admin/organization-cases/:id?organization_reference=` | Read the case, scoped to its organization. |
+| `POST /admin/organization-cases/:id/messages` | Post a staff message: `organization_reference`*, `client_message_id`* (UUID), `sender_reference`*, `text`* (max 4000), `file_ids` (max 10, already validated by Fleet with media-file-service), `visibility` (`SHARED` default, or `INTERNAL`). Stored once per `(case, client_message_id)`: a repeat with the same body returns the stored message (200), a different body is 409, a closed case is 409. |
+| `GET /admin/organization-cases/:id/messages/by-client-id/:clientMessageId?organization_reference=` | Authoritative read-back after an ambiguous submission (404 when not received). |
+
+`INTERNAL` messages are for platform support only: they are never returned on
+a customer or provider route.
+
 ### Realtime proxy (bearer — only when notification-service is configured)
 
 Brokers a live websocket channel for support chat so apps never hold the HMAC

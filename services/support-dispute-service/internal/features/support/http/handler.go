@@ -360,6 +360,47 @@ func (h *Handler) AdminGetOrganizationCase(c *gin.Context) {
 	respondOK(c, organizationCaseProjection(value))
 }
 
+// POST /admin/organization-cases/:id/messages (fleet-partner-service only).
+// 201 when stored, 200 when the client message id was already stored with
+// the same body.
+func (h *Handler) AdminCreateOrganizationMessage(c *gin.Context) {
+	var req struct {
+		OrganizationReference string   `json:"organization_reference"`
+		ClientMessageID       string   `json:"client_message_id"`
+		SenderReference       string   `json:"sender_reference"`
+		Text                  string   `json:"text"`
+		FileIDs               []string `json:"file_ids"`
+		Visibility            string   `json:"visibility"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.Abort(c, apperrors.BadRequest("Request body must be valid JSON.", err))
+		return
+	}
+	msg, created, err := h.service.CreateOrganizationMessage(c.Request.Context(), supportusecases.OrganizationMessageInput{OrganizationReference: req.OrganizationReference,
+		CaseID: c.Param("id"), ClientMessageID: req.ClientMessageID, SenderReference: req.SenderReference, Text: req.Text, FileIDs: req.FileIDs, Visibility: req.Visibility})
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	status := nethttp.StatusOK
+	if created {
+		status = nethttp.StatusCreated
+	}
+	respond(c, status, msg.Public())
+}
+
+// GET /admin/organization-cases/:id/messages/by-client-id/:clientMessageId
+// (fleet-partner-service only): authoritative read-back after an ambiguous
+// submission.
+func (h *Handler) AdminGetOrganizationMessage(c *gin.Context) {
+	msg, err := h.service.GetOrganizationMessage(c.Request.Context(), c.Query("organization_reference"), c.Param("id"), c.Param("clientMessageId"))
+	if err != nil {
+		httpx.Abort(c, err)
+		return
+	}
+	respondOK(c, msg.Public())
+}
+
 func organizationCaseProjection(value supportmodels.Complaint) gin.H {
 	owner := ""
 	if value.AssignedTo != nil {

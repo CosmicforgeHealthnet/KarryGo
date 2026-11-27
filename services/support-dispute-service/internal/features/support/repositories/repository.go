@@ -35,7 +35,14 @@ type SupportRepository interface {
 
 	FindActiveSupportChat(ctx context.Context, complainantType supportmodels.ComplainantType, complainantID string) (supportmodels.Complaint, error)
 	CreateChatMessage(ctx context.Context, msg supportmodels.ChatMessage) (supportmodels.ChatMessage, error)
-	ListChatMessages(ctx context.Context, complaintID string, limit, offset int) ([]supportmodels.ChatMessage, error)
+	// ListChatMessages lists a case's messages in order; INTERNAL messages are
+	// included only when includeInternal is set (platform support reads).
+	ListChatMessages(ctx context.Context, complaintID string, includeInternal bool, limit, offset int) ([]supportmodels.ChatMessage, error)
+	// CreateOrganizationMessage stores an organization-user message once per
+	// (case, client message id). created is false when the client id was
+	// already stored; the stored message is returned either way.
+	CreateOrganizationMessage(ctx context.Context, msg supportmodels.ChatMessage) (stored supportmodels.ChatMessage, created bool, err error)
+	GetChatMessageByClientID(ctx context.Context, complaintID, clientMessageID string) (supportmodels.ChatMessage, error)
 	CountUnread(ctx context.Context, complaintID, readerSenderType string) (int, error)
 	MarkRead(ctx context.Context, complaintID, readerSenderType string) error
 
@@ -398,26 +405,69 @@ func (r *PostgresSupportRepository) FindActiveSupportChat(ctx context.Context, c
 }
 
 func (r *PostgresSupportRepository) CreateChatMessage(ctx context.Context, msg supportmodels.ChatMessage) (supportmodels.ChatMessage, error) {
-	var result supportmodels.ChatMessage
-	err := r.db.QueryRow(ctx, `
+	return scanChatMessage(r.db.QueryRow(ctx, `
 		INSERT INTO support_chat_messages (complaint_id, sender_type, sender_id, content, media_url)
 		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id::text, complaint_id::text, sender_type, sender_id, content, media_url, is_read, created_at
-	`, msg.ComplaintID, msg.SenderType, msg.SenderID, msg.Content, msg.MediaURL).Scan(
-		&result.ID, &result.ComplaintID, &result.SenderType, &result.SenderID,
-		&result.Content, &result.MediaURL, &result.IsRead, &result.CreatedAt,
-	)
-	return result, err
+		RETURNING `+chatMessageColumns, msg.ComplaintID, msg.SenderType, msg.SenderID, msg.Content, msg.MediaURL))
 }
 
-func (r *PostgresSupportRepository) ListChatMessages(ctx context.Context, complaintID string, limit, offset int) ([]supportmodels.ChatMessage, error) {
+// chatMessageColumns is the select list scanChatMessage reads.
+const chatMessageColumns = `id::text, complaint_id::text, sender_type, sender_id, content, media_url, is_read, created_at,
+	visibility, file_ids, client_message_id::text, request_hash`
+
+func scanChatMessage(row pgx.Row) (supportmodels.ChatMessage, error) {
+	var m supportmodels.ChatMessage
+	var files []byte
+	err := row.Scan(&m.ID, &m.ComplaintID, &m.SenderType, &m.SenderID, &m.Content, &m.MediaURL, &m.IsRead, &m.CreatedAt,
+		&m.Visibility, &files, &m.ClientMessageID, &m.RequestHash)
+	if err != nil {
+		return m, err
+	}
+	if len(files) > 0 {
+		if err := json.Unmarshal(files, &m.FileIDs); err != nil {
+			return m, err
+		}
+	}
+	return m, nil
+}
+
+func (r *PostgresSupportRepository) CreateOrganizationMessage(ctx context.Context, msg supportmodels.ChatMessage) (supportmodels.ChatMessage, bool, error) {
+	files, err := json.Marshal(msg.FileIDs)
+	if err != nil {
+		return supportmodels.ChatMessage{}, false, err
+	}
+	if msg.FileIDs == nil {
+		files = []byte("[]")
+	}
+	stored, err := scanChatMessage(r.db.QueryRow(ctx, `
+		INSERT INTO support_chat_messages (complaint_id, sender_type, sender_id, content, client_message_id, visibility, file_ids, request_hash)
+		VALUES ($1, $2, $3, $4, $5::uuid, $6, $7::jsonb, $8)
+		ON CONFLICT (complaint_id, client_message_id) WHERE client_message_id IS NOT NULL DO NOTHING
+		RETURNING `+chatMessageColumns,
+		msg.ComplaintID, msg.SenderType, msg.SenderID, msg.Content, msg.ClientMessageID, msg.Visibility, string(files), msg.RequestHash))
+	if errors.Is(err, pgx.ErrNoRows) {
+		existing, readErr := r.GetChatMessageByClientID(ctx, msg.ComplaintID, *msg.ClientMessageID)
+		return existing, false, readErr
+	}
+	return stored, err == nil, err
+}
+
+func (r *PostgresSupportRepository) GetChatMessageByClientID(ctx context.Context, complaintID, clientMessageID string) (supportmodels.ChatMessage, error) {
+	m, err := scanChatMessage(r.db.QueryRow(ctx, `SELECT `+chatMessageColumns+` FROM support_chat_messages WHERE complaint_id = $1 AND client_message_id = $2::uuid`, complaintID, clientMessageID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return supportmodels.ChatMessage{}, apperrors.NotFound("Message not found.", err)
+	}
+	return m, err
+}
+
+func (r *PostgresSupportRepository) ListChatMessages(ctx context.Context, complaintID string, includeInternal bool, limit, offset int) ([]supportmodels.ChatMessage, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id::text, complaint_id::text, sender_type, sender_id, content, media_url, is_read, created_at
+		SELECT `+chatMessageColumns+`
 		FROM support_chat_messages
-		WHERE complaint_id = $1
+		WHERE complaint_id = $1 AND ($4 OR visibility <> 'INTERNAL')
 		ORDER BY sequence ASC
 		LIMIT $2 OFFSET $3
-	`, complaintID, limit, offset)
+	`, complaintID, limit, offset, includeInternal)
 	if err != nil {
 		return nil, err
 	}
@@ -425,11 +475,8 @@ func (r *PostgresSupportRepository) ListChatMessages(ctx context.Context, compla
 
 	var result []supportmodels.ChatMessage
 	for rows.Next() {
-		var m supportmodels.ChatMessage
-		if err := rows.Scan(
-			&m.ID, &m.ComplaintID, &m.SenderType, &m.SenderID,
-			&m.Content, &m.MediaURL, &m.IsRead, &m.CreatedAt,
-		); err != nil {
+		m, err := scanChatMessage(rows)
+		if err != nil {
 			return nil, err
 		}
 		result = append(result, m)

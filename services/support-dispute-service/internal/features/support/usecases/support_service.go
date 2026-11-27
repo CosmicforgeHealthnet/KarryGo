@@ -486,7 +486,8 @@ func (s *SupportService) ListChatMessages(ctx context.Context, complaintID strin
 		}
 	}
 
-	return s.repo.ListChatMessages(ctx, complaintID, clampLimit(limit), offset)
+	// INTERNAL organization-case messages are for platform support only.
+	return s.repo.ListChatMessages(ctx, complaintID, requestorType == supportmodels.SenderTypeAdmin, clampLimit(limit), offset)
 }
 
 // MarkMessagesRead marks the counterpart's messages as read for the requester.

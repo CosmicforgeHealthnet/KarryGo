@@ -50,8 +50,17 @@ func TestSupportRouteCountAndCommerceOpenAPI(t *testing.T) {
 	for _, route := range router.Routes() {
 		actual[route.Method+" "+normalize(route.Path)] = true
 	}
-	if len(actual) != 81 {
-		t.Fatalf("Support route count=%d want 81 (73 product + 8 Secure Admin)", len(actual))
+	if len(actual) != 83 {
+		t.Fatalf("Support route count=%d want 83 (75 product + 8 Secure Admin)", len(actual))
+	}
+	// Fleet organization-case messages (spec 59.10): create and read-back.
+	for _, route := range []string{
+		"POST /api/v1/support-disputes/admin/organization-cases/{id}/messages",
+		"GET /api/v1/support-disputes/admin/organization-cases/{id}/messages/by-client-id/{clientMessageId}",
+	} {
+		if !actual[route] {
+			t.Errorf("organization message route missing: %s", route)
+		}
 	}
 	for _, route := range []string{
 		"GET /internal/support/v1/admin/resources/{kind}", "GET /internal/support/v1/admin/resources/{kind}/{id}",

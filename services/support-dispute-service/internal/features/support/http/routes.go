@@ -67,6 +67,8 @@ func RegisterRoutes(
 	organizationCases := authenticatedAdmin.Group("", requireService("fleet-partner-service", "admin-backoffice-service"))
 	organizationCases.POST("/organization-cases", handler.AdminCreateOrganizationCase)
 	organizationCases.GET("/organization-cases/:id", handler.AdminGetOrganizationCase)
+	organizationCases.POST("/organization-cases/:id/messages", handler.AdminCreateOrganizationMessage)
+	organizationCases.GET("/organization-cases/:id/messages/by-client-id/:clientMessageId", handler.AdminGetOrganizationMessage)
 	admin := authenticatedAdmin.Group("", requireService("admin-backoffice-service"))
 	admin.GET("/complaints", handler.AdminListComplaints)
 	admin.GET("/complaints/:id", handler.AdminGetComplaint)

@@ -204,8 +204,32 @@ func (m *memRepo) CreateChatMessage(_ context.Context, msg supportmodels.ChatMes
 	return msg, nil
 }
 
-func (m *memRepo) ListChatMessages(_ context.Context, complaintID string, _, _ int) ([]supportmodels.ChatMessage, error) {
-	return m.messages[complaintID], nil
+func (m *memRepo) ListChatMessages(_ context.Context, complaintID string, includeInternal bool, _, _ int) ([]supportmodels.ChatMessage, error) {
+	var out []supportmodels.ChatMessage
+	for _, msg := range m.messages[complaintID] {
+		if includeInternal || msg.Visibility != supportmodels.VisibilityInternal {
+			out = append(out, msg)
+		}
+	}
+	return out, nil
+}
+
+func (m *memRepo) CreateOrganizationMessage(_ context.Context, msg supportmodels.ChatMessage) (supportmodels.ChatMessage, bool, error) {
+	if existing, err := m.GetChatMessageByClientID(context.Background(), msg.ComplaintID, *msg.ClientMessageID); err == nil {
+		return existing, false, nil
+	}
+	msg.ID = m.nextID()
+	m.messages[msg.ComplaintID] = append(m.messages[msg.ComplaintID], msg)
+	return msg, true, nil
+}
+
+func (m *memRepo) GetChatMessageByClientID(_ context.Context, complaintID, clientMessageID string) (supportmodels.ChatMessage, error) {
+	for _, msg := range m.messages[complaintID] {
+		if msg.ClientMessageID != nil && *msg.ClientMessageID == clientMessageID {
+			return msg, nil
+		}
+	}
+	return supportmodels.ChatMessage{}, apperrors.NotFound("Message not found.", nil)
 }
 
 func (m *memRepo) CountUnread(_ context.Context, complaintID, readerSenderType string) (int, error) {

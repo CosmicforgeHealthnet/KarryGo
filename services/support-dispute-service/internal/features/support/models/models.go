@@ -12,6 +12,9 @@ const (
 	SenderTypeDispatchProvider SenderType = "dispatch_provider"
 	SenderTypeHaulingProvider  SenderType = "hauling_provider"
 	SenderTypeAdmin            SenderType = "admin"
+	// SenderTypeOrganizationUser is a corporate (Fleet) staff member writing
+	// on their organization's platform support case.
+	SenderTypeOrganizationUser SenderType = "organization_user"
 )
 
 type ChatMessage struct {
@@ -23,17 +26,32 @@ type ChatMessage struct {
 	MediaURL    *string
 	IsRead      bool
 	CreatedAt   time.Time
+	// Visibility is SHARED or INTERNAL (organization case messages; every
+	// other message is SHARED).
+	Visibility      string
+	FileIDs         []string
+	ClientMessageID *string
+	RequestHash     *string
 }
 
+// Message visibility values.
+const (
+	VisibilityShared   = "SHARED"
+	VisibilityInternal = "INTERNAL"
+)
+
 type PublicChatMessage struct {
-	ID          string     `json:"id"`
-	ComplaintID string     `json:"complaint_id"`
-	SenderType  SenderType `json:"sender_type"`
-	SenderID    string     `json:"sender_id"`
-	Content     string     `json:"content"`
-	MediaURL    *string    `json:"media_url,omitempty"`
-	IsRead      bool       `json:"is_read"`
-	CreatedAt   time.Time  `json:"created_at"`
+	ID              string     `json:"id"`
+	ComplaintID     string     `json:"complaint_id"`
+	SenderType      SenderType `json:"sender_type"`
+	SenderID        string     `json:"sender_id"`
+	Content         string     `json:"content"`
+	MediaURL        *string    `json:"media_url,omitempty"`
+	IsRead          bool       `json:"is_read"`
+	CreatedAt       time.Time  `json:"created_at"`
+	Visibility      string     `json:"visibility,omitempty"`
+	FileIDs         []string   `json:"file_ids,omitempty"`
+	ClientMessageID string     `json:"client_message_id,omitempty"`
 }
 
 func (m ChatMessage) Public() PublicChatMessage {
@@ -46,6 +64,14 @@ func (m ChatMessage) Public() PublicChatMessage {
 		MediaURL:    m.MediaURL,
 		IsRead:      m.IsRead,
 		CreatedAt:   m.CreatedAt,
+		Visibility:  m.Visibility,
+		FileIDs:     m.FileIDs,
+		ClientMessageID: func() string {
+			if m.ClientMessageID == nil {
+				return ""
+			}
+			return *m.ClientMessageID
+		}(),
 	}
 }
 
