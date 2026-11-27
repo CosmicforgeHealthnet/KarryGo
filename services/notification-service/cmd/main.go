@@ -31,6 +31,23 @@ func main() {
 	_ = godotenv.Load()
 
 	cfg := config.Load()
+	if len(os.Args) == 2 && os.Args[1] == "--migrate-only" {
+		if cfg.AppEnv != "staging" || os.Getenv("NOTIFICATION_DATABASE_URL") == "" {
+			logging.Fatal("migration", "migration-only mode requires explicit staging database configuration")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		db, err := database.NewPool(ctx, cfg.DatabaseURL)
+		if err != nil {
+			logging.Fatal("migration", "could not open migration database")
+		}
+		defer db.Close()
+		if err := database.ApplyMigrations(ctx, db); err != nil {
+			logging.Fatal("migration", "notification migration failed")
+		}
+		logging.Success("migration", "applied successfully; no consumers started")
+		return
+	}
 	logging.Notice("notification-service config", "migration=%t database=%s redis=%s", cfg.Migration, cfg.DatabaseURL, cfg.Redis.Addr)
 
 	ctx := context.Background()

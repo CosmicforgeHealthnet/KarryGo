@@ -5,7 +5,7 @@ name: Deploy staging (automatic)
 #   1. the service's database is backed up on the server right before deploying;
 #   2. deploy-service.sh waits for the new version to be healthy and puts the
 #      previous version back automatically if it is not.
-# The strict, approved flow (deploy-platform.yml) is kept for production use.
+# Explicit reviewed workflows remain for special staging cutovers.
 #
 # Never deployed automatically (they need a reviewed manual step, see
 # scripts/release/gate.py FORBIDDEN): api-gateway, partner-web-service,
@@ -50,31 +50,52 @@ jobs:
         id: pick
         env:
           EVENT: ${{ github.event_name }}
-          BEFORE: ${{ github.event.before }}
           REQUESTED: ${{ inputs.services }}
+          HOST: ${{ secrets.STAGING_DEPLOY_HOST }}
+          USER_: ${{ secrets.STAGING_DEPLOY_USER }}
+          KEY: ${{ secrets.STAGING_DEPLOY_SSH_KEY }}
+          KNOWN: ${{ secrets.STAGING_DEPLOY_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          blocked=" api-gateway partner-web-service admin-backoffice-service driver-dispatch-delivery-service analytics-service "
-          allowed=$(grep -vE '^\s*(#|$)' deploy/platform/services.tsv | cut -d'|' -f1 | tr -d ' ' \
-            | while read -r k; do case "$blocked" in *" $k "*) ;; *) echo "$k";; esac; done)
-          picked=""
+          [[ "$HOST" =~ ^[A-Za-z0-9.-]+$ && "$USER_" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          allowed=$(python3 deploy/platform/bin/reconcile-staging.py targets)
           if [ "$EVENT" = workflow_dispatch ]; then
+            picked=""
             for s in $(echo "$REQUESTED" | tr ',' ' '); do
-              echo "$allowed" | grep -qx "$s" || { echo "::error::$s cannot be deployed by this workflow"; exit 1; }
+              [[ "$s" =~ ^[a-z0-9-]+$ ]]
+              printf '%s\n' $allowed | cut -d: -f1 | grep -Fxq "$s" || { echo "::error::$s cannot be deployed by this workflow"; exit 1; }
               picked="$picked $s"
             done
           else
-            if [ -z "$BEFORE" ] || [ "$BEFORE" = 0000000000000000000000000000000000000000 ] \
-               || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-              BEFORE="HEAD~1"
+            umask 077
+            scratch=$(mktemp -d)
+            trap 'rm -rf "$scratch"' EXIT
+            printf '%s\n' "$KEY" > "$scratch/key"
+            printf '%s\n' "$KNOWN" > "$scratch/known_hosts"
+            opts=(-i "$scratch/key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$scratch/known_hosts")
+            ssh "${opts[@]}" "$USER_@$HOST" bash -s -- $allowed <<'INVENTORY' > "$scratch/runtime"
+          set -euo pipefail
+          docker info --format '{{.ServerVersion}}' >/dev/null
+          for item in "$@"; do
+            service="${item%%:*}"; container="${item#*:}"
+            revision=missing
+            if docker container inspect "$container" >/dev/null 2>&1; then
+              state=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container")
+              image=$(docker inspect -f '{{.Image}}' "$container")
+              if [ "$state" = healthy ] || [ "$state" = running ]; then
+                revision=$(docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")
+                revision="${revision:-unknown}"
+                [ "$revision" != '<no value>' ] || revision=unknown
+              else
+                revision=unhealthy
+              fi
             fi
-            # Only services whose image inputs changed: their own folder, the
-            # shared Dockerfile, or a shared/go package in their import graph.
-            # go.work / go.work.sum are never copied into an image.
-            git diff --name-only "$BEFORE" HEAD > "$RUNNER_TEMP/changed.txt"
-            picked=$(python3 deploy/platform/bin/changed-services.py $allowed < "$RUNNER_TEMP/changed.txt")
+            printf '%s %s %s\n' "$service" "$container" "$revision"
+          done
+          INVENTORY
+            picked=$(python3 deploy/platform/bin/reconcile-staging.py select < "$scratch/runtime")
           fi
-          picked=$(echo $picked)
+          picked=$(echo $picked | tr ' ' '\n' | awk 'NF && !seen[$0]++' | paste -sd' ' -)
           echo "services=$picked" >> "$GITHUB_OUTPUT"
           echo "Deploying: ${picked:-nothing}"
 
@@ -124,6 +145,7 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          umask 077
           scratch=$(mktemp -d)
           printf '%s\n' "$KEY" > "$scratch/key"; chmod 600 "$scratch/key"
           printf '%s\n' "$KNOWN" > "$scratch/known_hosts"
@@ -178,9 +200,10 @@ jobs:
           if [ "$(docker inspect -f '{{.State.Running}}' "$db" 2>/dev/null)" = true ]; then
             out="$dir/$svc-$(date -u +%Y%m%dT%H%M%SZ).sql.gz"
             docker exec "$db" sh -c 'pg_dumpall -U "$POSTGRES_USER"' | gzip > "$out"
-            test -s "$out"
+            test -s "$out" && gzip -t "$out"
             echo "backed up database to $out"
           else
+            [ "$svc" != notification-service ] || { echo "::error::Notification database backup required"; exit 1; }
             echo "no database container for $svc; skipping backup"
           fi
           find "$dir" -name '*.sql.gz' -mtime +7 -delete || true
