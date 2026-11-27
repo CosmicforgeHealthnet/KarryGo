@@ -7,11 +7,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 	governancemodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/governance/models"
 	governanceusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/governance/usecases"
 	retentionmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/retentionpolicy/models"
 	retentionrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/retentionpolicy/repositories"
-	"cosmicforge/logistics/services/fleet-partner-service/internal/database"
 )
 
 // classSupporter is the slice of the retention runner privacy settings use

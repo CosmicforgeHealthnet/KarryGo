@@ -29,7 +29,7 @@ type SupportMessageInput struct {
 // SupportMessageRequest is the message as submitted to support-dispute-service.
 type SupportMessageRequest struct {
 	OrganizationID, SupportCaseID, ClientMessageID, SenderReference, Text, Visibility string
-	FileIDs                                                                            []string
+	FileIDs                                                                           []string
 }
 
 // SupportMessage is the authoritative message as support-dispute-service
