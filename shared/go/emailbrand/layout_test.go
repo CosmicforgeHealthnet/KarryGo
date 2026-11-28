@@ -175,9 +175,11 @@ func TestLayoutFromData(t *testing.T) {
 // TestWriteLayoutPreviews writes sample HTML files for visual review when
 // EMAILBRAND_PREVIEW_DIR is set. It is a no-op in CI.
 func TestWriteLayoutPreviews(t *testing.T) {
+	// Always renders (certification gates refuse skipped tests); set
+	// EMAILBRAND_PREVIEW_DIR to keep the files for a visual check.
 	dir := os.Getenv("EMAILBRAND_PREVIEW_DIR")
 	if dir == "" {
-		t.Skip("set EMAILBRAND_PREVIEW_DIR to write previews")
+		dir = t.TempDir()
 	}
 	invitation := sampleInvitation()
 	otp := Layout{Product: "Karryam Fleet", Eyebrow: "Sign in", Heading: "Your verification code",
