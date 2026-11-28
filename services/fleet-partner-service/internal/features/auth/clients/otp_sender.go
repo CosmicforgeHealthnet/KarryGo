@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"cosmicforge/logistics/shared/go/emailbrand"
 	"cosmicforge/logistics/shared/go/notifications"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/config"
@@ -76,6 +77,9 @@ type InvitationMessage struct {
 	TemplateKey string
 	Title       string
 	Body        string
+	// RecipientName and RoleNames personalise the email when known.
+	RecipientName string
+	RoleNames     []string
 }
 
 // Sender delivers corporate authentication emails.
@@ -137,9 +141,10 @@ func (s *NotificationSender) SendOTP(ctx context.Context, message OTPMessage) (s
 			"purpose_text":       message.PurposeText,
 		},
 		Data: map[string]interface{}{
-			"purpose":        message.Purpose,
-			"request_id":     message.RequestID,
-			"correlation_id": message.CorrelationID,
+			"purpose":                message.Purpose,
+			"request_id":             message.RequestID,
+			emailbrand.LayoutDataKey: otpLayout(message),
+			"correlation_id":         message.CorrelationID,
 		},
 	})
 	if err != nil {
@@ -199,8 +204,9 @@ func (s *NotificationSender) SendInvitation(ctx context.Context, message Invitat
 			"sign_in_method": "email_and_phone_otp",
 		},
 		Data: map[string]interface{}{
-			"request_id":     message.RequestID,
-			"correlation_id": message.CorrelationID,
+			"request_id":             message.RequestID,
+			emailbrand.LayoutDataKey: invitationLayout(message),
+			"correlation_id":         message.CorrelationID,
 		},
 	})
 	if err != nil {

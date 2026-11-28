@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"cosmicforge/logistics/shared/go/emailbrand"
 	"cosmicforge/logistics/shared/go/logging"
 	"cosmicforge/logistics/shared/go/notifications"
 
@@ -18,6 +19,7 @@ import (
 	crmmodels "cosmicforge/logistics/services/fleet-partner-service/internal/features/crm/models"
 	crmrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/crm/repositories"
 	crmusecases "cosmicforge/logistics/services/fleet-partner-service/internal/features/crm/usecases"
+	orgrepos "cosmicforge/logistics/services/fleet-partner-service/internal/features/organizations/repositories"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/observability"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/platformclients"
 )
@@ -50,7 +52,8 @@ func BuildCRMService(cfg config.Config, pool *pgxpool.Pool, metrics *observabili
 				ServiceName: config.ServiceName,
 				HTTPClient:  &http.Client{Timeout: cfg.HTTPClientTimeout},
 			},
-			repository: crmrepos.NewRepository(pool),
+			repository:    crmrepos.NewRepository(pool),
+			organizations: orgrepos.NewOrganizationRepository(pool),
 		}
 	}
 
@@ -143,8 +146,25 @@ func (a crmApprovalAdapter) RequireApproved(ctx context.Context, organizationID,
 // contacted, which would not be true if the address had been frozen into the
 // queue.
 type crmNotifier struct {
-	client     notifications.Client
-	repository *crmrepos.Repository
+	client        notifications.Client
+	repository    *crmrepos.Repository
+	organizations *orgrepos.OrganizationRepository
+}
+
+// organizationName is the customer-facing name of the sending organization,
+// or empty when it cannot be read (the email then names no organization).
+func (n crmNotifier) organizationName(ctx context.Context, organizationID string) string {
+	if n.organizations == nil {
+		return ""
+	}
+	organization, err := n.organizations.GetByID(ctx, organizationID)
+	if err != nil || organization == nil {
+		return ""
+	}
+	if organization.TradingName != "" {
+		return organization.TradingName
+	}
+	return organization.LegalName
 }
 
 func (n crmNotifier) Configured() bool { return n.client.BaseURL != "" }
@@ -172,10 +192,21 @@ func (n crmNotifier) Deliver(ctx context.Context,
 		return "", crmusecases.NotificationPermanent, "recipient_not_contactable"
 	}
 
+	// notification-service refuses an email without a body, and these intents
+	// were sent with no title or body at all, so none was ever delivered.
+	email := buildCRMEmail(operation.IntentType, operation.Payload, contact.FullName,
+		n.organizationName(ctx, operation.OrganizationID))
+	data := map[string]any{}
+	for key, value := range operation.Payload {
+		data[key] = value
+	}
+	data[emailbrand.LayoutDataKey] = email.Layout
 	response, err := n.client.Send(ctx, notifications.Request{
 		IDempotencyKey: operation.IdempotencyKey,
 		SourceService:  config.ServiceName,
 		EventType:      strings.ToLower(operation.IntentType),
+		Title:          email.Title,
+		Body:           email.Body,
 		Recipient: notifications.Recipient{
 			Type:  "CRM_CONTACT",
 			ID:    contact.ID,
@@ -183,7 +214,7 @@ func (n crmNotifier) Deliver(ctx context.Context,
 			Phone: contact.NormalizedPhone,
 		},
 		Channels: []string{notifications.ChannelEmail},
-		Data:     operation.Payload,
+		Data:     data,
 		Priority: notifications.PriorityNormal,
 	})
 	if err != nil {

@@ -413,6 +413,7 @@ func (s *Service) createAssociationInvitation(ctx context.Context, input CreateP
 		Email:            pair.EmailNormalized,
 		Phone:            pair.PhoneE164,
 		OrganizationName: organizationName,
+		RecipientName:    input.LegalName,
 		AcceptURL:        acceptURL,
 		ExpiresAt:        invitation.ExpiresAt,
 		EventType:        authclients.EventCorporateProviderInvitation,

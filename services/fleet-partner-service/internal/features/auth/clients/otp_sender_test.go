@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"cosmicforge/logistics/shared/go/emailbrand"
 	"cosmicforge/logistics/shared/go/notifications"
 )
 
@@ -83,6 +84,10 @@ func TestInvitationHasRenderableBodyWithoutSeededTemplate(t *testing.T) {
 	}
 	if captured.Title != "You have been invited to Cosmicforge" || len(captured.Channels) != 1 || captured.Channels[0] != notifications.ChannelEmail {
 		t.Fatalf("invitation title/channels mismatch: %q %v", captured.Title, captured.Channels)
+	}
+	if layout, err := emailbrand.LayoutFromData(captured.Data); err != nil || layout == nil ||
+		layout.Action == nil || layout.Action.URL != acceptURL {
+		t.Fatalf("invitation must carry its structured email layout: %+v %v", layout, err)
 	}
 
 	if _, err := sender.SendInvitation(context.Background(), InvitationMessage{

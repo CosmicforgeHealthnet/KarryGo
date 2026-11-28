@@ -4,6 +4,8 @@ package usecases
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -342,16 +344,24 @@ func (s *Service) deliverInvitation(ctx context.Context, tenantCtx tenant.Contex
 	if acceptURL != "" {
 		acceptURL = fmt.Sprintf("%s?token=%s", acceptURL, token)
 	}
+	// Each send carries a fresh token, so the delivery key names the token: a
+	// resend is a new email, while a retry of the same send is deduplicated.
+	// Keyed only on the invitation ID, every resend after the first delivered
+	// send was silently dropped while still invalidating the previous link.
+	tokenDigest := sha256.Sum256([]byte(token))
 
 	reference, err := s.opts.Sender.SendInvitation(ctx, authclients.InvitationMessage{
 		Email:            invitation.EmailNormalized,
 		Phone:            invitation.PhoneE164,
 		OrganizationName: organizationName,
+		InviterName:      s.inviterName(ctx, tenantCtx),
+		RecipientName:    invitation.FullName,
+		RoleNames:        s.roleNames(ctx, invitation.OrganizationID, invitation.RoleIDs),
 		InvitationToken:  token,
 		AcceptURL:        acceptURL,
 		ExpiresAt:        invitation.ExpiresAt,
 		EventType:        authclients.EventCorporateStaffInvitation,
-		IdempotencyKey:   "staff-invite:" + invitation.ID,
+		IdempotencyKey:   "staff-invite:" + invitation.ID + ":" + hex.EncodeToString(tokenDigest[:8]),
 		RequestID:        tenantCtx.RequestID,
 		CorrelationID:    tenantCtx.CorrelationID,
 	})
@@ -410,4 +420,34 @@ func (s *Service) CancelInvitation(ctx context.Context, tenantCtx tenant.Context
 // ListInvitations returns the organization's invitations.
 func (s *Service) ListInvitations(ctx context.Context, tenantCtx tenant.Context, limit int) ([]models.StaffInvitation, error) {
 	return s.opts.Invitations.List(ctx, tenantCtx.OrganizationID, limit)
+}
+
+// inviterName is the display name of the staff member sending the invitation,
+// or empty when it cannot be resolved. It only personalises the email, so a
+// failed lookup never blocks delivery.
+func (s *Service) inviterName(ctx context.Context, tenantCtx tenant.Context) string {
+	if s.opts.Members == nil || tenantCtx.OrganizationUserID == "" {
+		return ""
+	}
+	member, err := s.opts.Members.GetByID(ctx, tenantCtx.OrganizationID, tenantCtx.OrganizationUserID)
+	if err != nil || member == nil {
+		return ""
+	}
+	return member.FullName
+}
+
+// roleNames resolves the invitation's role IDs to display names, skipping any
+// that cannot be read rather than failing the email.
+func (s *Service) roleNames(ctx context.Context, organizationID string, roleIDs []string) []string {
+	if s.opts.Roles == nil {
+		return nil
+	}
+	var names []string
+	for _, id := range roleIDs {
+		role, err := s.opts.Roles.GetRole(ctx, organizationID, id)
+		if err == nil && role != nil && role.Name != "" {
+			names = append(names, role.Name)
+		}
+	}
+	return names
 }
