@@ -143,5 +143,6 @@ refused with "template not found" and dead-lettered after 8 attempts (no loop, n
 |---|---|---|
 | Deploy (automatic) `0f1c4894` | `46145807265` | notification-service and Fleet API/worker healthy on `0f1c4894` (`NOTIFICATION_RUNTIME_EVIDENCE`, `FLEET_RUNTIME_EVIDENCE`); every mandatory workflow green |
 | Earlier attempts `7c0016bd`, `8f837af0` | | Not deployed: a gofmt failure, then a skipped preview test (the Customer V4 gate counts a skip as a failure) |
+| Deploy (automatic) `87aebf1d` | `46154680166` | Fleet API/worker healthy on `87aebf1d` (approval create response fix); all 11 workflows green |
 
 Authenticated journeys run against this revision are recorded in 09, section E.

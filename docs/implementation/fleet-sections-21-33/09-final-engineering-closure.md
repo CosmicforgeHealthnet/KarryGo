@@ -65,13 +65,29 @@ relaxed and no platform-admin access was used.
 | E12 | Second request: staff approves, owner executes | 200 EXECUTED |
 | E13 | Execute again (new reference, either account) | 409 "already executed" |
 
-Observations, not blocking: the create response for a new approval carries `createdAt`
-`0001-01-01T00:00:00Z` and an empty `meta.requestId` (the stored row and later reads are correct); an
-execution reference used by a refused attempt is consumed and cannot be reused.
+Fixed and verified live: the create response for a new approval carried `createdAt`
+`0001-01-01T00:00:00Z` and an empty `meta.requestId`; since `87aebf1d` it returns the stored timestamp
+and the request id. By design, not changed: an execution reference used by a refused attempt is
+consumed, because every attempt is recorded under its reference for the audit trail.
 
-Not run as live journeys: the operational Sections 21-33 flows that need real providers, vehicles,
-orders or money (no real-money transfers are allowed on staging), and the Section 22/23 workers'
-processing now that the organization is active.
+Operational journeys (2026-11-28, Fleet `87aebf1d`):
+
+| # | Journey | Result |
+|---|---|---|
+| E14 | Create a DEPOT branch (staff admin) | 201 |
+| E15 | Create a customer, primary contact and warehouse location (owner) | 201 each; the staff admin is refused 403 (CRM belongs to the CRM role) |
+| E16 | Create a van asset (owner) | 201 AVAILABLE/ACTIVE; the staff admin is refused 403 (fleet role) |
+| E17 | Reuse an idempotency key with a different body | 409 |
+| E18 | Meter readings: 0 -> 12,000 km, then 11,000 km | first recorded and flagged `LARGE_SINGLE_JUMP`; decrease refused 409 |
+| E19 | Service catalogue item: create, activate | activation refused until a capability is linked (422) and on a stale version (409); then ACTIVE |
+| E20 | Private order: create, pickup and delivery stops, submit | DRAFT -> AWAITING_APPROVAL |
+| E21 | Submitter approves own order | 403 "The person who submitted an order cannot approve it." |
+| E22 | Owner adds the Operations role to the staff admin | 403 without step-up (`iam.access.manage`); 200 with the owner's step-up |
+| E23 | Staff (Operations) approves the order | 200 CONFIRMED |
+| E24 | Requests sent too quickly | 429, then accepted after the window |
+
+Not run: provider onboarding and dispatch execution (need a real provider device), money movements
+(no real-money transfers on staging), and observing Section 22/23 worker output.
 
 ## F. Verdicts
 
@@ -80,7 +96,7 @@ processing now that the organization is active.
 | **SECTIONS_21_33_ENGINEERING_COMPLETE** | **YES** | Every mandatory route, contract, event, permission, worker and recovery path implemented and tested; the two former contract gaps are built (B, 02) |
 | **SECTIONS_21_33_RELEASE_GATES_GREEN** | **YES** | Every workflow green on the final code commit `0cbe08e4` (G) |
 | **SECTIONS_21_33_STAGING_INTEGRATION_COMPLETE** | **PARTIAL** | Done: deployed `0cbe08e4`/`73ab7ff9`, migrations applied, privacy settings and support messages live and protected, Support/Dispute paired, Section 22/23 workers on. Not done: notification migration 012 not applied; no active organization, so workers have nothing to process; Dispatch and vendor security images not deployed (authorization) |
-| **SECTIONS_21_33_LIVE_E2E_CERTIFIED** | **PARTIAL** | Authentication, staff invitation and approval separation of duties certified live (E1-E13); operational journeys needing providers, vehicles, orders or money not run |
+| **SECTIONS_21_33_LIVE_E2E_CERTIFIED** | **PARTIAL** | Authentication, invitation, approval and order separation of duties, CRM, assets, service catalogue and private orders certified live (E1-E24); provider/dispatch execution and money movements not run |
 
 ## G. CI on the final code commit `0cbe08e4`
 
