@@ -12,6 +12,7 @@ import (
 	messagemodels "cosmicforge/logistics/services/notification-service/internal/features/messages/models"
 	messagerepositories "cosmicforge/logistics/services/notification-service/internal/features/messages/repositories"
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/emailbrand"
 	"cosmicforge/logistics/shared/go/notifications"
 )
 
@@ -397,6 +398,12 @@ func (s *NotificationService) deliverEmail(ctx context.Context, delivery message
 		errMessage := "recipient email is missing"
 		return s.finishDelivery(ctx, delivery, "smtp", nil, messagemodels.StatusSkipped, &errMessage)
 	}
+	// A structured layout travels in the message data. A malformed one is not
+	// a reason to drop the email: it falls back to the subject and body.
+	layout, layoutErr := emailbrand.LayoutFromData(message.Data)
+	if layoutErr != nil {
+		layout = nil
+	}
 	result, err := s.email.SendEmail(ctx, messageclients.EmailMessage{
 		DeliveryID:    delivery.ID,
 		CreatedAt:     message.CreatedAt,
@@ -405,6 +412,7 @@ func (s *NotificationService) deliverEmail(ctx context.Context, delivery message
 		Body:          message.Body,
 		SourceService: message.SourceService,
 		EventType:     message.EventType,
+		Layout:        layout,
 	})
 	return s.handleProviderResult(ctx, delivery, result, err)
 }

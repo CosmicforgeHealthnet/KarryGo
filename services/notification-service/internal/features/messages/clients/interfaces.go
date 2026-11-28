@@ -3,6 +3,8 @@ package messageclients
 import (
 	"context"
 	"time"
+
+	"cosmicforge/logistics/shared/go/emailbrand"
 )
 
 type ProviderResult struct {
@@ -28,6 +30,8 @@ type EmailMessage struct {
 	Body          string
 	SourceService string
 	EventType     string
+	// Layout is the producer's structured email layout, if it sent one.
+	Layout *emailbrand.Layout
 }
 
 type RealtimeMessage struct {

@@ -117,6 +117,10 @@ type Message struct {
 	Body          string
 	SourceService string
 	EventType     string
+	// Layout, when set, renders the structured layout (shared header, footer,
+	// buttons, cards, code and notices) instead of the original single-block
+	// design. Fleet messages always use the structured layout.
+	Layout *Layout
 }
 
 // Format keeps the existing inline logo, text/HTML alternatives and retry payload.
@@ -134,7 +138,15 @@ func Format(from string, message Message) ([]byte, error) {
 		return nil, fmt.Errorf("recipient email is invalid")
 	}
 	message.To = recipient.String()
-	html, err := renderEmailHTML(message)
+	structured := usesLayout(message)
+	var html []byte
+	plain := brandCopy(message.Body)
+	if structured {
+		html, err = renderLayoutHTML(message)
+		plain = layoutText(message)
+	} else {
+		html, err = renderEmailHTML(message)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +169,7 @@ func Format(from string, message Message) ([]byte, error) {
 		}
 	}
 	for _, content := range []struct{ kind, body string }{
-		{"text/plain", brandCopy(message.Body)}, {"text/html", string(html)},
+		{"text/plain", plain}, {"text/html", string(html)},
 	} {
 		part, err := alternative.CreatePart(textproto.MIMEHeader{
 			"Content-Type":              {content.kind + "; charset=UTF-8"},
@@ -176,6 +188,12 @@ func Format(from string, message Message) ([]byte, error) {
 	}
 	if err := alternative.Close(); err != nil {
 		return nil, err
+	}
+	if structured {
+		// The structured layout loads the logo from its absolute https URL, so
+		// there is no inline image part: the message is multipart/alternative.
+		return append(formatHeaders(from, message, deliveryKey, mime.FormatMediaType("multipart/alternative",
+			map[string]string{"boundary": alternative.Boundary()})), alternatives.Bytes()...), nil
 	}
 	part, err := related.CreatePart(textproto.MIMEHeader{
 		"Content-Type": {mime.FormatMediaType("multipart/alternative", map[string]string{"boundary": alternative.Boundary()})},
@@ -206,6 +224,13 @@ func Format(from string, message Message) ([]byte, error) {
 	if err := related.Close(); err != nil {
 		return nil, err
 	}
+	return append(formatHeaders(from, message, deliveryKey, mime.FormatMediaType("multipart/related", map[string]string{
+		"boundary": related.Boundary(), "type": "multipart/alternative",
+	})), relatedBody.Bytes()...), nil
+}
+
+// formatHeaders writes the RFC 5322 header block, ending with the blank line.
+func formatHeaders(from string, message Message, deliveryKey, contentType string) []byte {
 	createdAt := message.CreatedAt
 	if createdAt.IsZero() {
 		createdAt = time.Now()
@@ -215,9 +240,7 @@ func Format(from string, message Message) ([]byte, error) {
 		"Subject: " + mime.QEncoding.Encode("UTF-8", emailSubject(message)),
 		"Date: " + createdAt.UTC().Format(time.RFC1123Z),
 		"MIME-Version: 1.0",
-		"Content-Type: " + mime.FormatMediaType("multipart/related", map[string]string{
-			"boundary": related.Boundary(), "type": "multipart/alternative",
-		}),
+		"Content-Type: " + contentType,
 	}
 	if deliveryKey != "" {
 		headers = append(headers, "Resend-Idempotency-Key: karrygo/"+deliveryKey)
@@ -229,5 +252,5 @@ func Format(from string, message Message) ([]byte, error) {
 	} else if message.MessageID != "" {
 		headers = append(headers, "Message-ID: "+cleanEmailHeader(message.MessageID))
 	}
-	return append([]byte(strings.Join(headers, "\r\n")+"\r\n\r\n"), relatedBody.Bytes()...), nil
+	return []byte(strings.Join(headers, "\r\n") + "\r\n\r\n")
 }

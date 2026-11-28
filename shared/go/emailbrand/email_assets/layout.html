@@ -1,0 +1,178 @@
+{{define "header"}}
+<tr><td class="kh" bgcolor="#0b1f3a" style="padding:18px 32px;background-color:#0b1f3a;border-radius:12px 12px 0 0;">
+  <table role="presentation" width="100%" style="border-collapse:collapse;">
+    <tr>
+      <td valign="middle" style="padding:0;"><a href="{{.WebsiteURL}}" style="text-decoration:none;"><img src="{{.LogoURL}}" width="112" height="28" alt="Karryam" style="display:block;width:112px;height:28px;border:0;color:#ffffff;font-size:18px;font-weight:700;"></a></td>
+      {{if .ProductLabel}}<td valign="middle" align="right" style="padding:0;color:#8fe3da;font-size:12px;line-height:16px;font-weight:600;letter-spacing:0.6px;">{{.ProductLabel}}</td>{{end}}
+    </tr>
+  </table>
+</td></tr>
+{{end}}
+
+{{define "button"}}
+<table role="presentation" style="border-collapse:separate;margin:0;">
+  <tr><td class="{{if .Primary}}kbtn{{else}}kbtn2{{end}}" bgcolor="{{if .Primary}}#0e7c72{{else}}#ffffff{{end}}" style="border-radius:8px;background-color:{{if .Primary}}#0e7c72{{else}}#ffffff{{end}};{{if not .Primary}}border:1px solid #c5cfda;{{end}}">
+    <a href="{{.URL}}" target="_blank" rel="noopener" style="display:inline-block;padding:12px 24px;font-size:15px;line-height:20px;font-weight:600;color:{{if .Primary}}#ffffff{{else}}#0b1f3a{{end}};text-decoration:none;border-radius:8px;">{{.Label}}</a>
+  </td></tr>
+</table>
+{{end}}
+
+{{define "status"}}
+<table role="presentation" style="border-collapse:separate;margin:0 0 20px;">
+  <tr><td style="padding:4px 10px;border-radius:999px;background-color:{{.Bg}};border:1px solid {{.Border}};color:{{.Text}};font-size:12px;line-height:16px;font-weight:600;">{{.Label}}</td></tr>
+</table>
+{{end}}
+
+{{define "code"}}
+<table role="presentation" width="100%" style="border-collapse:separate;margin:4px 0 24px;">
+  <tr><td align="center" class="kcode" style="padding:20px 12px;background-color:#f0f7f6;border:1px solid #c8e3df;border-radius:8px;">
+    <p class="kmuted" style="margin:0 0 8px;color:#5b6b7d;font-size:12px;line-height:16px;font-weight:600;letter-spacing:0.8px;text-transform:uppercase;">{{.Label}}</p>
+    <p class="kcodev" dir="ltr" style="margin:0;color:#0b1f3a;font-family:'SFMono-Regular',Menlo,Consolas,'Courier New',monospace;font-size:32px;line-height:40px;font-weight:700;letter-spacing:8px;">{{.Value}}</p>
+    {{if .Expiry}}<p class="kmuted" style="margin:8px 0 0;color:#5b6b7d;font-size:13px;line-height:18px;">{{.Expiry}}</p>{{end}}
+  </td></tr>
+</table>
+{{end}}
+
+{{define "card"}}
+<table role="presentation" width="100%" class="kcard" style="border-collapse:separate;margin:4px 0 24px;background-color:#f6f8fa;border:1px solid #e1e7ee;border-radius:8px;">
+  {{if .Title}}<tr><td colspan="2" class="kstrong" style="padding:14px 18px 4px;color:#0b1f3a;font-size:13px;line-height:18px;font-weight:700;">{{.Title}}</td></tr>{{end}}
+  {{range .Rows}}
+  <tr>
+    <td valign="top" class="kmuted" style="padding:8px 8px 8px 18px;color:#5b6b7d;font-size:14px;line-height:20px;width:40%;">{{.Label}}</td>
+    <td valign="top" align="right" class="kstrong" style="padding:8px 18px 8px 8px;color:#0b1f3a;font-size:14px;line-height:20px;font-weight:600;word-break:break-word;">{{.Value}}</td>
+  </tr>
+  {{end}}
+  {{with .Total}}
+  <tr>
+    <td class="kstrong kdiv" style="padding:12px 8px 14px 18px;border-top:1px solid #e1e7ee;color:#0b1f3a;font-size:15px;line-height:20px;font-weight:700;">{{.Label}}</td>
+    <td align="right" class="kstrong kdiv" style="padding:12px 18px 14px 8px;border-top:1px solid #e1e7ee;color:#0b1f3a;font-size:15px;line-height:20px;font-weight:700;">{{.Value}}</td>
+  </tr>
+  {{else}}
+  <tr><td colspan="2" style="padding:0 0 6px;font-size:0;line-height:0;">&nbsp;</td></tr>
+  {{end}}
+</table>
+{{end}}
+
+{{define "notice"}}
+<table role="presentation" width="100%" style="border-collapse:separate;margin:4px 0 24px;">
+  <tr><td class="knotice" style="padding:14px 16px;background-color:{{.Bg}};border-left:3px solid {{.Border}};border-radius:6px;">
+    {{if .Title}}<p class="knt" style="margin:0 0 4px;color:{{.Text}};font-size:14px;line-height:20px;font-weight:700;">{{.Title}}</p>{{end}}
+    <p class="kbody" style="margin:0;color:#3d4b5c;font-size:14px;line-height:21px;">{{.Body}}</p>
+  </td></tr>
+</table>
+{{end}}
+
+{{define "support"}}
+<table role="presentation" width="100%" style="border-collapse:collapse;margin:8px 0 0;">
+  <tr><td class="kdiv" style="padding-top:20px;border-top:1px solid #e6ebf1;">
+    <p class="kstrong" style="margin:0 0 4px;color:#0b1f3a;font-size:14px;line-height:20px;font-weight:700;">Need help?</p>
+    <p class="kmuted" style="margin:0;color:#5b6b7d;font-size:14px;line-height:21px;">Contact our support team at <a href="mailto:{{.SupportEmail}}" class="klink" style="color:#0e7c72;font-weight:600;text-decoration:none;">{{.SupportEmail}}</a>.</p>
+  </td></tr>
+</table>
+{{end}}
+
+{{define "footer"}}
+<tr><td align="center" style="padding:24px 24px 8px;">
+  <p class="kfoot" style="margin:0 0 6px;color:#46546a;font-size:13px;line-height:18px;font-weight:700;">{{.Product}}</p>
+  <p class="kfoot" style="margin:0 0 6px;color:#6b7a8c;font-size:12px;line-height:18px;">
+    <a href="{{.WebsiteURL}}" class="kfootl" style="color:#46546a;text-decoration:underline;">karryam.com</a>
+    {{if .PrivacyURL}}&nbsp;&middot;&nbsp;<a href="{{.PrivacyURL}}" class="kfootl" style="color:#46546a;text-decoration:underline;">Privacy Policy</a>{{end}}
+    &nbsp;&middot;&nbsp;<a href="mailto:{{.SupportEmail}}" class="kfootl" style="color:#46546a;text-decoration:underline;">Help and Support</a>
+  </p>
+  <p class="kfoot" style="margin:0 0 6px;color:#6b7a8c;font-size:12px;line-height:18px;">{{.SupportEmail}}</p>
+  <p class="kfoot" style="margin:0 0 6px;color:#8592a3;font-size:12px;line-height:18px;">&copy; {{.Year}} Karryam. All rights reserved.</p>
+  <p class="kfoot" style="margin:0;color:#8592a3;font-size:12px;line-height:18px;">This is an automated message. Please do not reply to this email.</p>
+</td></tr>
+{{end}}
+
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <title>{{.Subject}}</title>
+  <!--[if mso]><style>table,td,p,a,h1{font-family:Arial,sans-serif !important;}</style><![endif]-->
+  <style>
+    body,table,td{margin:0;padding:0;}
+    table{border-collapse:collapse;}
+    img{border:0;display:block;}
+    a{text-decoration:none;}
+    @media only screen and (max-width:620px){
+      .kouter{padding:16px 8px !important;}
+      .kpad{padding:28px 20px !important;}
+      .kh{padding:16px 20px !important;}
+      .kh1{font-size:22px !important;line-height:30px !important;}
+      .kcodev{font-size:28px !important;letter-spacing:6px !important;}
+    }
+    @media (prefers-color-scheme:dark){
+      .kbg{background-color:#0d1520 !important;}
+      .kmain{background-color:#151f2c !important;border-color:#263446 !important;}
+      .kh1,.kstrong{color:#eef3f8 !important;}
+      .kbody{color:#c3cfdc !important;}
+      .kmuted,.kfoot{color:#9aa9ba !important;}
+      .kfootl{color:#c3cfdc !important;}
+      .kcard{background-color:#1b2736 !important;border-color:#2b3a4d !important;}
+      .kcode{background-color:#12302e !important;border-color:#24524d !important;}
+      .kcodev{color:#7ee8dc !important;}
+      .kdiv{border-color:#2b3a4d !important;}
+      .klink,.keye{color:#5fd5c8 !important;}
+      .kbtn2{background-color:#151f2c !important;border-color:#3a4b60 !important;}
+      .kbtn2 a{color:#eef3f8 !important;}
+      .knotice{background-color:#1b2736 !important;}
+      .knt{color:#9ec5f0 !important;}
+    }
+    [data-ogsc] .kh1,[data-ogsc] .kstrong{color:#eef3f8 !important;}
+    [data-ogsc] .kbody{color:#c3cfdc !important;}
+    [data-ogsc] .kmuted,[data-ogsc] .kfoot{color:#9aa9ba !important;}
+    [data-ogsc] .kcodev{color:#7ee8dc !important;}
+  </style>
+</head>
+<body class="kbg" style="margin:0;padding:0;background-color:#f1f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+  <div style="display:none;font-size:1px;color:#f1f4f7;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">{{.Preheader}}&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;</div>
+  <table role="presentation" width="100%" class="kbg" style="background-color:#f1f4f7;">
+    <tr><td align="center" class="kouter" style="padding:32px 16px;">
+      <!--[if mso]><table role="presentation" width="600" align="center"><tr><td><![endif]-->
+      <table role="presentation" width="100%" style="max-width:600px;">
+        <tr><td>
+          <table role="presentation" width="100%" class="kmain" style="border-collapse:separate;background-color:#ffffff;border:1px solid #e1e7ee;border-radius:12px;">
+            {{template "header" .}}
+            <tr><td class="kpad" style="padding:32px;">
+              {{if .Eyebrow}}<p class="keye" style="margin:0 0 8px;color:#0e7c72;font-size:12px;line-height:16px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;">{{.Eyebrow}}</p>{{end}}
+              <h1 class="kh1" style="margin:0 0 16px;color:#0b1f3a;font-size:24px;line-height:32px;font-weight:700;">{{.Heading}}</h1>
+              {{with .Status}}{{template "status" .}}{{end}}
+              {{if .Greeting}}<p class="kbody" style="margin:0 0 12px;color:#3d4b5c;font-size:15px;line-height:24px;">{{.Greeting}}</p>{{end}}
+              {{range .Intro}}<p class="kbody" style="margin:0 0 16px;color:#3d4b5c;font-size:15px;line-height:24px;">{{.}}</p>{{end}}
+              {{with .Code}}{{template "code" .}}{{end}}
+              {{with .Details}}{{template "card" .}}{{end}}
+              {{if .Buttons}}
+              <table role="presentation" style="border-collapse:collapse;margin:8px 0 {{if .Fallback}}12px{{else}}24px{{end}};">
+                {{range .Buttons}}<tr><td style="padding:0 0 10px;">{{template "button" .}}</td></tr>{{end}}
+              </table>
+              {{end}}
+              {{with .Fallback}}<p class="kmuted" style="margin:0 0 24px;color:#5b6b7d;font-size:13px;line-height:19px;">Button not working? <a href="{{.}}" target="_blank" rel="noopener" class="klink" style="color:#0e7c72;font-weight:600;text-decoration:underline;">Open this link in your browser</a>.</p>{{end}}
+              {{if .Steps}}
+              {{if .StepsTitle}}<p class="kstrong" style="margin:0 0 8px;color:#0b1f3a;font-size:14px;line-height:20px;font-weight:700;">{{.StepsTitle}}</p>{{end}}
+              <table role="presentation" width="100%" style="border-collapse:collapse;margin:0 0 20px;">
+                {{range $i, $s := .Steps}}<tr>
+                  <td valign="top" class="keye" style="padding:0 10px 8px 0;width:20px;color:#0e7c72;font-size:14px;line-height:21px;font-weight:700;">{{inc $i}}.</td>
+                  <td valign="top" class="kbody" style="padding:0 0 8px;color:#3d4b5c;font-size:14px;line-height:21px;">{{$s}}</td>
+                </tr>{{end}}
+              </table>
+              {{end}}
+              {{with .Notice}}{{template "notice" .}}{{end}}
+              {{range .Outro}}<p class="kbody" style="margin:0 0 16px;color:#3d4b5c;font-size:15px;line-height:24px;">{{.}}</p>{{end}}
+              {{if .Support}}{{template "support" .}}{{end}}
+            </td></tr>
+          </table>
+        </td></tr>
+        {{template "footer" .}}
+      </table>
+      <!--[if mso]></td></tr></table><![endif]-->
+    </td></tr>
+  </table>
+</body>
+</html>

@@ -9,5 +9,6 @@ func formatEmail(from string, message EmailMessage) ([]byte, error) {
 		DeliveryID: message.DeliveryID, CreatedAt: message.CreatedAt,
 		To: message.To, Subject: message.Subject, Body: message.Body,
 		SourceService: message.SourceService, EventType: message.EventType,
+		Layout: message.Layout,
 	})
 }
