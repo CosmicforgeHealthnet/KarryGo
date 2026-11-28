@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"cosmicforge/logistics/shared/go/notifications"
@@ -166,6 +167,13 @@ func (s *NotificationSender) SendInvitation(ctx context.Context, message Invitat
 	if title == "" {
 		title = "You have been invited to " + message.OrganizationName
 	}
+	// A non-empty body is mandatory, exactly as for the OTP: notification-service
+	// refuses an email without one, and the corporate_invitation template was
+	// never provisioned, so a subject-only invitation was never delivered.
+	body := message.Body
+	if body == "" {
+		body = invitationBody(message)
+	}
 
 	response, err := s.client.Send(ctx, notifications.Request{
 		IDempotencyKey: message.IdempotencyKey,
@@ -179,7 +187,7 @@ func (s *NotificationSender) SendInvitation(ctx context.Context, message Invitat
 		Channels:    []string{notifications.ChannelEmail},
 		TemplateKey: templateKey,
 		Title:       title,
-		Body:        message.Body,
+		Body:        body,
 		Priority:    notifications.PriorityNormal,
 		TemplateData: map[string]interface{}{
 			"organization_name": message.OrganizationName,
@@ -199,4 +207,25 @@ func (s *NotificationSender) SendInvitation(ctx context.Context, message Invitat
 		return "", fmt.Errorf("%w", ErrDeliveryUnavailable)
 	}
 	return response.MessageID, nil
+}
+
+// invitationBody is the plain-text invitation used when the caller supplies
+// none. It names the organization, the acceptance link (when one is
+// configured) and the expiry, and states that sign-in uses an emailed one-time
+// code: there is never a password or temporary credential to send.
+func invitationBody(message InvitationMessage) string {
+	organization := message.OrganizationName
+	if organization == "" {
+		organization = "an organization"
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "You have been invited to join %s on Karryam Fleet.", organization)
+	if message.AcceptURL != "" {
+		fmt.Fprintf(&b, " Accept the invitation here: %s", message.AcceptURL)
+	}
+	if !message.ExpiresAt.IsZero() {
+		fmt.Fprintf(&b, " The invitation expires on %s.", message.ExpiresAt.UTC().Format("2 January 2006 at 15:04 UTC"))
+	}
+	b.WriteString(" You will sign in with this email address, your phone number and a one-time code we email you. No password is needed. If you were not expecting this invitation, you can ignore this email.")
+	return b.String()
 }
