@@ -136,3 +136,12 @@ they will start once an organization is activated.
 Not applied: notification-service starts with `MIGRATION=false` on staging, so its migration 012 (Fleet
 templates) is in the image but has not run; until an approved migration run applies it, Fleet notices are
 refused with "template not found" and dead-lettered after 8 attempts (no loop, no email).
+
+## Email redesign and authenticated testing (2026-11-28)
+
+| Step | Run | Result |
+|---|---|---|
+| Deploy (automatic) `0f1c4894` | `46145807265` | notification-service and Fleet API/worker healthy on `0f1c4894` (`NOTIFICATION_RUNTIME_EVIDENCE`, `FLEET_RUNTIME_EVIDENCE`); every mandatory workflow green |
+| Earlier attempts `7c0016bd`, `8f837af0` | | Not deployed: a gofmt failure, then a skipped preview test (the Customer V4 gate counts a skip as a failure) |
+
+Authenticated journeys run against this revision are recorded in 09, section E.

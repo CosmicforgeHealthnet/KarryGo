@@ -81,7 +81,8 @@ failure). `befb4c33` points the test at the Redis the gate provides.
 ## Still not executed
 
 - `-race` (no C compiler on this Windows host; CI does not run it for these modules either).
-- Authenticated live journeys on staging (see 07 and 09).
+- Operational authenticated journeys on staging (providers, vehicles, orders, money). Authentication,
+  staff invitation and approval separation of duties were run live on 2026-11-28 (09, section E).
 
 ## Final closure, round 2 (2026-11-27)
 

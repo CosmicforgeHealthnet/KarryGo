@@ -43,11 +43,35 @@ reconciliation, the remaining security deployments and authenticated testing wit
 | Missing test evidence | `-race` (no C compiler on this host); Support/Dispute database tests run only in CI |
 | Authenticated live journeys | See E |
 
-## E. Authenticated staging testing
+## E. Authenticated staging testing (2026-11-28, Fleet `0f1c4894`)
 
-Prepared and pending the account owner's one-time codes: the trusted origin was confirmed by a CORS
-preflight, sign-in is the existence check (an unknown email gets `sign_in_unavailable` and no email), and
-a local client keeps tokens out of logs and the repository. Results are recorded here once run.
+Run with two accounts the owner controls, each code supplied by the owner from the inbox. A local
+client kept codes, tokens and step-up references out of logs and the repository. No approval rule was
+relaxed and no platform-admin access was used.
+
+| # | Journey | Result |
+|---|---|---|
+| E1 | Owner sign-in (email code), organization selection | 200; organization `Cosmicforge` is **ACTIVE** (was `UNDER_REVIEW`) |
+| E2 | Owner invites a staff admin; invitation resent (token rotated) | Delivered, `deliveryStatus=ACCEPTED`; the earlier link stopped working |
+| E3 | Staff accepts invitation (sign-up with invitation token + email code) | 200; membership ACTIVE, `isOwner=false`, role `rol_system_admin` |
+| E4 | Owner raises a `VEHICLE_LINKING` approval (rule: 1 approver, self-approval off, separation of duties on) | 201 PENDING |
+| E5 | Either account decides without step-up | 403 "requires additional verification" (`approvals.decide`) |
+| E6 | Owner executes before approval | 422 "has not been approved yet" |
+| E7 | Owner approves own request **with** a valid step-up | 403 "You cannot approve a request you raised." |
+| E8 | Staff approves with a wrong fingerprint | 409 "operation changed since it was presented" |
+| E9 | Staff approves (step-up, correct fingerprint) | 200 APPROVED; one decision recorded, approver = staff |
+| E10 | Same approve repeated | 409 "no longer open" |
+| E11 | Execute with a payload different from the approved one | 409; the approval is **invalidated** (`payload_changed`) and cannot be used afterwards, even with the right payload |
+| E12 | Second request: staff approves, owner executes | 200 EXECUTED |
+| E13 | Execute again (new reference, either account) | 409 "already executed" |
+
+Observations, not blocking: the create response for a new approval carries `createdAt`
+`0001-01-01T00:00:00Z` and an empty `meta.requestId` (the stored row and later reads are correct); an
+execution reference used by a refused attempt is consumed and cannot be reused.
+
+Not run as live journeys: the operational Sections 21-33 flows that need real providers, vehicles,
+orders or money (no real-money transfers are allowed on staging), and the Section 22/23 workers'
+processing now that the organization is active.
 
 ## F. Verdicts
 
@@ -56,7 +80,7 @@ a local client keeps tokens out of logs and the repository. Results are recorded
 | **SECTIONS_21_33_ENGINEERING_COMPLETE** | **YES** | Every mandatory route, contract, event, permission, worker and recovery path implemented and tested; the two former contract gaps are built (B, 02) |
 | **SECTIONS_21_33_RELEASE_GATES_GREEN** | **YES** | Every workflow green on the final code commit `0cbe08e4` (G) |
 | **SECTIONS_21_33_STAGING_INTEGRATION_COMPLETE** | **PARTIAL** | Done: deployed `0cbe08e4`/`73ab7ff9`, migrations applied, privacy settings and support messages live and protected, Support/Dispute paired, Section 22/23 workers on. Not done: notification migration 012 not applied; no active organization, so workers have nothing to process; Dispatch and vendor security images not deployed (authorization) |
-| **SECTIONS_21_33_LIVE_E2E_CERTIFIED** | **NO** (pending E) | No authenticated journey has run yet |
+| **SECTIONS_21_33_LIVE_E2E_CERTIFIED** | **PARTIAL** | Authentication, staff invitation and approval separation of duties certified live (E1-E13); operational journeys needing providers, vehicles, orders or money not run |
 
 ## G. CI on the final code commit `0cbe08e4`
 
