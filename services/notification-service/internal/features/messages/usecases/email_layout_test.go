@@ -21,7 +21,7 @@ func TestEmailDeliveryCarriesStructuredLayout(t *testing.T) {
 		EventType: "corporate.staff.invitation", Channels: []string{notifications.ChannelEmail},
 		Recipient: notifications.Recipient{Type: "corporate_user", ID: "ada@example.com", Email: "ada@example.com"},
 		Title:     "You have been invited", Body: "You have been invited to join Cosmicforge.",
-		Data:      map[string]interface{}{emailbrand.LayoutDataKey: layout},
+		Data: map[string]interface{}{emailbrand.LayoutDataKey: layout},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -46,7 +46,7 @@ func TestMalformedEmailLayoutFallsBackToBody(t *testing.T) {
 		EventType: "corporate.staff.invitation", Channels: []string{notifications.ChannelEmail},
 		Recipient: notifications.Recipient{Type: "corporate_user", ID: "ada@example.com", Email: "ada@example.com"},
 		Title:     "You have been invited", Body: "You have been invited to join Cosmicforge.",
-		Data:      map[string]interface{}{emailbrand.LayoutDataKey: map[string]interface{}{"intro": []string{"no heading"}}},
+		Data: map[string]interface{}{emailbrand.LayoutDataKey: map[string]interface{}{"intro": []string{"no heading"}}},
 	})
 	if err != nil {
 		t.Fatal(err)
