@@ -26,8 +26,8 @@ PY
 }
 verify_image() {
   local c="$1" ref="$2"
-  [ "$(docker inspect -f '{{.Image}}' "$c")" = "$(docker image inspect -f '{{.Id}}' "$ref")" ] || die "runtime image mismatch: $c"
-  wait_healthy "$c" 120 || die "runtime not healthy: $c"
+  [ "$(docker inspect -f '{{.Image}}' "$c")" = "$(docker image inspect -f '{{.Id}}' "$ref")" ] || { log "runtime image mismatch: $c"; return 1; }
+  wait_healthy "$c" 120 || { log "runtime not healthy: $c"; return 1; }
 }
 migration_manifest() {
   # Compare exact SQL contents in isolated, non-networked, read-only containers.
@@ -73,6 +73,118 @@ vendor_settings() {
     log "Vendor settings ownership can be repaired after CI authorization"
   fi
 }
+# First-time split: retain the stopped legacy container itself, never recreate
+# it from the routing-only Compose file. All mutation happens after exact CI.
+gateway_split_ready() {
+  running karrygo-api-gateway && running karrygo-partner-web-service &&
+    docker exec karrygo-api-gateway wget -qO- http://127.0.0.1:8080/api/v1/gateway/meta |
+      python3 -c 'import json,sys; assert json.load(sys.stdin).get("partner_upstream_configured") is True'
+}
+gateway_cutover_preflight() {
+  running karrygo-api-gateway || die "legacy Gateway is not running"
+  ! docker container inspect karrygo-partner-web-service >/dev/null 2>&1 ||
+    die "Partner container exists but split is not healthy; reconcile it first"
+  ! docker container inspect karrygo-api-gateway-legacy-rollback >/dev/null 2>&1 ||
+    die "previous Gateway cutover recovery container exists"
+  running karrygo-api-gateway-db && running karrygo-api-gateway-redis ||
+    die "legacy partner database/Redis unavailable"
+  docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' karrygo-api-gateway |
+    python3 -c 'import sys; d=dict(l.rstrip("\n").split("=",1) for l in sys.stdin if "=" in l); assert d.get("APP_ENV")=="staging" and d.get("API_GATEWAY_DATABASE_URL")'
+  [ -w /opt/karrygo/api-gateway ] && [ -w /opt/karrygo/partner-web-service ] ||
+    die "Gateway and Partner release directories must be writable"
+  [ "$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' karrygo-api-gateway)" != karrygo-public-gateway ] ||
+    die "legacy gateway already uses the new Compose project"
+}
+gateway_cutover() (
+  set -euo pipefail
+  gateway_cutover_preflight
+  sha="${image##*:}"
+  gateway="ghcr.io/cosmicforgehealthnet/api-gateway:$sha"
+  partner="ghcr.io/cosmicforgehealthnet/partner-web-service:$sha"
+  docker pull -q "$gateway" >/dev/null
+  docker pull -q "$partner" >/dev/null
+  for ref in "$gateway" "$partner"; do
+    [ "$(docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$ref")" = "$sha" ] ||
+      die "cutover candidate revision mismatch"
+  done
+  export IMAGE="$partner"
+  pc=(docker compose -f "$PLATFORM_DIR/compose/partner-web-service.yml")
+  gc=(docker compose -f "$PLATFORM_DIR/compose/api-gateway.yml")
+  IMAGE="$partner" "${pc[@]}" config --quiet
+  IMAGE="$gateway" "${gc[@]}" config --quiet
+  # Existing migration ledger must already exist. Do not baseline or run
+  # pending migrations while transferring worker ownership.
+  db=karrygo-api-gateway-db
+  ledger=$(docker exec "$db" sh -c 'psql -X -qAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "${POSTGRES_DB:-$POSTGRES_USER}" -c "SELECT to_regclass('\''public.karrygo_deploy_migrations'\'') IS NOT NULL"')
+  [ "$ledger" = t ] || die "legacy migration ledger not established"
+  status=$(IMAGE="$partner" "${pc[@]}" run --rm --no-deps -T -e MIGRATE_DB_URL_VAR=API_GATEWAY_DATABASE_URL --entrypoint /srv/app/migrate.sh app --status </dev/null)
+  printf '%s\n' "$status" | grep -Eq '^migrate.sh: [1-9][0-9]* applied, 0 pending$' ||
+    die "Partner migration status must show zero pending migrations"
+  backup_db "$db"
+  old_id=$(docker inspect -f '{{.Id}}' karrygo-api-gateway)
+  old_policy=$(docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' karrygo-api-gateway)
+  if [ "$old_policy" = on-failure ]; then
+    retries=$(docker inspect -f '{{.HostConfig.RestartPolicy.MaximumRetryCount}}' karrygo-api-gateway)
+    [ "$retries" = 0 ] || old_policy="on-failure:$retries"
+  fi
+  moved=false
+  committed=false
+  rollback_cutover() {
+    rc=$?
+    trap - EXIT
+    if ! $committed; then
+      set +e
+      # Stop new workers before bringing the original owner back. If stopping
+      # fails, leave legacy stopped rather than run duplicate consumers.
+      IMAGE="$partner" "${pc[@]}" stop app >/dev/null 2>&1
+      if docker container inspect karrygo-partner-web-service >/dev/null 2>&1; then
+        docker rm -f karrygo-partner-web-service >/dev/null || exit 1
+      fi
+      if $moved; then
+        if docker container inspect karrygo-api-gateway >/dev/null 2>&1; then
+          docker rm -f karrygo-api-gateway >/dev/null || exit 1
+        fi
+        docker rename "$old_id" karrygo-api-gateway || exit 1
+      fi
+      docker update --restart="$old_policy" "$old_id" >/dev/null || exit 1
+      docker start "$old_id" >/dev/null || exit 1
+      wait_healthy karrygo-api-gateway 180 || exit 1
+      log "Gateway cutover failed; original legacy runtime restored"
+    fi
+    exit "$rc"
+  }
+  trap rollback_cutover EXIT
+  docker update --restart=no "$old_id" >/dev/null
+  docker stop -t 30 "$old_id" >/dev/null
+  [ "$(docker inspect -f '{{.State.Running}}' "$old_id")" = false ]
+  docker rename "$old_id" karrygo-api-gateway-legacy-rollback
+  moved=true
+  IMAGE="$partner" "${pc[@]}" up -d --no-deps app
+  verify_image karrygo-partner-web-service "$partner"
+  [ -z "$(docker port karrygo-partner-web-service)" ]
+  IMAGE="$gateway" "${gc[@]}" up -d --no-deps app
+  verify_image karrygo-api-gateway "$gateway"
+  gateway_split_ready
+  # Check route ownership and deny rules through the real staging listener,
+  # without generating orders, invoices, SMS or OTPs.
+  curl -fsS --max-time 10 http://127.0.0.1:4100/ready >/dev/null
+  code=$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' \
+    http://127.0.0.1:4100/api/v1/partner/v1/deliveries)
+  [[ "$code" = 401 || "$code" = 403 ]]
+  code=$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' -X POST \
+    http://127.0.0.1:4100/api/v1/internal/callbacks/charge-result)
+  [ "$code" = 404 ]
+  curl -fsS --max-time 15 --resolve api-gateway.staging.karryam.com:443:127.0.0.1 \
+    https://api-gateway.staging.karryam.com/health >/dev/null
+  for key in api-gateway partner-web-service; do
+    release="/opt/karrygo/$key/release.env"
+    tmp=$(mktemp "/opt/karrygo/$key/release.XXXXXX")
+    printf 'IMAGE=ghcr.io/cosmicforgehealthnet/%s:%s\n' "$key" "$sha" >"$tmp"
+    mv "$tmp" "$release"
+  done
+  committed=true
+  log "GATEWAY_PARTNER_CUTOVER_OK unique Partner worker owner and routing-only Gateway"
+)
 preflight() {
   case "$svc" in
     vendor-service)
@@ -100,9 +212,9 @@ preflight() {
             check_private_file "$f"
             require_staging "$f"
           done
-          running karrygo-api-gateway && running karrygo-partner-web-service || die "Gateway/Partner cutover not complete"
-          docker exec karrygo-api-gateway wget -qO- http://127.0.0.1:8080/api/v1/gateway/meta |
-            python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("partner_upstream_configured") is True'
+          if ! gateway_split_ready; then
+            gateway_cutover_preflight
+          fi
           ;;
         analytics-service)
           require_staging "$SVC_ENV_PATH"
@@ -119,6 +231,7 @@ preflight() {
           for f in server.crt server.key hq-client-ca.pem trust.json; do
             [ -f "$SVC_DIR/secrets/$f" ] || die "Admin enrollment material missing: $f"
           done
+          python3 "$PLATFORM_DIR/bin/admin-auto-deploy.py" "$image" preflight
           ;;
       esac
       ;;
@@ -135,22 +248,47 @@ case "$svc" in
     docker image inspect "$old" >/dev/null
     before="$(migration_manifest "$old" /srv/vendor-service/migrations)"
     after="$(migration_manifest "$image" /srv/vendor-service/migrations)"
-    [ -n "$before" ] && [ "$before" = "$after" ] || die "Vendor schema changed; requires compatible migration/forward recovery procedure"
-    backup_db karrygo-vendor-staging-postgres
+    [ -n "$after" ] || die "Vendor candidate migrations missing"
+    changed=false
+    if [ "$before" != "$after" ]; then changed=true; fi
     vendor_compose "$image" config --quiet
-    vendor_compose "$image" stop vendor-worker
-    # The normal owner migrator is idempotent and verifies the migration tip.
-    # If it fails, leave the worker stopped; do not guess schema compatibility.
-    vendor_compose "$image" --profile operations run --rm -T vendor-migrate
-    if vendor_compose "$image" up -d --no-deps vendor-api && wait_healthy karrygo-vendor-api-staging 180 &&
+    # Rehearse against an isolated snapshot before stopping the live processes.
+    # The clone has no external network or published ports.
+    backup_db karrygo-vendor-staging-postgres
+    if $changed; then
+      snapshot="$KARRYGO_ROOT/backups/predeploy/vendor-forward-$(date -u +%Y%m%dT%H%M%S)-$$.sql.gz"
+      docker exec karrygo-vendor-staging-postgres sh -c 'pg_dumpall --clean --if-exists -U "$POSTGRES_USER"' | gzip >"$snapshot"
+      gzip -t "$snapshot"
+      python3 "$PLATFORM_DIR/bin/vendor-rehearsal.py" "$image" "$snapshot"
+    fi
+    vendor_compose "$image" stop vendor-worker vendor-api
+    if $changed; then
+      # Capture the final quiesced recovery point. Never replay down migrations
+      # or restore the old binary after a potentially committed forward step.
+      final="$KARRYGO_ROOT/backups/predeploy/vendor-quiesced-$(date -u +%Y%m%dT%H%M%S)-$$.sql.gz"
+      if ! (docker exec karrygo-vendor-staging-postgres sh -c 'pg_dumpall --clean --if-exists -U "$POSTGRES_USER"' | gzip >"$final" && gzip -t "$final"); then
+        vendor_compose "$old" up -d --no-deps vendor-api vendor-worker
+        die "Vendor final backup failed; previous processes restarted"
+      fi
+    fi
+    migration_log="$KARRYGO_ROOT/backups/predeploy/vendor-migrate-$(date -u +%Y%m%dT%H%M%S)-$$.log"
+    if ! vendor_compose "$image" --profile operations run --rm --no-deps -T vendor-migrate >"$migration_log" 2>&1; then
+      die "Vendor migration failed; consumers stopped for forward recovery; private migration log retained"
+    fi
+    if vendor_compose "$image" up -d --no-deps vendor-api &&
+       wait_healthy karrygo-vendor-api-staging 180 &&
        vendor_compose "$image" up -d --no-deps vendor-worker &&
-       running karrygo-vendor-worker-staging; then
-      verify_image karrygo-vendor-api-staging "$image"
-      verify_image karrygo-vendor-worker-staging "$image"
-      [ -z "$(docker port karrygo-vendor-worker-staging)" ] || die "Vendor worker unexpectedly published"
+       running karrygo-vendor-worker-staging &&
+       verify_image karrygo-vendor-api-staging "$image" &&
+       verify_image karrygo-vendor-worker-staging "$image" &&
+       [ -z "$(docker port karrygo-vendor-worker-staging)" ]; then
       printf 'IMAGE=%s\n' "$image" > /opt/karrygo/vendor-service/release.env
-      log "Vendor runtime verified"
+      log "VENDOR_RUNTIME_OK candidate migration and both processes verified"
     else
+      if $changed; then
+        vendor_compose "$image" stop vendor-worker vendor-api || true
+        die "Vendor candidate failed after forward migration; recover forward from private backup, no unsafe binary downgrade"
+      fi
       vendor_compose "$old" up -d --no-deps vendor-api
       wait_healthy karrygo-vendor-api-staging 180 && vendor_compose "$old" up -d --no-deps vendor-worker
       die "Vendor update failed; previous compatible image restored"
@@ -198,15 +336,21 @@ SQL
     fi
     ;;
   admin-backoffice-service)
-    # Do not manufacture the operator's image certification or grant access.
-    # Existing secure enrollment plus image-specific certification is still
-    # needed until a live bridge acceptance automation is available.
-    grep -Fxq "$image" "$SVC_DIR/bridge.certification" || die "Admin image certification not yet automated"
-    backup_db karrygo-admin-db
-    bash "$PLATFORM_DIR/bin/deploy-service.sh" "$svc" "$image"
-    verify_image "$SVC_CONTAINER" "$image"
+    python3 "$PLATFORM_DIR/bin/admin-auto-deploy.py" "$image" deploy
     ;;
   api-gateway|partner-web-service|analytics-service)
+    if [[ "$svc" = api-gateway || "$svc" = partner-web-service ]]; then
+      if ! gateway_split_ready; then
+        [ "$svc" = api-gateway ] || die "Gateway must complete the paired cutover first"
+        gateway_cutover
+        exit 0
+      fi
+      if [ "$(docker inspect -f '{{.Image}}' "$SVC_CONTAINER")" = "$(docker image inspect -f '{{.Id}}' "$image")" ]; then
+        verify_image "$SVC_CONTAINER" "$image"
+        log "Already running exact candidate image: $svc"
+        exit 0
+      fi
+    fi
     case "$svc" in
       partner-web-service) backup_db karrygo-api-gateway-db ;;
       analytics-service) backup_db karrygo-analytics-db ;;

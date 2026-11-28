@@ -1,6 +1,6 @@
 # Routing-only public gateway. Staged cutover: never deploy before the
 # independent Partner Web service is live and its workers are unique.
-name: karrygo-api-gateway
+name: karrygo-public-gateway
 
 services:
   app:

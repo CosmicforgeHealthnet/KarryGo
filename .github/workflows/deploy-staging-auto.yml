@@ -44,6 +44,11 @@ jobs:
           go-version-file: shared/go/go.mod
           cache: false
 
+      - name: Validate deployment script syntax
+        run: |
+          bash -n deploy/platform/bin/staging-special.sh
+          python3 -m py_compile deploy/platform/bin/vendor-rehearsal.py deploy/platform/bin/admin-auto-deploy.py
+
       - name: Decide which services to deploy
         id: pick
         env:
@@ -92,6 +97,11 @@ jobs:
           done
           INVENTORY
             picked=$(python3 deploy/platform/bin/reconcile-staging.py select < "$scratch/runtime")
+          fi
+          # A first cutover needs both immutable images; the runtime check
+          # decides whether one or both actually require deployment.
+          if [[ " $picked " = *" api-gateway "* || " $picked " = *" partner-web-service "* ]]; then
+            picked="api-gateway partner-web-service $picked"
           fi
           picked=$(echo $picked | tr ' ' '\n' | awk 'NF && !seen[$0]++' | paste -sd' ' -)
           echo "services=$picked" >> "$GITHUB_OUTPUT"
@@ -232,7 +242,7 @@ jobs:
           cp deploy/platform/services.tsv "$scratch/bundle/platform/"
           cp -r deploy/platform/network "$scratch/bundle/platform/network"
           cp deploy/vendor-service/docker-compose.staging.yml "$scratch/bundle/platform/vendor.yml"
-          for n in common $SERVICES; do
+          for n in common api-gateway partner-web-service $SERVICES; do
             [ "$n" = vendor-service ] || cp "deploy/platform/compose/$n.yml" "$scratch/bundle/platform/compose/"
           done
 
@@ -302,7 +312,7 @@ jobs:
             migration_release=$(mktemp "$SVC_DIR/migration.XXXXXX")
             trap 'rm -f "$migration_release"' EXIT
             printf 'IMAGE=%s\n' "$image" > "$migration_release"
-            RELEASE_OVERRIDE="$migration_release" svc_compose run --rm --no-deps -T app --migrate-only
+            RELEASE_OVERRIDE="$migration_release" svc_compose run --rm --no-deps -T app --migrate-only </dev/null
             rm -f "$migration_release"
             trap - EXIT
             templates=$(docker exec -i "$db" sh -c 'psql -X -qAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "${POSTGRES_DB:-$POSTGRES_USER}"' <<'SQL'
