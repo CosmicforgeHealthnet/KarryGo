@@ -18,6 +18,7 @@ import socket
 import subprocess as sp
 import sys
 import tempfile
+import traceback
 import time
 import uuid
 from urllib.parse import parse_qsl, urlsplit, urlunsplit
@@ -26,6 +27,24 @@ ROOT = Path("/opt/karrygo/admin-backoffice-service")
 APP = "karrygo-admin-backoffice-service"
 DB = "karrygo-admin-db"
 BIN = "/bin/cosmicforge-logistics-service"
+IMAGE_OVERRIDE = ROOT / "admin-auto-image.override.json"
+IMAGE_OVERRIDE_CONTENT = json.dumps({"services": {
+    "app": {"image": "${IMAGE:?IMAGE required}"},
+    "migrate": {"image": "${IMAGE:?IMAGE required}"},
+}}, sort_keys=True) + "\n"
+
+def write_image_override(path):
+    # Persist only the image interpolation, never resolved config or secrets.
+    # Compose records the path in container labels; it must survive a release.
+    if path.is_symlink():
+        raise ValueError("Admin image override must not be a symlink")
+    if path.exists():
+        require(path.is_file() and path.read_text() == IMAGE_OVERRIDE_CONTENT,
+                "unexpected existing Admin image override content")
+        return
+    with path.open("x") as handle:
+        handle.write(IMAGE_OVERRIDE_CONTENT)
+    path.chmod(0o600)
 
 def require(ok, message):
     if not ok:
@@ -57,7 +76,9 @@ def private_mounts(container):
     for m in container["Mounts"]:
         require(m["Type"] == "bind" and not m["RW"], "unexpected Admin mount")
         source = m["Source"]
-        require(source.startswith(("/opt/karrygo/admin-backoffice-service/", "/etc/cosmicforge/staging/karryam")),
+        require(source.startswith(("/opt/karrygo/admin-backoffice-service/", "/etc/cosmicforge/staging/karryam-source-access/")) or
+                (source == "/etc/cosmicforge/staging/secrets/karryam-bridge" and
+                 m["Destination"] == "/run/staging-bridge-secrets"),
                 "unexpected Admin mount source")
         require(m["Destination"].startswith("/run/"), "unexpected Admin mount target")
         mounts.add((source, m["Destination"]))
@@ -67,7 +88,7 @@ def ports(container):
     return {(p, x["HostIp"], x["HostPort"]) for p, entries in
             (container["HostConfig"]["PortBindings"] or {}).items() for x in entries or []}
 
-def plan(image):
+def plan(image, override_path):
     old = inspect(APP)
     require(old["State"]["Running"] and old["State"]["Health"]["Status"] == "healthy",
             "existing Admin must be healthy")
@@ -97,9 +118,11 @@ def plan(image):
         ipam = net["IPAM"]["Config"]
         if len(ipam) == 1 and ipam[0].get("Subnet"):
             env["ADMIN_INGRESS_SUBNET"] = ipam[0]["Subnet"]
-    cmd = ["docker", "compose", "-p", project, "--project-directory", str(cwd)]
+    cmd = ["docker", "compose", "--profile", "tools", "-p", project, "--project-directory", str(cwd)]
     for file in files:
-        cmd += ["-f", str(file)]
+        if file != IMAGE_OVERRIDE:
+            cmd += ["-f", str(file)]
+    cmd += ["-f", str(override_path)]
     config = json.loads(capture(cmd + ["config", "--format", "json"], env=env, cwd=cwd))
     app = config["services"]["app"]
     migrate = config["services"]["migrate"]
@@ -237,11 +260,17 @@ def verify_runtime(old, image, extras, log):
 def main():
     image, mode = sys.argv[1:]
     require(re.fullmatch(r"ghcr.io/cosmicforgehealthnet/admin-backoffice-service:[0-9a-f]{40}", image), "invalid Admin staging image")
-    old, cmd, env, cwd, extras = plan(image)
+    os.umask(0o077)
     if mode == "preflight":
+        with tempfile.TemporaryDirectory(prefix="admin-preflight-") as directory:
+            override = Path(directory) / "image.override.json"
+            write_image_override(override)
+            plan(image, override)
         print("Admin existing deployment topology verified")
         return
     require(mode == "deploy", "unknown Admin operation")
+    write_image_override(IMAGE_OVERRIDE)
+    old, cmd, env, cwd, extras = plan(image, IMAGE_OVERRIDE)
     require(inspect(image, "image")["Config"]["Labels"].get("org.opencontainers.image.revision") == image.rsplit(":",1)[1],
             "Admin candidate revision mismatch")
     os.umask(0o077)
@@ -295,6 +324,13 @@ if __name__ == "__main__":
         # output or configuration values.
         print(str(e), file=sys.stderr)
         sys.exit(1)
-    except Exception:
-        print("Admin automatic deployment failed; see private VPS backup log", file=sys.stderr)
+    except Exception as error:
+        # Report only exception type and source locations, not command args or
+        # values that could contain credentials. Preflight has no backup log.
+        print("Admin automatic deployment failed: " + type(error).__name__, file=sys.stderr)
+        if isinstance(error, sp.CalledProcessError):
+            print("Admin command exit code: " + str(error.returncode), file=sys.stderr)
+        for frame in traceback.extract_tb(error.__traceback__):
+            if frame.filename == __file__:
+                print(f"Admin diagnostic: {frame.name} line {frame.lineno}", file=sys.stderr)
         sys.exit(1)
