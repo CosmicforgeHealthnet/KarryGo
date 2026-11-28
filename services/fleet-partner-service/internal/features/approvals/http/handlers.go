@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"cosmicforge/logistics/shared/go/apperrors"
+	"cosmicforge/logistics/shared/go/httpx"
 
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/accesscontrol"
 	"cosmicforge/logistics/services/fleet-partner-service/internal/features/approvals/models"
@@ -246,7 +247,7 @@ func (h *Handler) request(c *gin.Context) {
 	}
 	c.JSON(status, gin.H{"data": newRequestView(result.Request),
 		"meta": gin.H{"replayed": result.Replayed,
-			"requestId": c.GetHeader("X-Request-ID")}})
+			"requestId": httpx.GetRequestID(c)}})
 }
 
 // list returns approval requests inside the tenant and branch scope.

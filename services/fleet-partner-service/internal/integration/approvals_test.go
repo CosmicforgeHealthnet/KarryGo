@@ -151,6 +151,11 @@ func TestApprovalHappyPathBindsPayloadAndExecutesOnce(t *testing.T) {
 	if request.Status != approvalmodels.StatusPending {
 		t.Fatalf("status = %s, want PENDING", request.Status)
 	}
+	// The created request is returned straight to the client, so it must carry
+	// the stored timestamps, not the zero time.
+	if request.CreatedAt.IsZero() || request.UpdatedAt.IsZero() {
+		t.Fatal("a created request must carry its stored timestamps")
+	}
 	if request.RequestFingerprint == "" {
 		t.Fatal("a request must carry the fingerprint execution will be checked against")
 	}

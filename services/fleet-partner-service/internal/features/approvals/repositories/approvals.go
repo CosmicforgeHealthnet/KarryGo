@@ -149,7 +149,7 @@ func (r *Repository) CreateRequest(ctx context.Context, q database.Querier,
 			EligibleRoleIDs: request.EligibleRoleIDs}}
 	}
 
-	_, err = q.Exec(ctx, `
+	err = q.QueryRow(ctx, `
 		INSERT INTO fleet_partner_approval_requests
 			(id, organization_id, branch_id, policy_id, policy_version, resource_type,
 			 resource_id, action, requester_id, request_fingerprint, payload_version,
@@ -159,7 +159,8 @@ func (r *Repository) CreateRequest(ctx context.Context, q database.Querier,
 			 idempotency_key, correlation_id, causation_id, version,
 			 amount_minor, amount_currency)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-		        $16, $17, $18, 'PENDING', 1, $19, $20, $21, $22, 1, $23, $24)`,
+		        $16, $17, $18, 'PENDING', 1, $19, $20, $21, $22, 1, $23, $24)
+		RETURNING created_at, updated_at`,
 		request.ID, organizationID, request.BranchID, request.PolicyID,
 		request.PolicyVersion, request.ResourceType, request.ResourceID, request.Action,
 		request.RequesterID, request.RequestFingerprint, request.PayloadVersion,
@@ -167,7 +168,7 @@ func (r *Repository) CreateRequest(ctx context.Context, q database.Querier,
 		jsonArray(request.EligibleRoleIDs), request.SelfApprovalAllowed,
 		request.SeparationOfDuties, request.EligibilityDecisionID, request.ExpiresAt,
 		request.IdempotencyKey, request.CorrelationID, request.CausationID,
-		amountMinor, amountCurrency)
+		amountMinor, amountCurrency).Scan(&request.CreatedAt, &request.UpdatedAt)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return ErrConflict
